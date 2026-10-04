@@ -1,0 +1,19 @@
+{
+  "name": "framecraft",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Build UI the way Roblox Studio does, in the browser. Prototype stage.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node prototype/build.mjs",
+    "test": "node tests/smoke.mjs",
+    "examples": "node tests/smoke.mjs --update-examples"
+  },
+  "devDependencies": {
+    "luaparse": "0.3.1",
+    "playwright": "1.56.0"
+  }
+}

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MainMenu</title>
+<!-- Built with Framecraft (prototype). Every object keeps its Roblox name in data-name. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;900&family=Luckiest+Guy&family=Source+Sans+3:wght@400&display=swap">
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: radial-gradient(120% 60% at 30% 108%, #5d9c46 0 34%, transparent 34.5%), radial-gradient(90% 50% at 85% 112%, #4c8a3b 0 38%, transparent 38.5%), linear-gradient(#7ec3f2 0%, #b7e0fa 58%, #e3f3fd 100%); overflow: hidden; }
+  /* A ScreenGui covers the window. Position and Size are {Scale, Offset} pairs: calc(Scale% + Offset px). */
+  .screen { position: fixed; inset: 0; }
+  .g { position: absolute; box-sizing: border-box; }
+  .c, .t { position: absolute; }
+  .t { display: flex; pointer-events: none; }
+  .t > * { line-height: 1; }
+  .t > input { pointer-events: auto; width: 100%; height: 100%; border: 0; background: transparent; outline: none; padding: 0; font-size: inherit; }
+  .img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ph { position: absolute; inset: 0; display: grid; place-items: center; font: 12px monospace; color: #555;
+        background: repeating-linear-gradient(45deg, #ddd 0 6px, #eee 6px 12px); }
+  [data-btn] { cursor: pointer; }
+  [data-btn]:hover { filter: brightness(0.9); }
+  [data-btn]:active { filter: brightness(0.75); }
+  .s1{z-index:1;}
+  .e1{left:calc(100% + -20px);top:20px;transform:translate(-100%, 0%);width:176px;height:52px;background-color:rgba(22, 24, 38, 0.88);border-radius:9999px;box-shadow:0 0 0 2px rgba(255, 204, 77, 0.75);}
+  .e2{left:10px;top:50%;transform:translate(0%, -50%);width:34px;height:34px;background-color:rgba(255, 201, 60, 1);background-image:linear-gradient(180deg, rgb(255, 255, 255), rgb(222, 158, 30));background-blend-mode:multiply;border-radius:9999px;box-shadow:0 0 0 2px rgba(168, 104, 8, 1);}
+  .e3{left:54px;top:0px;width:calc(100% + -68px);height:100%;}
+  .e3t{inset:0;justify-content:flex-start;align-items:center;}
+  .e3t > *{font-family:"Montserrat", system-ui, sans-serif;font-weight:700;color:rgba(255, 255, 255, 1);text-align:left;white-space:pre;font-size:24px;}
+  .e1c{inset:0;}
+  .e4{left:50%;top:50%;transform:translate(-50%, -50%);width:34%;height:72%;background-color:rgba(19, 21, 33, 0.94);border-radius:18px;box-shadow:0 0 0 1.5px rgba(255, 255, 255, 0.16);}
+  .e5{left:0px;top:0px;width:100%;height:20%;}
+  .e5t{inset:0;justify-content:center;align-items:center;}
+  .e5t > *{font-family:"Luckiest Guy", system-ui, sans-serif;font-weight:400;color:rgba(255, 214, 92, 1);text-align:center;white-space:pre;text-shadow:3px 0px 0 rgba(92, 44, 0, 1), 2.77px 1.15px 0 rgba(92, 44, 0, 1), 2.12px 2.12px 0 rgba(92, 44, 0, 1), 1.15px 2.77px 0 rgba(92, 44, 0, 1), 0px 3px 0 rgba(92, 44, 0, 1), -1.15px 2.77px 0 rgba(92, 44, 0, 1), -2.12px 2.12px 0 rgba(92, 44, 0, 1), -2.77px 1.15px 0 rgba(92, 44, 0, 1), -3px 0px 0 rgba(92, 44, 0, 1), -2.77px -1.15px 0 rgba(92, 44, 0, 1), -2.12px -2.12px 0 rgba(92, 44, 0, 1), -1.15px -2.77px 0 rgba(92, 44, 0, 1), 0px -3px 0 rgba(92, 44, 0, 1), 1.15px -2.77px 0 rgba(92, 44, 0, 1), 2.12px -2.12px 0 rgba(92, 44, 0, 1), 2.77px -1.15px 0 rgba(92, 44, 0, 1);}
+  .e6{left:0px;top:calc(20% + 6px);width:100%;height:5%;}
+  .e6t{inset:0;justify-content:center;align-items:center;}
+  .e6t > *{font-family:"Montserrat", system-ui, sans-serif;font-weight:500;color:rgba(168, 176, 204, 1);text-align:center;white-space:pre;}
+  .e7{left:0px;top:100%;transform:translate(0%, -100%);width:100%;height:62%;}
+  .e8{position:relative;flex:none;width:100%;height:28%;background-color:rgba(72, 199, 102, 1);background-image:linear-gradient(180deg, rgb(255, 255, 255), rgb(206, 212, 226));background-blend-mode:multiply;border-radius:12px;}
+  .e8t{left:0px;top:26%;right:0px;bottom:26%;justify-content:center;align-items:center;}
+  .e8t > *{font-family:"Montserrat", system-ui, sans-serif;font-weight:900;color:rgba(255, 255, 255, 1);text-align:center;white-space:pre;}
+  .e9{position:relative;flex:none;width:100%;height:28%;background-color:rgba(64, 132, 245, 1);background-image:linear-gradient(180deg, rgb(255, 255, 255), rgb(206, 212, 226));background-blend-mode:multiply;border-radius:12px;}
+  .e9t{left:0px;top:26%;right:0px;bottom:26%;justify-content:center;align-items:center;}
+  .e9t > *{font-family:"Montserrat", system-ui, sans-serif;font-weight:900;color:rgba(255, 255, 255, 1);text-align:center;white-space:pre;}
+  .e10{position:relative;flex:none;width:100%;height:28%;background-color:rgba(58, 63, 86, 1);background-image:linear-gradient(180deg, rgb(255, 255, 255), rgb(206, 212, 226));background-blend-mode:multiply;border-radius:12px;}
+  .e10t{left:0px;top:26%;right:0px;bottom:26%;justify-content:center;align-items:center;}
+  .e10t > *{font-family:"Montserrat", system-ui, sans-serif;font-weight:900;color:rgba(226, 230, 244, 1);text-align:center;white-space:pre;}
+  .e7c{inset:0;display:flex;flex-direction:column;gap:5%;justify-content:flex-end;align-items:center;}
+  .e4c{left:24px;top:24px;right:24px;bottom:24px;}
+  .e11{left:18px;top:calc(100% + -14px);transform:translate(0%, -100%);width:260px;height:20px;}
+  .e11t{inset:0;justify-content:flex-start;align-items:center;}
+  .e11t > *{font-family:"Source Sans 3", system-ui, sans-serif;font-weight:400;color:rgba(255, 255, 255, 0.7);text-align:left;white-space:pre;font-size:16px;}
+</style>
+</head>
+<body>
+  <div class="screen s1" data-name="MainMenu">
+    <div class="g e1" data-name="Coins">
+      <div class="c e1c">
+        <div class="g e2" data-name="CoinIcon"></div>
+        <div class="g e3" data-name="Amount">
+          <div class="t e3t"><span>12,450</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="g e4" data-name="Panel">
+      <div class="c e4c">
+        <div class="g e5" data-name="Title">
+          <div class="t e5t" data-fit><span>SKY RAIDERS</span></div>
+        </div>
+        <div class="g e6" data-name="Subtitle">
+          <div class="t e6t" data-fit><span>Season 3 · Storm Front</span></div>
+        </div>
+        <div class="g e7" data-name="Buttons">
+          <div class="c e7c">
+            <div class="g e8" data-btn data-name="PlayButton">
+              <div class="t e8t" data-fit><span>PLAY</span></div>
+            </div>
+            <div class="g e9" data-btn data-name="ShopButton">
+              <div class="t e9t" data-fit><span>SHOP</span></div>
+            </div>
+            <div class="g e10" data-btn data-name="SettingsButton">
+              <div class="t e10t" data-fit><span>SETTINGS</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="g e11" data-name="Version">
+      <div class="t e11t"><span>v0.1 · made with Framecraft</span></div>
+    </div>
+  </div>
+<script>
+  // Sizes that need the real box: rounded corners in Scale, aspect ratios, and TextScaled
+  (function () {
+    function fit() {
+      var ar = document.querySelectorAll('[data-ar]');
+      ar.forEach(function (el) { el.style.width = ''; el.style.height = ''; });
+      ar.forEach(function (el) {
+        var r = +el.dataset.ar, w = el.offsetWidth, h = el.offsetHeight;
+        if (h > 0 && w / h > r) w = h * r; else h = w / r;
+        el.style.width = w + 'px'; el.style.height = h + 'px';
+      });
+      document.querySelectorAll('[data-r]').forEach(function (el) {
+        var p = el.dataset.r.split(','), m = Math.min(el.offsetWidth, el.offsetHeight);
+        el.style.borderRadius = Math.max(0, Math.min(+p[0] * m + +p[1], m / 2)) + 'px';
+      });
+      document.querySelectorAll('[data-fit]').forEach(function (t) {
+        var s = t.firstElementChild, W = t.clientWidth, H = t.clientHeight, lo = 1, hi = 100;
+        while (lo < hi) {
+          var mid = (lo + hi + 1) >> 1;
+          s.style.fontSize = mid + 'px';
+          if (s.scrollWidth <= W + 0.5 && s.offsetWidth <= W + 0.5 && s.offsetHeight <= H + 0.5) lo = mid; else hi = mid - 1;
+        }
+        s.style.fontSize = lo + 'px';
+      });
+    }
+    addEventListener('resize', fit);
+    if (document.fonts) document.fonts.ready.then(fit);
+    fit();
+  })();
+</script>
+</body>
+</html>

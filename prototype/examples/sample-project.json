@@ -1,0 +1,995 @@
+{
+  "format": "framecraft",
+  "version": 1,
+  "doc": {
+    "nodes": {
+      "root": {
+        "id": "root",
+        "cls": "StarterGui",
+        "parent": null,
+        "children": [
+          "n1dirb"
+        ],
+        "props": {
+          "Name": "StarterGui"
+        }
+      },
+      "n1dirb": {
+        "id": "n1dirb",
+        "cls": "ScreenGui",
+        "parent": "root",
+        "children": [
+          "n2pax0",
+          "naq0yc",
+          "nv18wa"
+        ],
+        "props": {
+          "Name": "MainMenu",
+          "Enabled": true,
+          "DisplayOrder": 0,
+          "ResetOnSpawn": false
+        }
+      },
+      "n2pax0": {
+        "id": "n2pax0",
+        "cls": "Frame",
+        "parent": "n1dirb",
+        "children": [
+          "n33wk4",
+          "n4skn1",
+          "n5k9rw",
+          "n91qdb"
+        ],
+        "props": {
+          "Name": "Coins",
+          "AnchorPoint": [
+            1,
+            0
+          ],
+          "Position": [
+            1,
+            -20,
+            0,
+            20
+          ],
+          "Rotation": 0,
+          "BackgroundColor3": [
+            22,
+            24,
+            38
+          ],
+          "BackgroundTransparency": 0.12,
+          "BorderColor3": [
+            27,
+            42,
+            53
+          ],
+          "BorderSizePixel": 0,
+          "Visible": true,
+          "ZIndex": 1,
+          "LayoutOrder": 0,
+          "ClipsDescendants": false,
+          "Size": [
+            0,
+            176,
+            0,
+            52
+          ]
+        }
+      },
+      "n33wk4": {
+        "id": "n33wk4",
+        "cls": "UICorner",
+        "parent": "n2pax0",
+        "children": [],
+        "props": {
+          "Name": "UICorner",
+          "CornerRadius": [
+            0.5,
+            0
+          ]
+        }
+      },
+      "n4skn1": {
+        "id": "n4skn1",
+        "cls": "UIStroke",
+        "parent": "n2pax0",
+        "children": [],
+        "props": {
+          "Name": "UIStroke",
+          "Color": [
+            255,
+            204,
+            77
+          ],
+          "Thickness": 2,
+          "Transparency": 0.25,
+          "ApplyStrokeMode": "Contextual"
+        }
+      },
+      "n5k9rw": {
+        "id": "n5k9rw",
+        "cls": "Frame",
+        "parent": "n2pax0",
+        "children": [
+          "n6vti6",
+          "n70of8",
+          "n8xx17"
+        ],
+        "props": {
+          "Name": "CoinIcon",
+          "AnchorPoint": [
+            0,
+            0.5
+          ],
+          "Position": [
+            0,
+            10,
+            0.5,
+            0
+          ],
+          "Rotation": 0,
+          "BackgroundColor3": [
+            255,
+            201,
+            60
+          ],
+          "BackgroundTransparency": 0,
+          "BorderColor3": [
+            27,
+            42,
+            53
+          ],
+          "BorderSizePixel": 0,
+          "Visible": true,
+          "ZIndex": 1,
+          "LayoutOrder": 0,
+          "ClipsDescendants": false,
+          "Size": [
+            0,
+            34,
+            0,
+            34
+          ]
+        }
+      },
+      "n6vti6": {
+        "id": "n6vti6",
+        "cls": "UICorner",
+        "parent": "n5k9rw",
+        "children": [],
+        "props": {
+          "Name": "UICorner",
+          "CornerRadius": [
+            0.5,
+            0
+          ]
+        }
+      },
+      "n70of8": {
+        "id": "n70of8",
+        "cls": "UIGradient",
+        "parent": "n5k9rw",
+        "children": [],
+        "props": {
+          "Name": "UIGradient",
+          "GradColor": [
+            [
+              255,
+              255,
+              255
+            ],
+            [
+              222,
+              158,
+              30
+            ]
+          ],
+          "GradTransparency": [
+            0,
+            0
+          ],
+          "GradRotation": 90
+        }
+      },
+      "n8xx17": {
+        "id": "n8xx17",
+        "cls": "UIStroke",
+        "parent": "n5k9rw",
+        "children": [],
+        "props": {
+          "Name": "UIStroke",
+          "Color": [
+            168,
+            104,
+            8
+          ],
+          "Thickness": 2,
+          "Transparency": 0,
+          "ApplyStrokeMode": "Contextual"
+        }
+      },
+      "n91qdb": {
+        "id": "n91qdb",
+        "cls": "TextLabel",
+        "parent": "n2pax0",
+        "children": [],
+        "props": {
+          "Name": "Amount",
+          "AnchorPoint": [
+            0,
+            0
+          ],
+          "Position": [
+            0,
+            54,
+            0,
+            0
+          ],
+          "Rotation": 0,
+          "BackgroundColor3": [
+            255,
+            255,
+            255
+          ],
+          "BackgroundTransparency": 1,
+          "BorderColor3": [
+            27,
+            42,
+            53
+          ],
+          "BorderSizePixel": 0,
+          "Visible": true,
+          "ZIndex": 1,
+          "LayoutOrder": 0,
+          "ClipsDescendants": false,
+          "Font": "GothamBold",
+          "TextColor3": [
+            255,
+            255,
+            255
+          ],
+          "TextSize": 24,
+          "TextScaled": false,
+          "TextWrapped": false,
+          "TextXAlignment": "Left",
+          "TextYAlignment": "Center",
+          "TextTransparency": 0,
+          "Size": [
+            1,
+            -68,
+            1,
+            0
+          ],
+          "Text": "12,450"
+        }
+      },
+      "naq0yc": {
+        "id": "naq0yc",
+        "cls": "Frame",
+        "parent": "n1dirb",
+        "children": [
+          "nbgi1p",
+          "nctuo6",
+          "ndh7sg",
+          "neiacr",
+          "ng355z",
+          "nhf7jn"
+        ],
+        "props": {
+          "Name": "Panel",
+          "AnchorPoint": [
+            0.5,
+            0.5
+          ],
+          "Position": [
+            0.5,
+            0,
+            0.5,
+            0
+          ],
+          "Rotation": 0,
+          "BackgroundColor3": [
+            19,
+            21,
+            33
+          ],
+          "BackgroundTransparency": 0.06,
+          "BorderColor3": [
+            27,
+            42,
+            53
+          ],
+          "BorderSizePixel": 0,
+          "Visible": true,
+          "ZIndex": 1,
+          "LayoutOrder": 0,
+          "ClipsDescendants": false,
+          "Size": [
+            0.34,
+            0,
+            0.72,
+            0
+          ]
+        }
+      },
+      "nbgi1p": {
+        "id": "nbgi1p",
+        "cls": "UICorner",
+        "parent": "naq0yc",
+        "children": [],
+        "props": {
+          "Name": "UICorner",
+          "CornerRadius": [
+            0,
+            18
+          ]
+        }
+      },
+      "nctuo6": {
+        "id": "nctuo6",
+        "cls": "UIStroke",
+        "parent": "naq0yc",
+        "children": [],
+        "props": {
+          "Name": "UIStroke",
+          "Color": [
+            255,
+            255,
+            255
+          ],
+          "Thickness": 1.5,
+          "Transparency": 0.84,
+          "ApplyStrokeMode": "Contextual"
+        }
+      },
+      "ndh7sg": {
+        "id": "ndh7sg",
+        "cls": "UIPadding",
+        "parent": "naq0yc",
+        "children": [],
+        "props": {
+          "Name": "UIPadding",
+          "PaddingTop": [
+            0,
+            24
+          ],
+          "PaddingBottom": [
+            0,
+            24
+          ],
+          "PaddingLeft": [
+            0,
+            24
+          ],
+          "PaddingRight": [
+            0,
+            24
+          ]
+        }
+      },
+      "neiacr": {
+        "id": "neiacr",
+        "cls": "TextLabel",
+        "parent": "naq0yc",
+        "children": [
+          "nfbzxn"
+        ],
+        "props": {
+          "Name": "Title",
+          "AnchorPoint": [
+            0,
+            0
+          ],
+          "Position": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "Rotation": 0,
+          "BackgroundColor3": [
+            255,
+            255,
+            255
+          ],
+          "BackgroundTransparency": 1,
+          "BorderColor3": [
+            27,
+            42,
+            53
+          ],
+          "BorderSizePixel": 0,
+          "Visible": true,
+          "ZIndex": 1,
+          "LayoutOrder": 0,
+          "ClipsDescendants": false,
+          "Font": "LuckiestGuy",
+          "TextColor3": [
+            255,
+            214,
+            92
+          ],
+          "TextSize": 14,
+          "TextScaled": true,
+          "TextWrapped": false,
+          "TextXAlignment": "Center",
+          "TextYAlignment": "Center",
+          "TextTransparency": 0,
+          "Size": [
+            1,
+            0,
+            0.2,
+            0
+          ],
+          "Text": "SKY RAIDERS"
+        }
+      },
+      "nfbzxn": {
+        "id": "nfbzxn",
+        "cls": "UIStroke",
+        "parent": "neiacr",
+        "children": [],
+        "props": {
+          "Name": "UIStroke",
+          "Color": [
+            92,
+            44,
+            0
+          ],
+          "Thickness": 3,
+          "Transparency": 0,
+          "ApplyStrokeMode": "Contextual"
+        }
+      },
+      "ng355z": {
+        "id": "ng355z",
+        "cls": "TextLabel",
+        "parent": "naq0yc",
+        "children": [],
+        "props": {
+          "Name": "Subtitle",
+          "AnchorPoint": [
+            0,
+            0
+          ],
+          "Position": [
+            0,
+            0,
+            0.2,
+            6
+          ],
+          "Rotation": 0,
+          "BackgroundColor3": [
+            255,
+            255,
+            255
+          ],
+          "BackgroundTransparency": 1,
+          "BorderColor3": [
+            27,
+            42,
+            53
+          ],
+          "BorderSizePixel": 0,
+          "Visible": true,
+          "ZIndex": 1,
+          "LayoutOrder": 0,
+          "ClipsDescendants": false,
+          "Font": "GothamMedium",
+          "TextColor3": [
+            168,
+            176,
+            204
+          ],
+          "TextSize": 14,
+          "TextScaled": true,
+          "TextWrapped": false,
+          "TextXAlignment": "Center",
+          "TextYAlignment": "Center",
+          "TextTransparency": 0,
+          "Size": [
+            1,
+            0,
+            0.05,
+            0
+          ],
+          "Text": "Season 3 · Storm Front"
+        }
+      },
+      "nhf7jn": {
+        "id": "nhf7jn",
+        "cls": "Frame",
+        "parent": "naq0yc",
+        "children": [
+          "ni8wjf",
+          "njz9xp",
+          "nnigu4",
+          "nr8rzw"
+        ],
+        "props": {
+          "Name": "Buttons",
+          "AnchorPoint": [
+            0,
+            1
+          ],
+          "Position": [
+            0,
+            0,
+            1,
+            0
+          ],
+          "Rotation": 0,
+          "BackgroundColor3": [
+            255,
+            255,
+            255
+          ],
+          "BackgroundTransparency": 1,
+          "BorderColor3": [
+            27,
+            42,
+            53
+          ],
+          "BorderSizePixel": 0,
+          "Visible": true,
+          "ZIndex": 1,
+          "LayoutOrder": 0,
+          "ClipsDescendants": false,
+          "Size": [
+            1,
+            0,
+            0.62,
+            0
+          ]
+        }
+      },
+      "ni8wjf": {
+        "id": "ni8wjf",
+        "cls": "UIListLayout",
+        "parent": "nhf7jn",
+        "children": [],
+        "props": {
+          "Name": "UIListLayout",
+          "FillDirection": "Vertical",
+          "HorizontalAlignment": "Center",
+          "VerticalAlignment": "Bottom",
+          "Padding": [
+            0.05,
+            0
+          ],
+          "SortOrder": "LayoutOrder"
+        }
+      },
+      "njz9xp": {
+        "id": "njz9xp",
+        "cls": "TextButton",
+        "parent": "nhf7jn",
+        "children": [
+          "nkzuk9",
+          "nl3tkj",
+          "nmzrjz"
+        ],
+        "props": {
+          "Name": "PlayButton",
+          "AnchorPoint": [
+            0,
+            0
+          ],
+          "Position": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "Rotation": 0,
+          "BackgroundColor3": [
+            72,
+            199,
+            102
+          ],
+          "BackgroundTransparency": 0,
+          "BorderColor3": [
+            27,
+            42,
+            53
+          ],
+          "BorderSizePixel": 0,
+          "Visible": true,
+          "ZIndex": 1,
+          "LayoutOrder": 1,
+          "ClipsDescendants": false,
+          "Font": "GothamBlack",
+          "TextColor3": [
+            255,
+            255,
+            255
+          ],
+          "TextSize": 14,
+          "TextScaled": true,
+          "TextWrapped": false,
+          "TextXAlignment": "Center",
+          "TextYAlignment": "Center",
+          "TextTransparency": 0,
+          "Size": [
+            1,
+            0,
+            0.28,
+            0
+          ],
+          "Text": "PLAY",
+          "AutoButtonColor": true
+        }
+      },
+      "nkzuk9": {
+        "id": "nkzuk9",
+        "cls": "UICorner",
+        "parent": "njz9xp",
+        "children": [],
+        "props": {
+          "Name": "UICorner",
+          "CornerRadius": [
+            0,
+            12
+          ]
+        }
+      },
+      "nl3tkj": {
+        "id": "nl3tkj",
+        "cls": "UIPadding",
+        "parent": "njz9xp",
+        "children": [],
+        "props": {
+          "Name": "UIPadding",
+          "PaddingTop": [
+            0.26,
+            0
+          ],
+          "PaddingBottom": [
+            0.26,
+            0
+          ],
+          "PaddingLeft": [
+            0,
+            0
+          ],
+          "PaddingRight": [
+            0,
+            0
+          ]
+        }
+      },
+      "nmzrjz": {
+        "id": "nmzrjz",
+        "cls": "UIGradient",
+        "parent": "njz9xp",
+        "children": [],
+        "props": {
+          "Name": "UIGradient",
+          "GradColor": [
+            [
+              255,
+              255,
+              255
+            ],
+            [
+              206,
+              212,
+              226
+            ]
+          ],
+          "GradTransparency": [
+            0,
+            0
+          ],
+          "GradRotation": 90
+        }
+      },
+      "nnigu4": {
+        "id": "nnigu4",
+        "cls": "TextButton",
+        "parent": "nhf7jn",
+        "children": [
+          "nom5gy",
+          "np3ubk",
+          "nq1qam"
+        ],
+        "props": {
+          "Name": "ShopButton",
+          "AnchorPoint": [
+            0,
+            0
+          ],
+          "Position": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "Rotation": 0,
+          "BackgroundColor3": [
+            64,
+            132,
+            245
+          ],
+          "BackgroundTransparency": 0,
+          "BorderColor3": [
+            27,
+            42,
+            53
+          ],
+          "BorderSizePixel": 0,
+          "Visible": true,
+          "ZIndex": 1,
+          "LayoutOrder": 2,
+          "ClipsDescendants": false,
+          "Font": "GothamBlack",
+          "TextColor3": [
+            255,
+            255,
+            255
+          ],
+          "TextSize": 14,
+          "TextScaled": true,
+          "TextWrapped": false,
+          "TextXAlignment": "Center",
+          "TextYAlignment": "Center",
+          "TextTransparency": 0,
+          "Size": [
+            1,
+            0,
+            0.28,
+            0
+          ],
+          "Text": "SHOP",
+          "AutoButtonColor": true
+        }
+      },
+      "nom5gy": {
+        "id": "nom5gy",
+        "cls": "UICorner",
+        "parent": "nnigu4",
+        "children": [],
+        "props": {
+          "Name": "UICorner",
+          "CornerRadius": [
+            0,
+            12
+          ]
+        }
+      },
+      "np3ubk": {
+        "id": "np3ubk",
+        "cls": "UIPadding",
+        "parent": "nnigu4",
+        "children": [],
+        "props": {
+          "Name": "UIPadding",
+          "PaddingTop": [
+            0.26,
+            0
+          ],
+          "PaddingBottom": [
+            0.26,
+            0
+          ],
+          "PaddingLeft": [
+            0,
+            0
+          ],
+          "PaddingRight": [
+            0,
+            0
+          ]
+        }
+      },
+      "nq1qam": {
+        "id": "nq1qam",
+        "cls": "UIGradient",
+        "parent": "nnigu4",
+        "children": [],
+        "props": {
+          "Name": "UIGradient",
+          "GradColor": [
+            [
+              255,
+              255,
+              255
+            ],
+            [
+              206,
+              212,
+              226
+            ]
+          ],
+          "GradTransparency": [
+            0,
+            0
+          ],
+          "GradRotation": 90
+        }
+      },
+      "nr8rzw": {
+        "id": "nr8rzw",
+        "cls": "TextButton",
+        "parent": "nhf7jn",
+        "children": [
+          "nsqrab",
+          "nth6xf",
+          "num6qq"
+        ],
+        "props": {
+          "Name": "SettingsButton",
+          "AnchorPoint": [
+            0,
+            0
+          ],
+          "Position": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "Rotation": 0,
+          "BackgroundColor3": [
+            58,
+            63,
+            86
+          ],
+          "BackgroundTransparency": 0,
+          "BorderColor3": [
+            27,
+            42,
+            53
+          ],
+          "BorderSizePixel": 0,
+          "Visible": true,
+          "ZIndex": 1,
+          "LayoutOrder": 3,
+          "ClipsDescendants": false,
+          "Font": "GothamBlack",
+          "TextColor3": [
+            226,
+            230,
+            244
+          ],
+          "TextSize": 14,
+          "TextScaled": true,
+          "TextWrapped": false,
+          "TextXAlignment": "Center",
+          "TextYAlignment": "Center",
+          "TextTransparency": 0,
+          "Size": [
+            1,
+            0,
+            0.28,
+            0
+          ],
+          "Text": "SETTINGS",
+          "AutoButtonColor": true
+        }
+      },
+      "nsqrab": {
+        "id": "nsqrab",
+        "cls": "UICorner",
+        "parent": "nr8rzw",
+        "children": [],
+        "props": {
+          "Name": "UICorner",
+          "CornerRadius": [
+            0,
+            12
+          ]
+        }
+      },
+      "nth6xf": {
+        "id": "nth6xf",
+        "cls": "UIPadding",
+        "parent": "nr8rzw",
+        "children": [],
+        "props": {
+          "Name": "UIPadding",
+          "PaddingTop": [
+            0.26,
+            0
+          ],
+          "PaddingBottom": [
+            0.26,
+            0
+          ],
+          "PaddingLeft": [
+            0,
+            0
+          ],
+          "PaddingRight": [
+            0,
+            0
+          ]
+        }
+      },
+      "num6qq": {
+        "id": "num6qq",
+        "cls": "UIGradient",
+        "parent": "nr8rzw",
+        "children": [],
+        "props": {
+          "Name": "UIGradient",
+          "GradColor": [
+            [
+              255,
+              255,
+              255
+            ],
+            [
+              206,
+              212,
+              226
+            ]
+          ],
+          "GradTransparency": [
+            0,
+            0
+          ],
+          "GradRotation": 90
+        }
+      },
+      "nv18wa": {
+        "id": "nv18wa",
+        "cls": "TextLabel",
+        "parent": "n1dirb",
+        "children": [],
+        "props": {
+          "Name": "Version",
+          "AnchorPoint": [
+            0,
+            1
+          ],
+          "Position": [
+            0,
+            18,
+            1,
+            -14
+          ],
+          "Rotation": 0,
+          "BackgroundColor3": [
+            255,
+            255,
+            255
+          ],
+          "BackgroundTransparency": 1,
+          "BorderColor3": [
+            27,
+            42,
+            53
+          ],
+          "BorderSizePixel": 0,
+          "Visible": true,
+          "ZIndex": 1,
+          "LayoutOrder": 0,
+          "ClipsDescendants": false,
+          "Font": "SourceSans",
+          "TextColor3": [
+            255,
+            255,
+            255
+          ],
+          "TextSize": 16,
+          "TextScaled": false,
+          "TextWrapped": false,
+          "TextXAlignment": "Left",
+          "TextYAlignment": "Center",
+          "TextTransparency": 0.3,
+          "Size": [
+            0,
+            260,
+            0,
+            20
+          ],
+          "Text": "v0.1 · made with Framecraft"
+        }
+      }
+    },
+    "rootId": "root",
+    "version": 1
+  }
+}

@@ -1,0 +1,5 @@
+node_modules/
+tests/output/
+CLAUDE.local.md
+.DS_Store
+Thumbs.db
