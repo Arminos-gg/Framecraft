@@ -19,6 +19,7 @@ The exporters turn the document into Luau for Roblox Studio and an HTML/CSS page
 - Use `UDim2.fromScale` when both offsets are 0, `UDim2.fromOffset` when both scales are 0, otherwise `UDim2.new`.
 - Variable names come from the object's Name in camelCase, de-duplicated with a number. Modifiers that keep their default name are named after their parent (`panelCorner`, `playButtonGradient`).
 - Escape strings with `luaStr()`. The output must parse: `npm test` runs it through luaparse.
+- Export the base (Desktop) values and skip everything with a `web` flag (Site, pages, web-only properties). Roblox has no breakpoints.
 - In the editor, UIGradient's Color, Transparency and Rotation are stored as `GradColor`, `GradTransparency` and `GradRotation` to avoid clashing with UIStroke's `Color`. Export them under their real Roblox names. The TypeScript port should use per-class schemas and drop the prefix.
 
 ## HTML/CSS
@@ -29,6 +30,13 @@ The exporters turn the document into Luau for Roblox Studio and an HTML/CSS page
 - Scale-based UICorner radii, UIAspectRatioConstraint and TextScaled need the element's real size, so they are set by the small inline script at the end of the page. Keep that script dependency-free.
 - Keep each object's Roblox name in `data-name` so people can find it in the page.
 
+## Website (`src/export/site.ts`)
+
+- A page is as wide as the window and grows with its content. On a page, vertical Scale is a share of the window height less the page padding (`--vh`), as in the layout engine. Free-placed sections grow the page through `min-height`. A page's own UIPadding is CSS padding on `.page`, the one exception to the rule above, because the page's content box is in normal flow.
+- Elements come out in the base order. Each breakpoint is a media query with only the declarations that change, widest first, so Phone inherits Tablet's changes like `resolveProps`. A list whose order changes gets CSS `order`.
+- Links are relative and name `index.html` in full, so the folder also works when opened from disk. Never nest links, and keep headings and paragraphs free of divs (use spans inside them).
+- `tests/e2e/site-export.spec.ts` compares every exported box with the layout engine in Chromium. Keep it passing when either changes.
+
 ## Golden files
 
-`prototype/examples/` holds the exports of the untouched sample project. `npm test` compares byte for byte. After an intentional change, run `npm run examples` and explain the diff in the commit message.
+`prototype/examples/` holds the exports of the untouched sample project. `npm test` compares byte for byte, for the prototype (`tests/smoke.mjs`) and for the port in `src/export/` (`tests/unit/export/golden.test.ts`). After an intentional change, run `npm run examples` and explain the diff in the commit message.
