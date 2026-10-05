@@ -1,6 +1,6 @@
 /**
  * Starting documents: a blank Roblox UI, a blank website, the sample game menu from the
- * prototype, and a sample two-page website.
+ * prototype, a sample two-page website, and both samples in one project.
  */
 import type { ClassName, PropsOf } from './classes.ts';
 import { applyCommand, insert } from './commands.ts';
@@ -95,6 +95,11 @@ export function blankSiteDoc(makeId: () => InstanceId = newId): Doc {
 /** A game main menu: a coin counter, a centered panel with a title and a list of buttons. */
 export function sampleDoc(makeId: () => InstanceId = newId): Doc {
   const b = new Builder(makeId);
+  addMenu(b);
+  return b.doc;
+}
+
+function addMenu(b: Builder) {
   const sg = b.add(b.starterGui, 'ScreenGui', { Name: 'MainMenu' });
 
   const coins = b.add(sg, 'Frame', {
@@ -217,8 +222,6 @@ export function sampleDoc(makeId: () => InstanceId = newId): Doc {
     TextTransparency: 0.3,
     TextXAlignment: 'Left',
   });
-
-  return b.doc;
 }
 
 const INK: Color3 = [28, 25, 23];
@@ -231,8 +234,21 @@ const ACCENT: Color3 = [194, 98, 45];
  */
 export function sampleSite(makeId: () => InstanceId = newId): Doc {
   const b = new Builder(makeId);
+  addSite(b);
+  return b.doc;
+}
+
+/** Both samples in one project: the game menu in StarterGui and the website in Site. */
+export function sampleProject(makeId: () => InstanceId = newId): Doc {
+  const b = new Builder(makeId);
+  addMenu(b);
+  addSite(b);
+  return b.doc;
+}
+
+function addSite(b: Builder) {
   const page = (props: Partial<PropsOf<'Page'>>) =>
-    b.addSubtree(b.site, pageSubtree({ BackgroundColor3: CREAM, ...props }, makeId));
+    b.addSubtree(b.site, pageSubtree({ BackgroundColor3: CREAM, ...props }, b.makeId));
 
   const navLinks: { id: InstanceId; to: 'home' | 'pricing' }[] = [];
   const nav = (pageId: InstanceId) => {
@@ -385,6 +401,4 @@ export function sampleSite(makeId: () => InstanceId = newId): Doc {
   for (const { id, to } of navLinks)
     b.set(id, { Link: { kind: 'page', page: to === 'home' ? home : pricing } });
   b.set(cta, { Link: { kind: 'page', page: pricing, section: 'plans' } });
-
-  return b.doc;
 }

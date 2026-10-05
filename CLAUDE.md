@@ -2,7 +2,7 @@
 
 A browser app for building UI the way Roblox Studio does: an Explorer tree, a Properties panel, and every Position and Size as UDim2 Scale + Offset. It exports Luau for Studio and an HTML/CSS page for the web. "Framecraft" is a working name.
 
-Current stage: a working single-file prototype plus a product plan, and the start of the port to a Vite + TypeScript app at the repo root (an empty editor shell so far). Read `docs/HANDOVER.md` before starting any task; the product plan is `docs/PLAN.md`.
+Current stage: a working single-file prototype plus a product plan, and the port to a Vite + TypeScript app at the repo root (the viewport works; the Explorer, Properties and ribbon come next). Read `docs/HANDOVER.md` before starting any task; the product plan is `docs/PLAN.md`.
 
 ## Commands
 
@@ -20,6 +20,8 @@ Current stage: a working single-file prototype plus a product plan, and the star
 - `src/model/`: value types, class registry with per-class property schemas, immutable document, commands, undo history, image library, project files (opens prototype files too) and the samples. The root is a DataModel holding StarterGui (Roblox screens), Site (web pages) and the Breakpoints
 - `src/layout/`: the layout engine, pure functions from a document, window size and breakpoint to boxes in pixels (Roblox's AbsolutePosition and AbsoluteSize). Pages are window-wide and grow to fit their content
 - `src/export/`: the exporters as pure functions: Luau and an HTML page for the Roblox screens, and the website (`site.ts`: an HTML file per page, pictures, breakpoints as media queries). The project file is `serializeProject` in `src/model/project.ts`
+- `src/editor/`: editor state outside React (`editor.ts`): the undo history, selection, view (the Roblox screens or one page), device, zoom and preview, plus viewport gestures turned into commands. `geometry.ts` is the pure editing math (UDim2 from pixels, smart snapping, resizing)
+- `src/ui/viewport/`: the canvas: `Stage` draws the user's UI from the layout, `Overlay` the selection, handles and guides. Dev builds expose the running editor as `window.framecraft`, which the e2e tests use
 - `tests/unit/`: Vitest tests; `tests/e2e/`: Playwright tests for the new app
 - `prototype/src/1-head.html`: title, fonts and all CSS; design tokens are the `:root` block at the top
 - `prototype/src/2-body.html`: app shell markup
