@@ -17,10 +17,11 @@ import {
   type Box,
   type Layout,
 } from '../layout/layout.ts';
-import type { Assets } from '../model/assets.ts';
-import { canParent, classDef } from '../model/classes.ts';
-import { batch, insert, remove, type Command } from '../model/commands.ts';
+import { addAsset, type Assets } from '../model/assets.ts';
+import { canParent, classDef, isOverridable, type ClassName } from '../model/classes.ts';
+import { batch, insert, move, remove, setPreview, type Command } from '../model/commands.ts';
 import {
+  childOfClass,
   childrenOf,
   extractSubtree,
   getInstance,
@@ -35,8 +36,11 @@ import {
   type Subtree,
 } from '../model/document.ts';
 import { History } from '../model/history.ts';
+import type { Project } from '../model/project.ts';
+import { roundTo } from '../export/format.ts';
 import type { UDim2 } from '../model/values.ts';
 import { DESKTOP, pageDevices, SCREEN_DEVICES, type Device } from './devices.ts';
+import { hasModifier, insertParent, newSubtree } from './insert.ts';
 import {
   moveRect,
   positionFor,
@@ -82,7 +86,12 @@ export interface Gesture {
 export interface Toast {
   readonly id: number;
   readonly text: string;
+  /** A button in the toast, such as Undo after opening another project. */
+  readonly action?: { readonly label: string; readonly run: () => void };
 }
+
+/** Autosave, as the app bar shows it. `idle` until something saves the project. */
+export type SaveStatus = 'idle' | 'pending' | 'saved' | 'off';
 
 export interface EditorState {
   readonly doc: Doc;
@@ -107,6 +116,11 @@ export interface EditorState {
   readonly toast: Toast | null;
   /** An object to scroll into view, after following a link to a section. */
   readonly reveal: { readonly id: InstanceId; readonly seq: number } | null;
+  /** Explorer rows that are open. */
+  readonly expanded: ReadonlySet<InstanceId>;
+  /** The Explorer row whose name is being edited. */
+  readonly renaming: InstanceId | null;
+  readonly saveStatus: SaveStatus;
 }
 
 export const LIST_PLACES = 'A UIListLayout places this object. Change LayoutOrder to reorder it.';
@@ -158,6 +172,9 @@ export function viewOf(doc: Doc, id: InstanceId): View | undefined {
   }
   return undefined;
 }
+
+/** The whole device shown, as a rectangle at the origin. */
+const rectOf = (scene: Scene) => ({ x: 0, y: 0, w: scene.device.width, h: scene.device.height });
 
 const sameView = (a: View, b: View) =>
   a.kind === b.kind && (a.kind === 'screens' || a.pageId === (b as typeof a).pageId);
@@ -220,6 +237,11 @@ function buildScene(
   };
 }
 
+/** The Explorer starts with the services open, showing the screens and the pages. */
+function initialExpanded(doc: Doc): ReadonlySet<InstanceId> {
+  return new Set([serviceOf(doc, 'StarterGui').id, serviceOf(doc, 'Site').id]);
+}
+
 /** The pages of the site, in Explorer order. */
 export const pagesOf = (doc: Doc): AnyInstance[] =>
   childrenOf(doc, serviceOf(doc, 'Site').id).filter((c) => c.className === 'Page');
@@ -259,6 +281,9 @@ export class Editor {
       gesture: null,
       toast: null,
       reveal: null,
+      expanded: initialExpanded(doc),
+      renaming: null,
+      saveStatus: 'idle',
     };
     this.history.subscribe(() => this.#onDocChange());
   }
@@ -296,7 +321,12 @@ export class Editor {
   #onDocChange() {
     const doc = this.history.doc;
     const alive = (id: InstanceId | null) => (id !== null && getInstance(doc, id) ? id : null);
-    this.#update({ doc, selection: alive(this.#state.selection), hover: alive(this.#state.hover) });
+    this.#update({
+      doc,
+      selection: alive(this.#state.selection),
+      hover: alive(this.#state.hover),
+      renaming: alive(this.#state.renaming),
+    });
   }
 
   /** Runs a command as one undo step (or part of the open gesture). Refusals become a toast. */
@@ -316,24 +346,53 @@ export class Editor {
     return id === null ? undefined : getInstance(this.doc, id);
   }
 
-  toast(text: string) {
-    const toast = { id: ++this.#seq, text };
+  toast(text: string, action?: Toast['action']) {
+    const toast: Toast = action ? { id: ++this.#seq, text, action } : { id: ++this.#seq, text };
     this.#update({ toast });
     clearTimeout(this.#toastTimer);
-    this.#toastTimer = setTimeout(() => {
-      if (this.#state.toast === toast) this.#update({ toast: null });
-    }, 2600);
+    this.#toastTimer = setTimeout(
+      () => {
+        if (this.#state.toast === toast) this.#update({ toast: null });
+      },
+      action ? 6000 : 2600,
+    );
+  }
+  dismissToast() {
+    if (this.#state.toast) this.#update({ toast: null });
   }
 
-  /** Selects an object (or nothing) and shows the view it's drawn in. */
+  /**
+   * Selects an object (or nothing), shows the view it's drawn in, and opens its ancestors in
+   * the Explorer.
+   */
   select(id: InstanceId | null) {
     const doc = this.doc;
     const target = id !== null && getInstance(doc, id) ? id : null;
     const view = target === null ? undefined : viewOf(doc, target);
+    let expanded = this.#state.expanded;
+    for (let p = target === null ? null : getInstance(doc, target)!.parent; p !== null;) {
+      if (!expanded.has(p)) expanded = new Set(expanded).add(p);
+      p = getInstance(doc, p)?.parent ?? null;
+    }
     this.#update({
       selection: target,
+      expanded,
       view: view && !sameView(view, this.#state.view) ? view : this.#state.view,
     });
+  }
+
+  /** Opens or closes an Explorer row; without `open`, toggles it. */
+  setExpanded(id: InstanceId, open?: boolean) {
+    const now = this.#state.expanded.has(id);
+    if ((open ?? !now) === now) return;
+    const expanded = new Set(this.#state.expanded);
+    if (now) expanded.delete(id);
+    else expanded.add(id);
+    this.#update({ expanded });
+  }
+
+  setSaveStatus(saveStatus: SaveStatus) {
+    if (saveStatus !== this.#state.saveStatus) this.#update({ saveStatus });
   }
 
   setHover(id: InstanceId | null) {
@@ -564,6 +623,223 @@ export class Editor {
     }
     if (!parent) return this.toast('Add a ScreenGui first.');
     if (this.#execute(insert(parent.id, copy))) this.select(copy.rootId);
+  }
+
+  /** The breakpoint edits to an object go to: the one shown, when the object is on the page shown. */
+  breakpointFor(id: InstanceId): InstanceId | undefined {
+    const scene = this.scene;
+    if (scene.breakpoint === undefined) return undefined;
+    const view = viewOf(this.doc, id);
+    return view && sameView(view, scene.view) ? scene.breakpoint : undefined;
+  }
+
+  /**
+   * Sets one property, as one undo step or as part of an open gesture. On a page shown at a
+   * breakpoint, a property that may differ per breakpoint changes there only; the others
+   * change everywhere. Returns false when the value is refused.
+   */
+  setProp(id: InstanceId, key: string, value: unknown): boolean {
+    const inst = getInstance(this.doc, id);
+    if (!inst) return false;
+    const bp = this.breakpointFor(id);
+    const here = bp !== undefined && isOverridable(inst.className, key) ? bp : undefined;
+    return this.#execute(edit(id, { [key]: value }, here));
+  }
+
+  /** Drops the shown breakpoint's own value, so the property inherits again. */
+  resetProp(id: InstanceId, key: string) {
+    const bp = this.breakpointFor(id);
+    if (bp !== undefined)
+      this.#execute({ type: 'setProps', id, props: {}, breakpoint: bp, clear: [key] });
+  }
+
+  /** Edits between these (a slider, the color picker) are one undo step. */
+  beginGesture() {
+    if (!this.history.inGroup) this.history.begin();
+  }
+  endGesture() {
+    if (this.history.inGroup && !this.#drag) this.history.commit();
+  }
+
+  /** Objects, layers, modifiers and breakpoints can be renamed; services and the root can't. */
+  canRename(id: InstanceId): boolean {
+    const inst = getInstance(this.doc, id);
+    const kind = inst && classDef(inst.className).kind;
+    return kind === 'gui' || kind === 'container' || kind === 'modifier' || kind === 'setting';
+  }
+  startRename(id: InstanceId | null = this.#state.selection) {
+    if (id !== null && this.canRename(id)) this.#update({ renaming: id });
+  }
+  /** Ends renaming; with a name, applies it. A blank name keeps the old one. */
+  endRename(name?: string) {
+    const id = this.#state.renaming;
+    if (id === null) return;
+    this.#update({ renaming: null });
+    const inst = getInstance(this.doc, id);
+    const v = name?.trim();
+    if (inst && v && v !== inst.props.Name) this.#execute(edit(id, { Name: v }, undefined));
+  }
+
+  /**
+   * Inserts a new object, layer, page or modifier and selects it. An object goes into
+   * `parentId` (the selection by default) or its nearest ancestor that can hold it, or else
+   * into what the viewport shows. A modifier goes on `parentId` itself.
+   */
+  insert(className: ClassName, parentId: InstanceId | null = this.#state.selection) {
+    const doc = this.doc;
+    const scene = this.scene;
+    const kind = classDef(className).kind;
+    let parent = insertParent(doc, className, parentId);
+    if (!parent && kind === 'modifier') {
+      this.toast(
+        className === 'UIListLayout'
+          ? 'Select a ScreenGui, page or object to lay out its children.'
+          : 'Select a Frame, label, button or image first.',
+      );
+      return null;
+    }
+    const cmds: Command[] = [];
+    if (!parent) {
+      const fallback =
+        className === 'ScreenGui'
+          ? serviceOf(doc, 'StarterGui')
+          : className === 'Page'
+            ? serviceOf(doc, 'Site')
+            : getInstance(
+                doc,
+                scene.view.kind === 'page' ? scene.view.pageId : (scene.roots[0] ?? ''),
+              );
+      parent = fallback && canParent(className, fallback.className) ? fallback : undefined;
+    }
+    if (!parent) {
+      // Roblox screens with no ScreenGui yet: make one to hold the object.
+      const starterGui = serviceOf(doc, 'StarterGui');
+      const layer = newSubtree(doc, 'ScreenGui', starterGui, rectOf(scene));
+      cmds.push(insert(starterGui.id, layer));
+      parent = layer.instances[layer.rootId]!;
+    } else if (hasModifier(doc, parent.id, className)) {
+      this.select(childOfClass(doc, parent.id, className)!.id);
+      this.toast(`${parent.props.Name} already has a ${className}.`);
+      return null;
+    }
+    const box = scene.layout.get(parent.id);
+    let area = box?.content ?? rectOf(scene);
+    // On a long page, center in the first screen rather than halfway down.
+    if (parent.className === 'Page') area = { ...area, h: Math.min(area.h, scene.device.height) };
+    const subtree = newSubtree(this.doc, className, parent, area);
+    cmds.push(insert(parent.id, subtree));
+    if (!this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds))) return null;
+    this.select(subtree.rootId);
+    return subtree.rootId;
+  }
+
+  /** Reparents or reorders: `index` is the place among the new parent's other children. */
+  moveTo(id: InstanceId, parentId: InstanceId, index?: number) {
+    if (this.#execute(move(id, parentId, index))) this.select(id);
+  }
+
+  /** The Explorer's eye: Visible for an object (at the breakpoint shown), Enabled for a ScreenGui. */
+  toggleVisible(id: InstanceId) {
+    const inst = getInstance(this.doc, id);
+    if (inst?.className === 'ScreenGui') {
+      this.#execute(edit(id, { Enabled: !inst.props.Enabled }, undefined));
+    } else if (inst && isGui(inst)) {
+      const bp = this.breakpointFor(id);
+      this.#execute(edit(id, { Visible: !resolveProps(this.doc, inst, bp).Visible }, bp));
+    }
+  }
+
+  /**
+   * Rewrites Position and Size of the selection and everything inside it as pure Scale or pure
+   * Offset, keeping every object where it is on the device shown.
+   */
+  convertUnits(toScale: boolean) {
+    const doc = this.doc;
+    const scene = this.scene;
+    const inst = this.#selected();
+    if (!inst || !(isGui(inst) || inst.className === 'ScreenGui' || inst.className === 'Page'))
+      return this.toast('Select an object to convert.');
+    const cmds: Command[] = [];
+    for (const id of subtreeIds(doc, inst.id)) {
+      const c = getInstance(doc, id);
+      const b = scene.layout.get(id);
+      if (!c || !isGui(c) || !b || (toScale && (b.area.w <= 0 || b.area.h <= 0))) continue;
+      const bp = this.breakpointFor(id);
+      const p = resolveProps(doc, c, bp);
+      const { w, h } = b.area;
+      const write = (u: UDim2): UDim2 => {
+        const x = u[0] * w + u[1];
+        const y = u[2] * h + u[3];
+        return toScale
+          ? [roundTo(x / w, 4), 0, roundTo(y / h, 4), 0]
+          : [0, Math.round(x), 0, Math.round(y)];
+      };
+      cmds.push(edit(id, { Position: write(p.Position), Size: write(p.Size) }, bp));
+    }
+    if (!cmds.length || !this.#execute(batch(...cmds))) return;
+    const n = cmds.length;
+    this.toast(
+      `Rewrote ${n} object${n === 1 ? '' : 's'} as ${toScale ? 'Scale' : 'Offset'}. Switch devices to see the difference.`,
+    );
+  }
+
+  /** Adds a picture to the image library; returns its id, or null when it isn't a picture. */
+  #addPicture(dataUrl: string) {
+    try {
+      const added = addAsset(this.#state.assets, dataUrl);
+      if (added.assets !== this.#state.assets) this.#update({ assets: added.assets });
+      return added.id;
+    } catch {
+      this.toast('That file isn’t a picture Framecraft can use.');
+      return null;
+    }
+  }
+
+  /** Shows a picture in an ImageLabel or ImageButton, or removes it with null. The export keeps the Image id. */
+  setImagePreview(id: InstanceId, dataUrl: string | null) {
+    const asset = dataUrl === null ? null : this.#addPicture(dataUrl);
+    if (dataUrl !== null && asset === null) return;
+    this.#execute(setPreview(id, asset));
+  }
+
+  /** Sets a picture property such as a page's SocialImage, or clears it with null. */
+  setPicture(id: InstanceId, key: string, dataUrl: string | null) {
+    const asset = dataUrl === null ? '' : this.#addPicture(dataUrl);
+    if (asset !== null) this.setProp(id, key, asset);
+  }
+
+  /**
+   * Opens another project in place of this one. The undo history starts over, so the toast
+   * offers to bring the previous project back.
+   */
+  openProject(project: Project, message: string) {
+    const before = { doc: this.doc, assets: this.#state.assets };
+    this.#load(project);
+    this.toast(message, {
+      label: 'Undo',
+      run: () => {
+        this.#load(before);
+        this.toast('Your previous project is back.');
+      },
+    });
+  }
+
+  #load(project: Project) {
+    this.#drag = null;
+    this.history.reset(project.doc);
+    const firstPage = pagesOf(project.doc)[0];
+    this.#update({
+      assets: project.assets,
+      selection: null,
+      hover: null,
+      renaming: null,
+      gesture: null,
+      preview: false,
+      zoom: null,
+      pageDevice: DESKTOP.id,
+      view: firstPage ? { kind: 'page', pageId: firstPage.id } : SCREENS,
+      expanded: initialExpanded(project.doc),
+    });
   }
 
   /**
