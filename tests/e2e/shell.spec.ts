@@ -23,10 +23,10 @@ test('follows the light and dark themes', async ({ page }) => {
 
   await page.emulateMedia({ colorScheme: 'light' });
   await page.goto('/');
-  expect(await background()).toBe('rgb(232, 235, 241)');
+  expect(await background()).toBe('rgb(230, 233, 239)');
 
   await page.emulateMedia({ colorScheme: 'dark' });
-  expect(await background()).toBe('rgb(16, 18, 23)');
+  expect(await background()).toBe('rgb(14, 16, 21)');
 });
 
 test.describe('at 400px wide', () => {

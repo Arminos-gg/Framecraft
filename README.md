@@ -2,7 +2,7 @@
 
 Build UI the way Roblox Studio does, in the browser: an Explorer tree, a Properties panel, and Scale + Offset positioning. Export the result as Luau for Roblox Studio or as a web page.
 
-"Framecraft" is a working name. This repo holds the clickable prototype, the product plan, and the new Vite + TypeScript app the prototype is being ported to. The new app draws and edits the sample game menu and website in its viewport; the Explorer, Properties and ribbon come next.
+"Framecraft" is a working name. This repo holds the clickable prototype, the product plan, and the new Vite + TypeScript app the prototype is being ported to. The new app (`npm run dev`) already edits the sample game menu and website end to end: Explorer, Properties, ribbon, Code tab, export (website zip, HTML page, Luau, project file) and autosave in the browser. What's left is checking it against the prototype and retiring the prototype.
 
 ## Try the prototype
 
@@ -40,7 +40,7 @@ npm run lint                       # ESLint; `npm run format` applies Prettier
 - `CLAUDE.md`: instructions Claude Code reads at the start of every session
 - `docs/PLAN.md`: product and technical plan (audience, scope, architecture, roadmap, risks)
 - `docs/HANDOVER.md`: what works, what's missing, decisions so far, next tasks
-- `src/`: the new app (React panels in `src/ui/`, design tokens in `src/styles/`)
+- `src/`: the new app (model, layout and exporters as plain TypeScript; React panels in `src/ui/`; design tokens in `src/styles/`)
 - `prototype/`: the single-file prototype, its source parts, and golden example exports
 - `tests/`: unit tests (`unit/`), the app's browser tests (`e2e/`) and the prototype smoke test (`smoke.mjs`)
 

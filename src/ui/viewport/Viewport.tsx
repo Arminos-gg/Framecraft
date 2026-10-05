@@ -15,6 +15,7 @@ import type { Handle, Point } from '../../editor/geometry.ts';
 import { isGui, type Backdrop } from '../../export/html.ts';
 import { getInstance, isAncestor } from '../../model/document.ts';
 import { useEditor, useEditorState } from '../editor-context.ts';
+import { Icon } from '../icons.tsx';
 import { Overlay } from './Overlay.tsx';
 import { Stage } from './Stage.tsx';
 import { useDocFonts } from './useDocFonts.ts';
@@ -250,18 +251,24 @@ export function Viewport() {
             Offset
           </span>
         </div>
-        <button className="btn icon" aria-label="Zoom out" onClick={() => zoomTo(z / 1.25)}>
-          −
-        </button>
-        <span className="zoomval" aria-label="Zoom">
-          {Math.round(z * 100)}%
-        </span>
-        <button className="btn icon" aria-label="Zoom in" onClick={() => zoomTo(z * 1.25)}>
-          +
-        </button>
-        <button className="btn" onClick={() => editor.setZoom(null)}>
-          Fit
-        </button>
+        <div className="zoom" role="group" aria-label="Zoom controls">
+          <button type="button" aria-label="Zoom out" onClick={() => zoomTo(z / 1.25)}>
+            <Icon name="minus" />
+          </button>
+          <span className="zv" aria-label="Zoom">
+            {Math.round(z * 100)}%
+          </span>
+          <button type="button" aria-label="Zoom in" onClick={() => zoomTo(z * 1.25)}>
+            <Icon name="plus" />
+          </button>
+          <button
+            type="button"
+            title="Fit the device in the viewport"
+            onClick={() => editor.setZoom(null)}
+          >
+            Fit
+          </button>
+        </div>
       </div>
       <div
         className={state.preview ? 'canvas preview' : 'canvas'}

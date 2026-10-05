@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Icon } from './icons.tsx';
 
 interface SidePanelProps {
   title: string;
@@ -6,21 +7,39 @@ interface SidePanelProps {
   /** Open as a sheet on narrow screens. Wide screens always show the panel. */
   open: boolean;
   onClose: () => void;
+  /** Shown in the header in place of the title, such as tabs. */
+  head?: ReactNode;
+  /** Buttons at the right of the header. */
+  actions?: ReactNode;
   children: ReactNode;
 }
 
-/** A side panel (Explorer, Properties) with a header and a scrolling body. */
-export function SidePanel({ title, className, open, onClose, children }: SidePanelProps) {
+/** A side panel (Explorer, Properties): a header, then the body the caller lays out. */
+export function SidePanel({
+  title,
+  className,
+  open,
+  onClose,
+  head,
+  actions,
+  children,
+}: SidePanelProps) {
   return (
     <aside className={`${className} panel${open ? ' sheet-open' : ''}`} aria-label={title}>
       <div className="phead">
-        <h2>{title}</h2>
+        {head ?? <h2>{title}</h2>}
         <div className="spacer" />
-        <button className="btn icon narrow-only" aria-label={`Close ${title}`} onClick={onClose}>
-          ✕
+        {actions}
+        <button
+          className="ibtn sm narrow-only"
+          type="button"
+          aria-label={`Close ${title}`}
+          onClick={onClose}
+        >
+          <Icon name="close" />
         </button>
       </div>
-      <div className="pbody">{children}</div>
+      {children}
     </aside>
   );
 }
