@@ -1,14 +1,16 @@
 /**
- * HTML/CSS export of the Roblox screens: one standalone page where each ScreenGui covers the
- * window, Position and Size become `calc(Scale% + Offset px)`, and a small inline script
- * handles what needs the real box (Scale corner radii, aspect ratios and TextScaled).
- * It uses the base (Desktop) values. See .claude/rules/exporters.md.
+ * HTML/CSS export. `exportHtml` writes one standalone page with the Roblox screens: each
+ * ScreenGui covers the window, Position and Size become `calc(Scale% + Offset px)`, and a
+ * small inline script handles what needs the real box (Scale corner radii, aspect ratios and
+ * TextScaled). It uses the base (Desktop) values. The website export (site.ts) uses the same
+ * writer for pages, once per breakpoint. See .claude/rules/exporters.md.
  */
 import type { Assets } from '../model/assets.ts';
 import { classDef } from '../model/classes.ts';
 import {
   childOfClass,
   childrenOf,
+  resolveProps,
   serviceOf,
   type AnyInstance,
   type Doc,
@@ -16,7 +18,7 @@ import {
   type InstanceId,
 } from '../model/document.ts';
 import { FONTS, type FontName } from '../model/fonts.ts';
-import type { Color3, ColorSequence, NumberSequence } from '../model/values.ts';
+import type { AssetId, Color3, ColorSequence, Link, NumberSequence } from '../model/values.ts';
 import { calcU, esc, fmtNum, rgb, rgba, roundTo } from './format.ts';
 
 /** What the page shows behind the UI, as the editor's backdrop menu offers. */
@@ -47,6 +49,9 @@ const OBJECT_FIT = { Stretch: 'fill', Fit: 'contain', Crop: 'cover' } as const;
 
 /** Google Fonts families with a single style, which take no weight list. */
 const STATIC_FAMILIES = new Set(['Luckiest Guy', 'Bangers', 'Press Start 2P', 'Permanent Marker']);
+
+/** HTML tags whose content must be phrasing content, so nothing inside may be a div. */
+const PHRASING_ONLY = new Set(['h1', 'h2', 'h3', 'p']);
 
 /** The CSS font for a Roblox font: its Google look-alike with a fallback. */
 export function fontCss(name: FontName) {
@@ -108,18 +113,35 @@ function textRing(thickness: number, color: string): string {
   return out.join(', ');
 }
 
+/** A {Scale, Offset} pair on a page's vertical axis, where Scale is a share of the window. */
+export function calcV(scale: number, offset: number): string {
+  const s = roundTo(scale, 6);
+  const o = Math.round(offset);
+  if (!s) return o + 'px';
+  if (!o) return `calc(var(--vh) * ${s})`;
+  return `calc(var(--vh) * ${s} + ${o}px)`;
+}
+
 type Gui = Extract<AnyInstance, { props: { Size: unknown; Visible: boolean } }>;
-const isGui = (inst: AnyInstance): inst is Gui => classDef(inst.className).kind === 'gui';
+export const isGui = (inst: AnyInstance): inst is Gui => classDef(inst.className).kind === 'gui';
 
 /** A UIStroke on a text object outlines the letters unless ApplyStrokeMode is Border. */
 const strokesText = (inst: AnyInstance, stroke: Instance<'UIStroke'>) =>
   !!classDef(inst.className).text && stroke.props.ApplyStrokeMode !== 'Border';
 
+export type Decl = readonly [property: string, value: string];
+export interface Rule {
+  readonly sel: string;
+  readonly decls: readonly Decl[];
+}
+export const ruleText = (r: Rule): string =>
+  `${r.sel}{${r.decls.map(([k, v]) => `${k}:${v};`).join('')}}`;
+
 const SCRIPT_OPEN = '<script>';
 const SCRIPT_CLOSE = '</scr' + 'ipt>';
-const COMMENT_OPEN = '<' + '!--';
+export const COMMENT_OPEN = '<' + '!--';
 
-const FIT_SCRIPT = `
+export const FIT_SCRIPT = `
 ${SCRIPT_OPEN}
   // Sizes that need the real box: rounded corners in Scale, aspect ratios, and TextScaled
   (function () {
@@ -151,61 +173,121 @@ ${SCRIPT_OPEN}
   })();
 ${SCRIPT_CLOSE}`;
 
-/** Writes the page; one instance of this per export keeps its class counter and font list. */
-class HtmlWriter {
-  readonly css: string[] = [];
+/** Where things on a page point; the screens export has none of this. */
+export interface WriterLinks {
+  /** The `src` for a picture in the image library, if it can be shown. */
+  imageSrc(id: AssetId): string | undefined;
+  /** Where a Link goes, or undefined when its target is gone. */
+  href?(link: Link): string | undefined;
+  /** The `id` attribute an object gets because a link points at it. */
+  anchor?(id: InstanceId): string | undefined;
+}
+
+interface EmitContext {
+  /** Directly on a page, where vertical Scale is a share of the window. */
+  readonly onPage: boolean;
+  /** Inside an element that only takes phrasing content (a heading, a paragraph). */
+  readonly phrasing: boolean;
+  /** Inside a link, where another link isn't allowed. */
+  readonly linked: boolean;
+  /** CSS `order` in its list at this breakpoint, when it differs from the base order. */
+  readonly order?: number;
+}
+
+/**
+ * Writes the elements and CSS rules for a tree of objects with the values at one breakpoint
+ * (none for the base values). Elements come out in the base order whatever the breakpoint,
+ * so the same object gets the same class at every breakpoint and only the CSS differs.
+ */
+export class HtmlWriter {
+  readonly rules: Rule[] = [];
   readonly fontsUsed = new Set<FontName>();
   needsScript = false;
   seq = 0;
   readonly doc: Doc;
-  readonly assets: Assets;
-  constructor(doc: Doc, assets: Assets) {
+  readonly breakpoint: InstanceId | undefined;
+  readonly links: WriterLinks;
+  constructor(doc: Doc, breakpoint: InstanceId | undefined, links: WriterLinks) {
     this.doc = doc;
-    this.assets = assets;
+    this.breakpoint = breakpoint;
+    this.links = links;
   }
 
-  /** Inset of the content box: a UIPadding becomes insets, never CSS padding. */
-  insetOf(id: InstanceId): string {
+  props<I extends AnyInstance>(inst: I): I['props'] {
+    return resolveProps(this.doc, inst as Instance, this.breakpoint) as I['props'];
+  }
+
+  rule(sel: string, decls: Decl[]) {
+    this.rules.push({ sel, decls });
+  }
+
+  /** Insets of a content box: a UIPadding becomes insets, never CSS padding. */
+  insetOf(id: InstanceId): Decl[] {
     const pad = childOfClass(this.doc, id, 'UIPadding');
-    if (!pad) return 'inset:0;';
-    const p = pad.props;
-    return `left:${calcU(...p.PaddingLeft)};top:${calcU(...p.PaddingTop)};right:${calcU(...p.PaddingRight)};bottom:${calcU(...p.PaddingBottom)};`;
+    if (!pad) return [['inset', '0']];
+    const p = this.props(pad);
+    return [
+      ['left', calcU(...p.PaddingLeft)],
+      ['top', calcU(...p.PaddingTop)],
+      ['right', calcU(...p.PaddingRight)],
+      ['bottom', calcU(...p.PaddingBottom)],
+    ];
   }
 
-  listCss(list: Instance<'UIListLayout'>): string {
-    const p = list.props;
+  /** A UIListLayout as flexbox. On a page, a vertical gap in Scale is a share of the window. */
+  listCss(list: Instance<'UIListLayout'>, onPage = false): Decl[] {
+    const p = this.props(list);
     const vertical = p.FillDirection === 'Vertical';
     const main = vertical ? p.VerticalAlignment : p.HorizontalAlignment;
     const cross = vertical ? p.HorizontalAlignment : p.VerticalAlignment;
-    return `display:flex;flex-direction:${vertical ? 'column' : 'row'};gap:${calcU(...p.Padding)};justify-content:${FLEX[main]};align-items:${FLEX[cross]};`;
+    return [
+      ['display', 'flex'],
+      ['flex-direction', vertical ? 'column' : 'row'],
+      ['gap', onPage && vertical ? calcV(...p.Padding) : calcU(...p.Padding)],
+      ['justify-content', FLEX[main]],
+      ['align-items', FLEX[cross]],
+    ];
   }
 
-  /** Gui children, in UIListLayout order when the parent has one. */
-  sortedChildren(id: InstanceId): Gui[] {
+  /** Gui children in list order, using the base values or this breakpoint's. */
+  sortedChildren(id: InstanceId, atBreakpoint = false): Gui[] {
     const items = childrenOf(this.doc, id).filter(isGui);
     const list = childOfClass(this.doc, id, 'UIListLayout');
     if (!list) return items;
-    const order = items.map((c, i) => ({ c, i }));
+    const props = (c: Gui): Gui['props'] => (atBreakpoint ? this.props(c) : c.props);
+    const order = items.map((c, i) => ({ c, i, p: props(c) }));
     if (list.props.SortOrder === 'Name')
-      order.sort(
-        (a, b) =>
-          a.c.props.Name.localeCompare(b.c.props.Name, 'en', { numeric: true }) || a.i - b.i,
-      );
-    else order.sort((a, b) => a.c.props.LayoutOrder - b.c.props.LayoutOrder || a.i - b.i);
+      order.sort((a, b) => a.p.Name.localeCompare(b.p.Name, 'en', { numeric: true }) || a.i - b.i);
+    else order.sort((a, b) => a.p.LayoutOrder - b.p.LayoutOrder || a.i - b.i);
     return order.map((o) => o.c);
   }
 
-  emit(inst: Gui, inList: boolean, depth: number): string {
+  /**
+   * The children of `id` as HTML, in the base order. At a breakpoint whose list order differs,
+   * each item gets a CSS `order`.
+   */
+  emitChildren(id: InstanceId, inList: boolean, depth: number, ctx: EmitContext): string {
+    const base = this.sortedChildren(id);
+    const here = this.breakpoint === undefined ? base : this.sortedChildren(id, true);
+    const reordered = here.some((c, i) => c !== base[i]);
+    return base
+      .map((c) => this.emit(c, inList, depth, reordered ? { ...ctx, order: here.indexOf(c) } : ctx))
+      .join('');
+  }
+
+  emit(inst: Gui, inList: boolean, depth: number, ctx: EmitContext): string {
     const doc = this.doc;
-    const p = inst.props;
+    const p = this.props(inst);
     const def = classDef(inst.className);
     const cls = 'e' + ++this.seq;
-    const r: string[] = [];
+    const r: Decl[] = [];
     const attrs: string[] = [];
-    if (inList) r.push('position:relative;flex:none;');
+    const v = ctx.onPage ? calcV : calcU;
+    if (inList) r.push(['position', 'relative'], ['flex', 'none']);
     else {
       r.push(
-        `left:${calcU(p.Position[0], p.Position[1])};top:${calcU(p.Position[2], p.Position[3])};`,
+        ['left', calcU(p.Position[0], p.Position[1])],
+        ['top', v(p.Position[2], p.Position[3])],
       );
       const t: string[] = [];
       if (p.AnchorPoint[0] || p.AnchorPoint[1])
@@ -213,50 +295,51 @@ class HtmlWriter {
           `translate(${roundTo(-p.AnchorPoint[0] * 100, 4)}%, ${roundTo(-p.AnchorPoint[1] * 100, 4)}%)`,
         );
       if (p.Rotation) t.push(`rotate(${roundTo(p.Rotation, 3)}deg)`);
-      if (t.length) r.push(`transform:${t.join(' ')};`);
+      if (t.length) r.push(['transform', t.join(' ')]);
     }
-    r.push(`width:${calcU(p.Size[0], p.Size[1])};height:${calcU(p.Size[2], p.Size[3])};`);
-    if (p.ZIndex !== 1) r.push(`z-index:${p.ZIndex};`);
-    if (!p.Visible) r.push('display:none;');
+    r.push(['width', calcU(p.Size[0], p.Size[1])], ['height', v(p.Size[2], p.Size[3])]);
+    if (p.ZIndex !== 1) r.push(['z-index', String(p.ZIndex)]);
+    if (!p.Visible) r.push(['display', 'none']);
     const grad = childOfClass(doc, inst.id, 'UIGradient');
+    const g = grad && this.props(grad);
     if (p.BackgroundTransparency < 1) {
-      r.push(`background-color:${rgba(p.BackgroundColor3, p.BackgroundTransparency)};`);
-      if (grad)
+      r.push(['background-color', rgba(p.BackgroundColor3, p.BackgroundTransparency)]);
+      if (g)
         r.push(
-          `background-image:${gradientCss(grad.props.Color, grad.props.Rotation)};background-blend-mode:multiply;`,
+          ['background-image', gradientCss(g.Color, g.Rotation)],
+          ['background-blend-mode', 'multiply'],
         );
     }
-    if (grad && grad.props.Transparency.some((k) => k.value)) {
-      const m = maskCss(grad.props.Transparency, grad.props.Rotation);
-      r.push(`-webkit-mask-image:${m};mask-image:${m};`);
+    if (g && g.Transparency.some((k) => k.value)) {
+      const m = maskCss(g.Transparency, g.Rotation);
+      r.push(['-webkit-mask-image', m], ['mask-image', m]);
     }
     const corner = childOfClass(doc, inst.id, 'UICorner');
     if (corner) {
-      const [s, o] = corner.props.CornerRadius;
-      if (s >= 0.5) r.push('border-radius:9999px;');
-      else if (!s) r.push(`border-radius:${Math.round(o)}px;`);
+      const [s, o] = this.props(corner).CornerRadius;
+      if (s >= 0.5) r.push(['border-radius', '9999px']);
+      else if (!s) r.push(['border-radius', `${Math.round(o)}px`]);
       else {
         attrs.push(`data-r="${fmtNum(s)},${Math.round(o)}"`);
         this.needsScript = true;
       }
     }
     const strokes = childrenOf(doc, inst.id).filter(
-      (k): k is Instance<'UIStroke'> & AnyInstance =>
-        k.className === 'UIStroke' && k.props.Thickness > 0,
+      (k): k is Instance<'UIStroke'> & AnyInstance => k.className === 'UIStroke',
     );
     const shadows: string[] = [];
     if (p.BorderSizePixel > 0 && !corner && p.BackgroundTransparency < 1)
       shadows.push(
         `0 0 0 ${p.BorderSizePixel}px ${rgba(p.BorderColor3, p.BackgroundTransparency)}`,
       );
-    for (const s of strokes)
-      if (!strokesText(inst, s))
-        shadows.push(
-          `0 0 0 ${fmtNum(s.props.Thickness)}px ${rgba(s.props.Color, s.props.Transparency)}`,
-        );
-    if (shadows.length) r.push(`box-shadow:${shadows.join(', ')};`);
-    if (p.ClipsDescendants) r.push('overflow:hidden;');
-    if (def.scroll) r.push('overflow:auto;');
+    for (const s of strokes) {
+      const sp = this.props(s);
+      if (sp.Thickness > 0 && !strokesText(inst, s))
+        shadows.push(`0 0 0 ${fmtNum(sp.Thickness)}px ${rgba(sp.Color, sp.Transparency)}`);
+    }
+    if (shadows.length) r.push(['box-shadow', shadows.join(', ')]);
+    if (p.ClipsDescendants) r.push(['overflow', 'hidden']);
+    if (def.scroll) r.push(['overflow', 'auto']);
     const aspect = childOfClass(doc, inst.id, 'UIAspectRatioConstraint');
     if (aspect) {
       attrs.push(`data-ar="${fmtNum(aspect.props.AspectRatio)}"`);
@@ -267,92 +350,147 @@ class HtmlWriter {
       inst.props.AutoButtonColor
     )
       attrs.push('data-btn');
-    this.css.push(`.${cls}{${r.join('')}}`);
+    if (ctx.order !== undefined) r.push(['order', String(ctx.order)]);
+    this.rule(`.${cls}`, r);
 
+    // The element: a link, the chosen tag, or a div. Links and tags come from the base values.
+    const href =
+      inst.props.Link && !ctx.linked && inst.className !== 'TextBox'
+        ? this.links.href?.(inst.props.Link)
+        : undefined;
+    const chosen = inst.props.HtmlTag === 'Auto' ? undefined : inst.props.HtmlTag;
+    const allowed = ctx.phrasing ? (chosen && PHRASING_ONLY.has(chosen) ? 'span' : chosen) : chosen;
+    const tag = href !== undefined ? 'a' : (allowed ?? (ctx.phrasing ? 'span' : 'div'));
+    const phrasing = ctx.phrasing || (!!chosen && PHRASING_ONLY.has(chosen));
+    const box = phrasing ? 'span' : 'div';
+    const head: string[] = [];
+    const anchor = this.links.anchor?.(inst.id);
+    if (anchor) head.push(`id="${esc(anchor)}"`);
+    if (href !== undefined) {
+      head.push(`href="${esc(href)}"`);
+      if (inst.props.Link?.newTab) head.push('target="_blank" rel="noopener"');
+    }
+    const inner = this.emitInner(
+      inst,
+      cls,
+      depth,
+      {
+        onPage: false,
+        phrasing,
+        linked: ctx.linked || href !== undefined,
+      },
+      box,
+    );
+    const ind = '  '.repeat(depth + 2);
+    const attrText = [...head, ...attrs].map((a) => ' ' + a).join('');
+    return `\n${ind}<${tag} class="g ${cls}"${attrText} data-name="${esc(p.Name)}">${inner}${inner ? '\n' + ind : ''}</${tag}>`;
+  }
+
+  /** What goes inside an object's element: its picture, its text and its children. */
+  emitInner(inst: Gui, cls: string, depth: number, ctx: EmitContext, box: string): string {
+    const doc = this.doc;
     const ind = '  '.repeat(depth + 2);
     let inner = '';
     if (inst.className === 'ImageLabel' || inst.className === 'ImageButton') {
-      const ip = inst.props;
-      const src = inst.preview ? this.assets[inst.preview] : undefined;
+      const ip = this.props(inst);
+      const src = inst.preview ? this.links.imageSrc(inst.preview) : undefined;
       inner += src
-        ? `\n${ind}  <img class="img" src="${src}" alt="" style="object-fit:${OBJECT_FIT[ip.ScaleType]};opacity:${roundTo(1 - ip.ImageTransparency, 3)}">`
-        : `\n${ind}  <div class="ph">${esc(ip.Image || 'image')}</div>`;
+        ? `\n${ind}  <img class="img" src="${src}" alt="${esc(inst.props.AltText)}" style="object-fit:${OBJECT_FIT[ip.ScaleType]};opacity:${roundTo(1 - ip.ImageTransparency, 3)}">`
+        : `\n${ind}  <${box} class="ph">${esc(ip.Image || 'image')}</${box}>`;
     }
     if (
       inst.className === 'TextLabel' ||
       inst.className === 'TextButton' ||
       inst.className === 'TextBox'
     ) {
-      const tp = inst.props;
+      const tp = this.props(inst);
       this.fontsUsed.add(tp.Font);
       const f = fontCss(tp.Font);
-      const tc = cls + 't';
-      const textStrokes = strokes.filter((s) => strokesText(inst, s));
-      this.css.push(
-        `.${tc}{${this.insetOf(inst.id)}justify-content:${ALIGN_X[tp.TextXAlignment]};align-items:${ALIGN_Y[tp.TextYAlignment]};}`,
+      const tc = `${cls}t`;
+      const textStrokes = childrenOf(doc, inst.id)
+        .filter((k): k is Instance<'UIStroke'> & AnyInstance => k.className === 'UIStroke')
+        .map((s) => ({ s, sp: this.props(s) }))
+        .filter(({ s, sp }) => sp.Thickness > 0 && strokesText(inst, s));
+      this.rule(`.${tc}`, [
+        ...this.insetOf(inst.id),
+        ['justify-content', ALIGN_X[tp.TextXAlignment]],
+        ['align-items', ALIGN_Y[tp.TextYAlignment]],
+      ]);
+      const ts: Decl[] = [
+        ['font-family', f.family],
+        ['font-weight', String(f.weight)],
+      ];
+      if (f.style !== 'normal') ts.push(['font-style', f.style]);
+      ts.push(
+        ['color', rgba(tp.TextColor3, tp.TextTransparency)],
+        ['text-align', tp.TextXAlignment.toLowerCase()],
+        ['white-space', tp.TextWrapped ? 'pre-wrap' : 'pre'],
       );
-      const ts = [
-        `font-family:${f.family}`,
-        `font-weight:${f.weight}`,
-        f.style !== 'normal' ? `font-style:${f.style}` : '',
-        `color:${rgba(tp.TextColor3, tp.TextTransparency)}`,
-        `text-align:${tp.TextXAlignment.toLowerCase()}`,
-        `white-space:${tp.TextWrapped ? 'pre-wrap' : 'pre'}`,
-        tp.TextScaled ? '' : `font-size:${tp.TextSize}px`,
-        textStrokes.length
-          ? `text-shadow:${textStrokes.map((s) => textRing(s.props.Thickness, rgba(s.props.Color, Math.max(s.props.Transparency, tp.TextTransparency)))).join(', ')}`
-          : '',
-      ]
-        .filter(Boolean)
-        .join(';');
-      this.css.push(`.${tc} > *{${ts};}`);
-      if (tp.TextScaled) this.needsScript = true;
+      if (!inst.props.TextScaled) ts.push(['font-size', `${tp.TextSize}px`]);
+      if (textStrokes.length)
+        ts.push([
+          'text-shadow',
+          textStrokes
+            .map(({ sp }) =>
+              textRing(
+                sp.Thickness,
+                rgba(sp.Color, Math.max(sp.Transparency, tp.TextTransparency)),
+              ),
+            )
+            .join(', '),
+        ]);
+      this.rule(`.${tc} > *`, ts);
+      if (inst.props.TextScaled) this.needsScript = true;
       const input = inst.className === 'TextBox';
       const body = input
         ? `<input value="${esc(tp.Text)}" placeholder="${esc(inst.props.PlaceholderText)}" aria-label="${esc(tp.Name)}">`
         : `<span>${esc(tp.Text)}</span>`;
-      inner += `\n${ind}  <div class="t ${tc}"${tp.TextScaled && !input ? ' data-fit' : ''}>${body}</div>`;
+      inner += `\n${ind}  <${box} class="t ${tc}"${inst.props.TextScaled && !input ? ' data-fit' : ''}>${body}</${box}>`;
     }
-    const children = this.sortedChildren(inst.id);
-    if (children.length) {
+    if (this.sortedChildren(inst.id).length) {
       const list = childOfClass(doc, inst.id, 'UIListLayout');
       const cc = cls + 'c';
       const scroll = inst.className === 'ScrollingFrame';
-      const kids = children.map((c) => this.emit(c, !!list, depth + (scroll ? 3 : 2))).join('');
+      const kids = this.emitChildren(inst.id, !!list, depth + (scroll ? 3 : 2), ctx);
+      const content: Decl[] = [...this.insetOf(inst.id), ...(list ? this.listCss(list) : [])];
       if (scroll) {
-        const cs = inst.props.CanvasSize;
-        this.css.push(
-          `.${cls}v{position:absolute;left:0;top:0;width:max(100%, ${calcU(cs[0], cs[1])});height:max(100%, ${calcU(cs[2], cs[3])});}`,
-        );
-        this.css.push(`.${cc}{${this.insetOf(inst.id)}${list ? this.listCss(list) : ''}}`);
-        inner += `\n${ind}  <div class="${cls}v">\n${ind}    <div class="c ${cc}">${kids}\n${ind}    </div>\n${ind}  </div>`;
+        const cs = this.props(inst).CanvasSize;
+        this.rule(`.${cls}v`, [
+          ['position', 'absolute'],
+          ['left', '0'],
+          ['top', '0'],
+          ['width', `max(100%, ${calcU(cs[0], cs[1])})`],
+          ['height', `max(100%, ${calcU(cs[2], cs[3])})`],
+        ]);
+        this.rule(`.${cc}`, content);
+        inner += `\n${ind}  <${box} class="${cls}v">\n${ind}    <${box} class="c ${cc}">${kids}\n${ind}    </${box}>\n${ind}  </${box}>`;
       } else {
-        this.css.push(`.${cc}{${this.insetOf(inst.id)}${list ? this.listCss(list) : ''}}`);
-        inner += `\n${ind}  <div class="c ${cc}">${kids}\n${ind}  </div>`;
+        this.rule(`.${cc}`, content);
+        inner += `\n${ind}  <${box} class="c ${cc}">${kids}\n${ind}  </${box}>`;
       }
     }
-    const attrText = attrs.length ? ' ' + attrs.join(' ') : '';
-    return `\n${ind}<div class="g ${cls}"${attrText} data-name="${esc(p.Name)}">${inner}${inner ? '\n' + ind : ''}</div>`;
+    return inner;
   }
 }
 
 /** One standalone page with every ScreenGui in the project. */
 export function exportHtml(doc: Doc, options: HtmlOptions = {}): string {
-  const w = new HtmlWriter(doc, options.assets ?? {});
+  const assets = options.assets ?? {};
+  const w = new HtmlWriter(doc, undefined, { imageSrc: (id) => assets[id] });
   const screenGuis = childrenOf(doc, serviceOf(doc, 'StarterGui').id).filter(
     (c): c is Instance<'ScreenGui'> & AnyInstance => c.className === 'ScreenGui',
   );
+  const top: EmitContext = { onPage: false, phrasing: false, linked: false };
   const screens = screenGuis
     .map((sg, i) => {
       const list = childOfClass(doc, sg.id, 'UIListLayout');
       const sc = 's' + (i + 1);
-      w.css.push(
-        `.${sc}{z-index:${i + 1};${sg.props.Enabled ? '' : 'display:none;'}${list ? w.listCss(list) : ''}}`,
-      );
-      const kids = w
-        .sortedChildren(sg.id)
-        .map((c) => w.emit(c, !!list, 0))
-        .join('');
+      w.rule(`.${sc}`, [
+        ['z-index', String(i + 1)],
+        ...(sg.props.Enabled ? [] : ([['display', 'none']] as Decl[])),
+        ...(list ? w.listCss(list) : []),
+      ]);
+      const kids = w.emitChildren(sg.id, !!list, 0, top);
       return `\n  <div class="screen ${sc}" data-name="${esc(sg.props.Name)}">${kids}\n  </div>`;
     })
     .join('');
@@ -382,7 +520,7 @@ ${COMMENT_OPEN} Built with Framecraft (prototype). Every object keeps its Roblox
   [data-btn] { cursor: pointer; }
   [data-btn]:hover { filter: brightness(0.9); }
   [data-btn]:active { filter: brightness(0.75); }
-  ${w.css.join('\n  ')}
+  ${w.rules.map(ruleText).join('\n  ')}
 </style>
 </head>
 <body>${screens}${w.needsScript ? FIT_SCRIPT : ''}
