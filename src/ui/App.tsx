@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react';
-import { Editor } from '../editor/editor.ts';
+import { useCallback, useEffect, useState } from 'react';
+import { Editor, type SaveStatus } from '../editor/editor.ts';
 import { sampleProject } from '../model/sample.ts';
 import { EditorContext, useEditor, useEditorState } from './editor-context.ts';
+import { ExportDialog, type ExportKind } from './ExportDialog.tsx';
 import { Explorer } from './Explorer.tsx';
-import { Properties } from './Properties.tsx';
+import { Icon, Mark } from './icons.tsx';
+import { openProjectFile, saveProjectFile } from './project-actions.ts';
+import { ProjectMenu } from './ProjectMenu.tsx';
+import { Properties } from './properties/Properties.tsx';
 import { Ribbon } from './Ribbon.tsx';
 import { Viewport } from './viewport/Viewport.tsx';
 
@@ -23,89 +27,97 @@ function Shell() {
   const editor = useEditor();
   const state = useEditorState();
   const [sheet, setSheet] = useState<Sheet>(null);
+  const [menu, setMenu] = useState<HTMLElement | null>(null);
+  const [exporting, setExporting] = useState<ExportKind | null>(null);
   const toggle = (next: Exclude<Sheet, null>) => setSheet((cur) => (cur === next ? null : next));
+  // Export opens on what the viewport shows: the website, or Luau for the screens.
+  const openExport = useCallback(
+    () => setExporting(editor.state.view.kind === 'page' ? 'site' : 'luau'),
+    [editor],
+  );
 
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => handleKey(editor, e);
+    const onKeyDown = (e: KeyboardEvent) => handleKey(editor, e, openExport);
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [editor]);
+  }, [editor, openExport]);
 
+  const { preview, saveStatus, toast } = state;
   return (
-    <div className={state.preview ? 'app preview' : 'app'}>
-      <header className="bar">
-        <div className="wordmark">
-          <svg viewBox="0 0 26 26" aria-hidden="true">
-            <rect x="1" y="1" width="24" height="24" rx="6.5" fill="var(--accent)" />
-            <rect
-              x="7"
-              y="7"
-              width="12"
-              height="12"
-              rx="2.5"
-              fill="none"
-              stroke="var(--on-accent)"
-              strokeWidth="2"
-            />
-            <circle cx="13" cy="13" r="2.3" fill="var(--on-accent)" />
-            <path
-              d="M19 13h4M13 19v4"
-              stroke="var(--on-accent)"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </svg>
-          <b>Framecraft</b>
-          <span className="chip wide-only">Early build</span>
-        </div>
-        <div className="spacer" />
-        <div className="group">
-          <button
-            className="btn icon"
-            title="Undo (Ctrl+Z)"
-            aria-label="Undo"
-            disabled={!state.canUndo}
-            onClick={() => editor.undo()}
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M7.5 5 4 8.5 7.5 12" />
-              <path d="M4.5 8.5H12a4 4 0 0 1 0 8H9" />
-            </svg>
-          </button>
-          <button
-            className="btn icon"
-            title="Redo (Ctrl+Shift+Z)"
-            aria-label="Redo"
-            disabled={!state.canRedo}
-            onClick={() => editor.redo()}
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M12.5 5 16 8.5 12.5 12" />
-              <path d="M15.5 8.5H8a4 4 0 0 0 0 8h3" />
-            </svg>
-          </button>
-        </div>
+    <div className={preview ? 'app preview' : 'app'}>
+      <header className="topbar">
+        <span className="brand">
+          <Mark />
+          <span className="wide-only">Framecraft</span>
+        </span>
+        <span className="vsep wide-only" />
         <button
-          className={`btn narrow-only${sheet === 'explorer' ? ' on' : ''}`}
+          className="projbtn"
+          type="button"
+          title="Project menu"
+          aria-haspopup="menu"
+          aria-expanded={!!menu}
+          onClick={(e) => setMenu(menu ? null : e.currentTarget)}
+        >
+          <span>Project</span>
+          <Icon name="chevDown" />
+        </button>
+        <SaveStatusText status={saveStatus} />
+        <span className="spacer" />
+        <button
+          className="ibtn"
+          type="button"
+          title="Undo (Ctrl+Z)"
+          aria-label="Undo"
+          disabled={!state.canUndo}
+          onClick={() => editor.undo()}
+        >
+          <Icon name="undo" />
+        </button>
+        <button
+          className="ibtn wide-only"
+          type="button"
+          title="Redo (Ctrl+Shift+Z)"
+          aria-label="Redo"
+          disabled={!state.canRedo}
+          onClick={() => editor.redo()}
+        >
+          <Icon name="redo" />
+        </button>
+        <button
+          className={`ibtn narrow-only${sheet === 'explorer' ? ' on' : ''}`}
+          type="button"
+          aria-label="Explorer"
+          title="Explorer"
           aria-expanded={sheet === 'explorer'}
           onClick={() => toggle('explorer')}
         >
-          Explorer
+          <Icon name="tree" />
         </button>
         <button
-          className={`btn narrow-only${sheet === 'props' ? ' on' : ''}`}
+          className={`ibtn narrow-only${sheet === 'props' ? ' on' : ''}`}
+          type="button"
+          aria-label="Properties"
+          title="Properties"
           aria-expanded={sheet === 'props'}
           onClick={() => toggle('props')}
         >
-          Properties
+          <Icon name="sliders" />
         </button>
+        <span className="vsep wide-only" />
         <button
-          className={state.preview ? 'btn on' : 'btn'}
+          className={preview ? 'btn on' : 'btn'}
+          type="button"
           title="Try the UI: buttons react, text boxes take input, links work (P)"
-          aria-pressed={state.preview}
-          onClick={() => editor.setPreview(!state.preview)}
+          aria-pressed={preview}
+          onClick={() => editor.setPreview(!preview)}
         >
-          {state.preview ? 'Stop preview' : 'Preview'}
+          <Icon name={preview ? 'stop' : 'play'} />
+          <span className="wide-only">{preview ? 'Stop preview' : 'Preview'}</span>
+        </button>
+        <button className="btn primary" type="button" title="Export (Ctrl+E)" onClick={openExport}>
+          <Icon name="export" />
+          <span className="wide-only">Export</span>
         </button>
       </header>
 
@@ -113,17 +125,53 @@ function Shell() {
       <Explorer open={sheet === 'explorer'} onClose={() => setSheet(null)} />
       <Viewport />
       <Properties open={sheet === 'props'} onClose={() => setSheet(null)} />
-      {state.toast && (
-        <div className="toast" role="status" key={state.toast.id}>
-          {state.toast.text}
+      {menu && <ProjectMenu anchor={menu} onClose={() => setMenu(null)} />}
+      {exporting && <ExportDialog kind={exporting} onClose={() => setExporting(null)} />}
+      {toast && (
+        <div className="toasts">
+          <div className="toast" role="status" key={toast.id}>
+            <span>{toast.text}</span>
+            {toast.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  editor.dismissToast();
+                  toast.action!.run();
+                }}
+              >
+                {toast.action.label}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-/** Editor shortcuts. Keys typed into a field belong to the field. */
-function handleKey(editor: Editor, e: KeyboardEvent) {
+function SaveStatusText({ status }: { status: SaveStatus }) {
+  if (status === 'idle') return null;
+  if (status === 'off')
+    return (
+      <span
+        className="saved off wide-only"
+        title="Your browser isn’t keeping changes. Save a project file from the Project menu."
+      >
+        <Icon name="info" />
+        Not saved
+      </span>
+    );
+  return (
+    <span className="saved wide-only" title="Kept in this browser" aria-live="polite">
+      {status === 'saved' && <Icon name="check" />}
+      {status === 'saved' ? 'Saved' : 'Saving…'}
+    </span>
+  );
+}
+
+/** Editor shortcuts. Keys typed into a field, or used by a menu or dialog, belong to it. */
+function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
+  if (e.defaultPrevented) return;
   const t = e.target as HTMLElement | null;
   const typing =
     !!t &&
@@ -131,9 +179,11 @@ function handleKey(editor: Editor, e: KeyboardEvent) {
       t.tagName === 'TEXTAREA' ||
       t.tagName === 'SELECT' ||
       t.isContentEditable);
-  if (typing) return;
+  if (t?.closest?.('dialog, [role="dialog"], [role="menu"]')) return;
   const mod = e.ctrlKey || e.metaKey;
   const k = e.key.toLowerCase();
+  // Saving, opening and exporting work from inside a field too.
+  if (typing && !(mod && 'soe'.includes(k))) return;
   const { preview, selection, doc } = editor.state;
   if (mod) {
     const action = {
@@ -143,8 +193,11 @@ function handleKey(editor: Editor, e: KeyboardEvent) {
       c: () => editor.copySelection(),
       x: () => editor.copySelection(true),
       v: () => editor.paste(),
+      s: () => saveProjectFile(editor),
+      o: () => void openProjectFile(editor),
+      e: openExport,
     }[k];
-    if (action && !(preview && k !== 'z' && k !== 'y')) {
+    if (action && !(preview && 'dcxv'.includes(k))) {
       e.preventDefault();
       action();
     }
@@ -153,6 +206,10 @@ function handleKey(editor: Editor, e: KeyboardEvent) {
   if (e.altKey) return;
   if (k === 'p') return editor.setPreview(!preview);
   if (preview) return;
+  if (e.key === 'F2') {
+    e.preventDefault();
+    return editor.startRename();
+  }
   if (e.key === 'Delete' || e.key === 'Backspace') {
     e.preventDefault();
     return editor.deleteSelection();
