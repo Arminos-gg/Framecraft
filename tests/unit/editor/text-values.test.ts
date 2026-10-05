@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   fmtColor,
-  fmtUDim2,
+  fmtLength,
   fmtVec2,
   fromHex,
   hex,
   parseColor,
+  parseLength,
   parseNumber,
   parseNums,
-  parseUDim,
   parseUDim2,
   parseVec2,
 } from '../../../src/editor/text-values.ts';
@@ -36,10 +36,26 @@ describe('Studio shorthand', () => {
     expect(parseUDim2('1, 2, 3')).toBeNull();
   });
 
-  it('reads UDims, Vector2s and colors', () => {
-    expect(parseUDim('0.1, 8')).toEqual([0.1, 8]);
-    expect(parseUDim('12')).toEqual([0, 12]);
-    expect(parseUDim('0.5')).toEqual([0.5, 0]);
+  it('reads a length in percent and pixels', () => {
+    expect(parseLength('50%')).toEqual([0.5, 0]);
+    expect(parseLength('200px')).toEqual([0, 200]);
+    expect(parseLength('50% + 20px')).toEqual([0.5, 20]);
+    expect(parseLength('100%-40PX')).toEqual([1, -40]);
+    expect(parseLength(' -25 % + 10.6 px ')).toEqual([-0.25, 11]);
+    expect(parseLength('33.333%')).toEqual([0.3333, 0]);
+    expect(parseLength('50% + 50% - 10')).toEqual([1, -10]);
+    // A lone number reads as Studio does, and a pair is Scale and Offset.
+    expect(parseLength('12')).toEqual([0, 12]);
+    expect(parseLength('-8')).toEqual([0, -8]);
+    expect(parseLength('0.5')).toEqual([0.5, 0]);
+    expect(parseLength('0')).toEqual([0, 0]);
+    expect(parseLength('0.1, 8')).toEqual([0.1, 8]);
+    expect(parseLength('{0.1, 8}')).toEqual([0.1, 8]);
+    for (const bad of ['', ' ', '50% 20px', '50%%', 'px', '5em', '1, 2, 3', '+'])
+      expect(parseLength(bad), bad).toBeNull();
+  });
+
+  it('reads Vector2s and colors', () => {
     expect(parseVec2('0.5')).toEqual([0.5, 0.5]);
     expect(parseVec2('1, 0')).toEqual([1, 0]);
     expect(parseVec2('1, 0, 0')).toBeNull();
@@ -60,7 +76,21 @@ describe('Studio shorthand', () => {
   });
 
   it('writes values back as the fields show them', () => {
-    expect(fmtUDim2([0.5, 0, 0.12345, -8])).toBe('{0.5, 0},{0.1235, -8}');
+    expect(fmtLength([0.5, 0])).toBe('50%');
+    expect(fmtLength([0, 200])).toBe('200px');
+    expect(fmtLength([0.5, 20])).toBe('50% + 20px');
+    expect(fmtLength([1, -40])).toBe('100% - 40px');
+    expect(fmtLength([0.12345, 0])).toBe('12.35%');
+    expect(fmtLength([-0.25, -8])).toBe('-25% - 8px');
+    expect(fmtLength([0, 0])).toBe('0px');
+    for (const u of [
+      [0.5, 20],
+      [1, -40],
+      [0.3333, 0],
+      [0, -12],
+      [0, 0],
+    ] as const)
+      expect(parseLength(fmtLength(u))).toEqual(u);
     expect(fmtVec2([0.5, 1])).toBe('0.5, 1');
     expect(fmtColor([19, 21, 33])).toBe('[19, 21, 33]');
     expect(hex([255, 128, 0])).toBe('#ff8000');

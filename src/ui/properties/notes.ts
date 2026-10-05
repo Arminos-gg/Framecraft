@@ -38,10 +38,10 @@ export function notesFor(
       break;
     case 'UIPadding':
       notes.Padding =
-        'Shrinks the area children are laid out in. Scale is a fraction of the parent’s width or height.';
+        'Shrinks the area children are laid out in. A percent is of the parent’s width or height.';
       break;
     case 'UICorner':
-      notes.Corner = 'Scale is measured on the shorter side, so 0.5 makes a pill or a circle.';
+      notes.Corner = 'A percent is of the shorter side, so 50% makes a pill or a circle.';
       break;
     case 'Page':
       notes.Web =

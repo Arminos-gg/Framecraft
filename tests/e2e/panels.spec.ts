@@ -153,17 +153,21 @@ test.describe('Ribbon', () => {
     const frame = (await selection(page))!;
     expect((await instanceOf(page, frame))!.className).toBe('Frame');
 
-    await commit(page, '#p-Size', '0.25,40,0.1,20');
-    await commit(page, '#p-Position', '0.5');
+    // Studio's full UDim2 in either axis sets both; a lone number of 1 or less is Scale.
+    await commit(page, '#p-Size-X', '0.25,40,0.1,20');
+    await commit(page, '#p-Position-X', '50%');
+    await commit(page, '#p-Position-Y', '0.5');
     let props = await propsOf(page, frame);
     expect(props.Size).toEqual([0.25, 40, 0.1, 20]);
     expect(props.Position).toEqual([0.5, 0, 0.5, 0]);
-    // A value that isn't a UDim2 is refused, and the field says so.
-    await commit(page, '#p-Size', 'big');
-    await expect(page.locator('#p-Size')).toHaveClass(/\bbad\b/);
+    await expect(page.locator('#p-Size-X')).toHaveValue('25% + 40px');
+    await expect(page.locator('#p-Size-Y')).toHaveValue('10% + 20px');
+    // A value that isn't a length is refused, and the field says so.
+    await commit(page, '#p-Size-Y', 'big');
+    await expect(page.locator('#p-Size-Y')).toHaveClass(/\bbad\b/);
     await page.keyboard.press('Escape');
 
-    await page.getByRole('button', { name: 'To Scale' }).click();
+    await page.getByRole('button', { name: 'To percent' }).click();
     props = await propsOf(page, frame);
     const size = props.Size as number[];
     expect([size[1], size[3]]).toEqual([0, 0]);
@@ -177,7 +181,7 @@ test.describe('Ribbon', () => {
   });
 
   test('sets what dragging writes', async ({ page }) => {
-    await page.getByRole('button', { name: 'Offset', exact: true }).click();
+    await page.getByRole('button', { name: 'Pixels', exact: true }).click();
     expect(await page.evaluate(() => window.framecraft!.state.unit)).toBe('offset');
     await page.getByLabel('Smart snapping').uncheck();
     expect(await page.evaluate(() => window.framecraft!.state.snap)).toBe(false);
@@ -232,18 +236,27 @@ test.describe('Properties', () => {
     expect((await propsOf(page, id)).AnchorPoint).toEqual([0.5, 0.5]);
   });
 
-  test('edits UDim, UDim2 parts and gradients', async ({ page }) => {
+  test('edits lengths in percent and pixels, and gradients', async ({ page }) => {
     const coins = await idOf(page, 'Coins');
     await selectByName(page, 'Coins');
-    await page.getByRole('button', { name: 'Show Size X and Y' }).click();
-    await commit(page, '#p-Size-Xo', '200');
-    await commit(page, '#p-Size-Ys', '0.1');
-    expect((await propsOf(page, coins)).Size).toEqual([0, 200, 0.1, 52]);
+    await expect(page.getByLabel('Size width')).toHaveValue('176px');
+    await commit(page, '#p-Size-X', '210px');
+    await commit(page, '#p-Size-Y', '10% + 52px');
+    expect((await propsOf(page, coins)).Size).toEqual([0, 210, 0.1, 52]);
+    // The arrows step pixels, or a percent when that's all there is; Shift steps ten.
+    await page.locator('#p-Size-X').press('ArrowUp');
+    await page.locator('#p-Size-Y').press('Shift+ArrowDown');
+    await commit(page, '#p-Position-X', '50%');
+    await page.locator('#p-Position-X').press('ArrowUp');
+    expect((await propsOf(page, coins)).Size).toEqual([0, 211, 0.1, 42]);
+    expect(((await propsOf(page, coins)).Position as number[]).slice(0, 2)).toEqual([0.51, 0]);
+    await expect(page.locator('#p-Size-Y')).toHaveValue('10% + 42px');
 
     // The UICorner on Coins: a UDim.
     await page.getByRole('button', { name: 'UICorner', exact: true }).click();
     const corner = (await selection(page))!;
-    await commit(page, '#p-CornerRadius-o', '12');
+    await expect(page.locator('#p-CornerRadius')).toHaveValue('50%');
+    await commit(page, '#p-CornerRadius', '50% + 12px');
     expect((await propsOf(page, corner)).CornerRadius).toEqual([0.5, 12]);
 
     const gradient = await selectByName(page, 'UIGradient');

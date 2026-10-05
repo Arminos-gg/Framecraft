@@ -161,7 +161,7 @@ export function ExportDialog({ kind, onClose }: { kind: ExportKind; onClose: () 
           <div className="how">
             <p>
               {tab === 'html'
-                ? 'Your Roblox screens as one web page. Scale and Offset become CSS calc(), so it resizes like it does in Roblox.'
+                ? 'Your Roblox screens as one web page. Percents and pixels become CSS calc(), so it resizes like it does in Roblox.'
                 : target === 'command'
                   ? 'Paste into Studio’s command bar and press Enter. The UI lands in StarterGui, ready to edit like anything you built by hand.'
                   : 'Paste into a LocalScript in StarterPlayerScripts. Each player gets the UI when they join.'}

@@ -244,11 +244,11 @@ export function Viewport() {
         <div className="legend wide-only" aria-hidden="true">
           <span>
             <i className="s" />
-            Scale
+            Percent
           </span>
           <span>
             <i className="o" />
-            Offset
+            Pixels
           </span>
         </div>
         <div className="zoom" role="group" aria-label="Zoom controls">

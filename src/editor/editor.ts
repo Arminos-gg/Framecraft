@@ -780,7 +780,7 @@ export class Editor {
     if (!cmds.length || !this.#execute(batch(...cmds))) return;
     const n = cmds.length;
     this.toast(
-      `Rewrote ${n} object${n === 1 ? '' : 's'} as ${toScale ? 'Scale' : 'Offset'}. Switch devices to see the difference.`,
+      `Rewrote ${n} object${n === 1 ? '' : 's'} in ${toScale ? 'percent' : 'pixels'}. Switch devices to see the difference.`,
     );
   }
 
