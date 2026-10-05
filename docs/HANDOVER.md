@@ -40,8 +40,8 @@ Paste this into Claude Code as the first message:
 | One plain-JSON document; panels change it only through commands | Undo, exports and later multiplayer stay consistent | No plan to change |
 | DOM renderer driven by our own layout engine | Real text and fonts, and the same output as the HTML export | If documents with 1,000+ objects get slow |
 | Export Luau with `IgnoreGuiInset = true` | The editor treats the ScreenGui as the full screen | If we add a top-bar or safe-area preview |
-| Snapshot undo (whole-document JSON strings) | Simplest thing that works for a prototype | During the port: switch to commands or patches |
-| UIGradient props stored as `GradColor`, `GradTransparency`, `GradRotation` | One global property schema couldn't hold two different `Color` types | During the port: per-class schemas with the real names |
+| Snapshot undo (whole-document JSON strings) | Simplest thing that works for a prototype | Done in the port: `src/model/` uses commands with inverses |
+| UIGradient props stored as `GradColor`, `GradTransparency`, `GradRotation` | One global property schema couldn't hold two different `Color` types | Done in the port: per-class schemas use Color, Transparency and Rotation; version 1 files are converted on open |
 
 ## Known gaps in the prototype
 

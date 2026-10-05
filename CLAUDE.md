@@ -17,6 +17,7 @@ Current stage: a working single-file prototype plus a product plan, and the star
 ## Repo map
 
 - `src/`: the new app (Vite, strict TypeScript, React). `main.tsx` mounts `ui/App.tsx`; `styles/tokens.css` holds the design tokens copied from the prototype
+- `src/model/`: value types, class registry with per-class property schemas, immutable document, commands, undo history, project files (opens prototype files too) and the sample project
 - `tests/unit/`: Vitest tests; `tests/e2e/`: Playwright tests for the new app
 - `prototype/src/1-head.html`: title, fonts and all CSS; design tokens are the `:root` block at the top
 - `prototype/src/2-body.html`: app shell markup
@@ -46,6 +47,7 @@ These are facts about Roblox, not style preferences. Breaking them makes exports
 ## Conventions
 
 - The new app's design tokens live in `src/styles/tokens.css`; the same rules on tokens, themes and Scale/Offset colors apply there.
+- In the new app, documents are immutable and every edit is a command (`src/model/commands.ts`) run through `History`. Gestures (drags, sliders) go between `begin()` and `commit()` so they are one undo step.
 - The prototype is plain JS with no dependencies inside the page. It also runs as a claude.ai artifact, whose content security policy only allows Google Fonts and a few script CDNs.
 - Every document edit goes through `mutate()`, which makes one undo step. Continuous edits (drags, sliders, the color picker) snapshot first and call `record()` when they end.
 - State lives in `doc` (saved and exported) and `ui` (editor-only). Render functions rebuild their DOM from that state and must stay side-effect free.
