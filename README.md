@@ -2,7 +2,7 @@
 
 Build UI the way Roblox Studio does, in the browser: an Explorer tree, a Properties panel, and Scale + Offset positioning. Export the result as Luau for Roblox Studio or as a web page.
 
-"Framecraft" is a working name. This repo holds the clickable prototype, the product plan, and the new Vite + TypeScript app the prototype is being ported to. The new app is an empty editor shell for now.
+"Framecraft" is a working name. This repo holds the clickable prototype, the product plan, and the new Vite + TypeScript app the prototype is being ported to. The new app draws and edits the sample game menu and website in its viewport; the Explorer, Properties and ribbon come next.
 
 ## Try the prototype
 
