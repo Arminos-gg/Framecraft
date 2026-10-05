@@ -17,6 +17,7 @@ The exporters turn the document into Luau for Roblox Studio and an HTML/CSS page
 - ScreenGuis always get `IgnoreGuiInset = true` and `ZIndexBehavior = Enum.ZIndexBehavior.Sibling`.
 - Use `UDim2.fromScale` when both offsets are 0, `UDim2.fromOffset` when both scales are 0, otherwise `UDim2.new`.
 - Variable names come from the object's Name in camelCase, de-duplicated with a number. Modifiers that keep their default name are named after their parent (`panelCorner`, `playButtonGradient`).
+- Write `AutomaticSize` only when it isn't None.
 - Escape strings with `luaStr()`. The output must parse: `npm test` runs it through luaparse.
 - Export the base (Desktop) values and skip everything with a `web` flag (Site, pages, web-only properties). Roblox has no breakpoints.
 - UIGradient's Color, Transparency and Rotation use their Roblox names in its own schema, with colors and transparencies as keypoint sequences. Prototype project files (version 1) stored them as `GradColor`, `GradTransparency` and `GradRotation`; `src/model/project.ts` converts them on open.
@@ -26,7 +27,8 @@ The exporters turn the document into Luau for Roblox Studio and an HTML/CSS page
 - A ScreenGui becomes `.screen` (fixed, full window). Position and Size become `calc(Scale% + Offset px)`, and AnchorPoint becomes `translate(-X%, -Y%)` before `rotate()`.
 - UIPadding becomes an inner content box with insets. Never use CSS `padding` for it: absolutely positioned children ignore padding.
 - UIListLayout becomes flexbox on the content box, and its children switch to `position: relative`.
-- Scale-based UICorner radii, UIAspectRatioConstraint and TextScaled need the element's real size, so they are set by the small inline script at the end of the page. Keep that script dependency-free.
+- Scale-based UICorner radii, UIAspectRatioConstraint, AutomaticSize and TextScaled need the element's real size, so they are set by the small inline script at the end of the page. Keep that script dependency-free.
+- An object with AutomaticSize at the base or any breakpoint gets `data-auto`, a `--auto` declaration (`none`, `x`, `y` or `xy`, which media queries change) and always a content box, where the script reads its padding. The script grows it with `min-width` and `min-height` exactly as the layout engine does, and lengthens a page marked `data-grow`. `tests/e2e/auto-size.spec.ts` compares it with the engine measuring text in the same page.
 - Keep each object's Roblox name in `data-name` so people can find it in the page.
 
 ## Website (`src/export/site.ts`)
