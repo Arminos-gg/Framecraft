@@ -1,8 +1,8 @@
-# The prototype and the docs keep their hand formatting.
-prototype/
+# The docs keep their hand formatting, and golden files must stay byte for byte.
 docs/
 *.md
-tests/smoke.mjs
+tests/golden/
+tests/unit/model/prototype-project.json
 tests/output/
 dist/
 package-lock.json
