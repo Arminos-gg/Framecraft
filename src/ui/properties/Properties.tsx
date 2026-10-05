@@ -179,7 +179,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
   const box = scene.layout.get(inst.id);
   const listItem = !!box?.listItem;
   const onSite = viewOf(doc, inst.id)?.kind === 'page' || inst.className === 'Site';
-  const notes = notesFor(inst, values, listItem);
+  const notes = notesFor(inst, values, listItem, onSite);
   const q = filter.trim().toLowerCase();
 
   const keys = propNames(inst.className).filter((k) => {
@@ -213,7 +213,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
       (listItem && (key === 'Position' || key === 'AnchorPoint' || key === 'Rotation')) ||
       (key === 'TextSize' && values.TextScaled === true);
     const cls = ['prow'];
-    if (!valueEquals(v, spec.default)) cls.push('chg');
+    if (!valueEquals(v, spec.default) || (spec.type === 'image' && inst.preview)) cls.push('chg');
     if (dim) cls.push('dim');
     if (spec.type === 'udim2') cls.push('two');
     const marker =
@@ -241,14 +241,20 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
           {editorFor(spec, key, id, v)}
           {marker}
         </div>
-        {key === 'Image' && (
+        {spec.type === 'image' && !onSite && (
           <div className="prow">
-            <label>Preview</label>
-            <PictureField
-              label="preview picture"
-              src={inst.preview && state.assets[inst.preview]}
-              onUpload={() => upload((url) => editor.setImagePreview(inst.id, url))}
-              onRemove={() => editor.setImagePreview(inst.id, null)}
+            <label htmlFor={`${id}-id`} title="The image’s id in Roblox, for the Roblox export">
+              Asset id
+            </label>
+            <TextField
+              id={`${id}-id`}
+              label="Asset id"
+              value={v as string}
+              placeholder="rbxassetid:// for Studio"
+              onCommit={(text) => {
+                if (text.trim() !== v) set(key)(text.trim());
+                return true;
+              }}
             />
             <span />
           </div>
@@ -276,16 +282,15 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
           />
         );
       case 'image':
+        // The picture is what the editor and the website show. The Roblox asset id, which
+        // browsers can't load, has its own row on the Roblox screens.
         return (
-          <TextField
-            id={id}
+          <PictureField
             label={key}
-            value={v as string}
-            placeholder="rbxassetid://"
-            onCommit={(text) => {
-              if (text.trim() !== v) onChange(text.trim());
-              return true;
-            }}
+            large
+            src={inst!.preview && state.assets[inst!.preview]}
+            onUpload={() => upload((url) => editor.setImagePreview(inst!.id, url))}
+            onRemove={() => editor.setImagePreview(inst!.id, null)}
           />
         );
       case 'int':

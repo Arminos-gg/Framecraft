@@ -1603,6 +1603,28 @@ button.bpdot.on:hover {
   width: 14px;
   height: 14px;
 }
+/* an image object's own picture: a big thumbnail with its buttons stacked beside it */
+.picfld.big {
+  display: grid;
+  grid-template-columns: 56px auto;
+  grid-template-rows: 26px 26px;
+  grid-auto-flow: column;
+  justify-content: start;
+  gap: 4px 8px;
+}
+.picfld.big .thumb {
+  width: 56px;
+  height: 56px;
+  grid-row: span 2;
+  border-radius: 7px;
+}
+.picfld.big .thumb svg {
+  width: 22px;
+  height: 22px;
+}
+.picfld.big .btn {
+  justify-self: start;
+}
 .linkfld {
   display: grid;
   gap: 4px;

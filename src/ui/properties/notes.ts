@@ -6,6 +6,7 @@ export function notesFor(
   inst: AnyInstance,
   values: Readonly<Record<string, unknown>>,
   listItem: boolean,
+  onSite: boolean,
 ): Partial<Record<Category, string>> {
   const notes: Partial<Record<Category, string>> = {};
   const def = classDef(inst.className);
@@ -14,9 +15,9 @@ export function notesFor(
       'A UIListLayout in the parent places this object, so Position, AnchorPoint and Rotation are ignored. Size still applies, and LayoutOrder sets the order.';
   if (values.TextScaled === true)
     notes.Text = 'TextScaled is on, so the text grows to fill the box and TextSize is ignored.';
-  if (def.image)
+  if (def.image && !onSite)
     notes.Image =
-      'Roblox images can’t load in a browser, so upload a preview picture. The Roblox export uses the Image asset id; the website uses the picture.';
+      'The picture shows here and in the HTML export. Roblox can’t use it, so add the image’s asset id for Studio.';
   switch (inst.className) {
     case 'ScreenGui':
       notes.Behavior =

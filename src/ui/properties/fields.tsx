@@ -672,15 +672,18 @@ export function PictureField({
   src,
   onUpload,
   onRemove,
+  large,
 }: {
   label: string;
   /** The picture, if there is one. */
   src: string | undefined;
   onUpload: () => void;
   onRemove: () => void;
+  /** A bigger thumbnail, for an image object's own picture. */
+  large?: boolean;
 }) {
   return (
-    <span className="picfld">
+    <span className={large ? 'picfld big' : 'picfld'}>
       <span className="thumb" aria-hidden="true">
         {src ? <img src={src} alt="" /> : <Icon name="image" />}
       </span>

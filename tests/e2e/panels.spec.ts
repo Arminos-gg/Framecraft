@@ -271,13 +271,20 @@ test.describe('Properties', () => {
     await page.getByLabel('Show').selectOption('screens');
     await page.locator('[data-insert="ImageLabel"]').click();
     const image = (await selection(page))!;
-    await commit(page, '#p-Image', 'rbxassetid://123');
+    await commit(page, '#p-Image-id', 'rbxassetid://123');
     expect((await propsOf(page, image)).Image).toBe('rbxassetid://123');
     const chooser = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: 'Upload preview picture' }).click();
+    await page.getByRole('button', { name: 'Upload Image' }).click();
     await (await chooser).setFiles({ name: 'dot.png', mimeType: 'image/png', buffer: PNG });
     await expect(page.locator('.gui[data-id="' + image + '"] img.pic')).toBeVisible();
+    await expect(page.locator('.picfld.big img')).toBeVisible();
     expect((await instanceOf(page, image))!.preview).toMatch(/^img_/);
+
+    // On a page, an image is only its picture: Roblox asset ids don't apply.
+    await page.getByLabel('Show').selectOption('page:' + (await idOf(page, 'Home')));
+    await page.locator('[data-insert="ImageLabel"]').click();
+    await expect(page.getByRole('button', { name: 'Upload Image' })).toBeVisible();
+    await expect(page.locator('#p-Image-id')).toHaveCount(0);
 
     const home = await selectByName(page, 'Home');
     const socialChooser = page.waitForEvent('filechooser');
