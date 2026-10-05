@@ -36,7 +36,7 @@ These are facts about Roblox, not style preferences. Breaking them makes exports
 - Modifiers (UICorner, UIStroke, UIGradient, UIPadding, UIListLayout, UIAspectRatioConstraint) are child objects, not properties.
 - UICorner Scale is measured on the shorter side, so 0.5 makes a pill. A UIStroke on a text object outlines the letters unless ApplyStrokeMode is Border.
 - By default children draw above their parent and ZIndex orders siblings (ZIndexBehavior Sibling).
-- Studio shorthand in UDim2 fields: `0.25,40,0.1,20` is a full UDim2; a single number of 1 or less means Scale on both axes, a larger one means Offset.
+- Studio shorthand in UDim2 fields: `0.25,40,0.1,20` is a full UDim2; a single number of 1 or less means Scale, a larger one means Offset. The editor's length fields take it too.
 - When unsure how Roblox behaves, check https://create.roblox.com/docs and treat Roblox Studio as the source of truth.
 
 ## Conventions
@@ -44,7 +44,7 @@ These are facts about Roblox, not style preferences. Breaking them makes exports
 - Documents are immutable and every edit is a command (`src/model/commands.ts`) run through `History`. Gestures (drags, sliders, the color picker) go between `begin()` and `commit()` so they are one undo step.
 - Values can differ per breakpoint (Desktop is the base, then Tablet, then Phone). Layout, rendering and exporters read values through `resolveProps(doc, inst, breakpoint)`, never `inst.props` directly. Classes and properties with no Roblox counterpart carry a `web` flag in the registry, and the Luau export skips them.
 - The document is what gets saved and exported; editor-only state (selection, view, zoom, preview) lives in `Editor`. Components read both through `useEditorState()` and change them only through `Editor` methods.
-- UI copy is plain and short, in sentence case. Scale values are teal (`--scale`) and Offset values amber (`--offset`) everywhere in the editor.
+- UI copy is plain and short, in sentence case. The editor shows Scale as a percent of the parent and Offset as pixels (`50% + 20px`, see `fmtLength`), never as Scale and Offset; only exported code and Roblox property names keep them. Percents are teal (`--scale`) and pixels amber (`--offset`) everywhere in the editor.
 - All editor colors come from the tokens in `src/styles/tokens.css`; light and dark themes must both work. The user's own UI inside the viewport uses only its own property colors.
 
 ## Gotchas
