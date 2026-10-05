@@ -21,7 +21,7 @@ import {
   type Doc,
   type Subtree,
 } from '../../../src/model/document.ts';
-import { pageSubtree } from '../../../src/model/sample.ts';
+import { pageSubtree } from '../../../src/model/builder.ts';
 import {
   bp,
   byName,

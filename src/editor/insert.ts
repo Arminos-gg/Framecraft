@@ -25,7 +25,7 @@ import {
   type InstanceId,
   type Subtree,
 } from '../model/document.ts';
-import { pageSubtree } from '../model/sample.ts';
+import { pageSubtree } from '../model/builder.ts';
 import type { UDim2 } from '../model/values.ts';
 
 /** What a new modifier starts with, where the class default isn't useful on its own. */
