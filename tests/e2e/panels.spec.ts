@@ -214,6 +214,11 @@ test.describe('Properties', () => {
     const id = await selectByName(page, 'Coins');
     await commit(page, '#p-BackgroundColor3', '#ff8000');
     expect((await propsOf(page, id)).BackgroundColor3).toEqual([255, 128, 0]);
+    // One number is a gray, as in Studio.
+    await commit(page, '#p-BackgroundColor3', '255');
+    expect((await propsOf(page, id)).BackgroundColor3).toEqual([255, 255, 255]);
+    await commit(page, '#p-BackgroundColor3', '0');
+    expect((await propsOf(page, id)).BackgroundColor3).toEqual([0, 0, 0]);
     await page.getByLabel('BackgroundColor3 picker').fill('#00ff00');
     expect((await propsOf(page, id)).BackgroundColor3).toEqual([0, 255, 0]);
 

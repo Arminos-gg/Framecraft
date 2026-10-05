@@ -69,13 +69,17 @@ export function fromHex(s: string): Color3 | null {
   return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 }
 
-/** `#RRGGBB`, `#RGB`, or `[r, g, b]` from 0 to 255. */
+/**
+ * `#RRGGBB`, `#RGB`, `[r, g, b]` from 0 to 255, or one number for a gray, as in Studio: `255`
+ * is white and `0` black. Three digits are a number, not a color code without its `#`.
+ */
 export function parseColor(s: string): Color3 | null {
-  const hex = fromHex(s);
+  const hex = /^\s*\d{1,3}\s*$/.test(s) ? null : fromHex(s);
   if (hex) return hex;
   const a = parseNums(s);
-  if (!a || a.length !== 3) return null;
-  return a.map((v) => Math.min(255, Math.max(0, Math.round(v)))) as unknown as Color3;
+  if (!a || (a.length !== 1 && a.length !== 3)) return null;
+  const c = a.map((v) => Math.min(255, Math.max(0, Math.round(v))));
+  return (c.length === 1 ? [c[0], c[0], c[0]] : c) as unknown as Color3;
 }
 
 export const hex = (c: Color3): string =>

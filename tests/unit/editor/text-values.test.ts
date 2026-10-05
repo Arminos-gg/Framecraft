@@ -47,6 +47,15 @@ describe('Studio shorthand', () => {
     expect(parseColor('#f80')).toEqual([255, 136, 0]);
     expect(parseColor('[300, -2, 10.4]')).toEqual([255, 0, 10]);
     expect(parseColor('red')).toBeNull();
+    expect(parseColor('1, 2')).toBeNull();
+    // One number is a gray, as in Studio, even with three digits.
+    expect(parseColor('255')).toEqual([255, 255, 255]);
+    expect(parseColor('0')).toEqual([0, 0, 0]);
+    expect(parseColor(' 128 ')).toEqual([128, 128, 128]);
+    expect(parseColor('300')).toEqual([255, 255, 255]);
+    expect(parseColor('#255')).toEqual([34, 85, 85]);
+    expect(parseColor('ff8000')).toEqual([255, 128, 0]);
+    expect(parseColor('112233')).toEqual([17, 34, 51]);
     expect(fromHex('12345')).toBeNull();
   });
 
