@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Editor, LIST_PLACES, sceneOf } from '../../../src/editor/editor.ts';
 import { breakpointsOf, type AnyInstance, type InstanceId } from '../../../src/model/document.ts';
-import { sampleProject } from '../../../src/model/sample.ts';
+import { blankSiteDoc, sampleProject } from '../../../src/model/sample.ts';
 
 let ed: Editor;
 beforeEach(() => {
@@ -245,5 +245,196 @@ describe('preview links', () => {
     });
     expect(ed.followLink(logo.id)).toEqual({ url: 'https://example.com', newTab: true });
     expect(ed.followLink(id('Hero'))).toBeNull();
+  });
+});
+
+describe('inserting', () => {
+  it('puts a new object in the middle of the selection, nudged past the last one', () => {
+    ed.select(id('MainMenu'));
+    const first = ed.insert('Frame')!;
+    const inst = ed.doc.instances[first]!;
+    expect(inst.parent).toBe(id('MainMenu'));
+    expect(ed.state.selection).toBe(first);
+    // 1366 x 768, a 200 x 140 Frame, and MainMenu already holds Coins, Panel and Version.
+    const nudge = 12 * 3;
+    expect(inst.props).toMatchObject({ Position: [0, 583 + nudge, 0, 314 + nudge] });
+    ed.undo();
+    expect(ed.doc.instances[first]).toBeUndefined();
+  });
+
+  it('goes up to the nearest object that can hold it', () => {
+    const corner = ed.doc.instances[id('Coins')]!.children.find(
+      (c) => ed.doc.instances[c]!.className === 'UICorner',
+    )!;
+    ed.select(corner);
+    const label = ed.insert('TextLabel')!;
+    expect(ed.doc.instances[label]!.parent).toBe(id('Coins'));
+    ed.select(id('Coins'));
+    const layer = ed.insert('ScreenGui')!;
+    expect(ed.doc.instances[layer]!.parent).toBe(id('StarterGui'));
+  });
+
+  it('fills the width of a page, where a UIListLayout stacks the sections', () => {
+    ed.select(null);
+    const section = ed.insert('Frame')!;
+    const inst = ed.doc.instances[section]!;
+    expect(inst.parent).toBe(id('Home'));
+    expect(inst.props).toMatchObject({ Size: [1, 0, 0, 320], Position: [0, 0, 0, 0] });
+  });
+
+  it('adds pages with names and paths of their own, and shows them', () => {
+    const page = ed.insert('Page')!;
+    expect(ed.doc.instances[page]!.props).toMatchObject({ Name: 'Page', Path: '/page' });
+    expect(ed.scene.view).toEqual({ kind: 'page', pageId: page });
+    const second = ed.insert('Page')!;
+    expect(ed.doc.instances[second]!.props).toMatchObject({ Name: 'Page2', Path: '/page-2' });
+  });
+
+  it('makes a ScreenGui to hold the first object on empty screens, in one step', () => {
+    ed = new Editor(blankSiteDoc());
+    ed.setView({ kind: 'screens' });
+    const frame = ed.insert('Frame')!;
+    const layer = ed.doc.instances[ed.doc.instances[frame]!.parent!]!;
+    expect(layer.className).toBe('ScreenGui');
+    ed.undo();
+    expect(Object.values(ed.doc.instances).some((i) => i.className === 'ScreenGui')).toBe(false);
+  });
+
+  it('adds a modifier to the selection, once, except UIStroke', () => {
+    ed.insert('UICorner');
+    expect(ed.state.toast?.text).toBe('Select a Frame, label, button or image first.');
+    ed.select(id('Coins'));
+    const before = ed.doc;
+    ed.insert('UICorner');
+    expect(ed.doc).toBe(before);
+    expect(ed.state.toast?.text).toBe('Coins already has a UICorner.');
+    expect(ed.doc.instances[ed.state.selection!]!.className).toBe('UICorner');
+    ed.select(id('Coins'));
+    const stroke = ed.insert('UIStroke')!;
+    expect(ed.doc.instances[stroke]!.props).toMatchObject({ Thickness: 2 });
+    ed.select(id('Coins'));
+    const padding = ed.insert('UIPadding')!;
+    expect(ed.doc.instances[padding]!.props).toMatchObject({ PaddingTop: [0, 8] });
+  });
+});
+
+describe('editing properties', () => {
+  it('changes the breakpoint shown for properties that may differ, and the base for the rest', () => {
+    ed.setDevice(phone());
+    ed.select(id('Headline'));
+    expect(ed.setProp(id('Headline'), 'TextSize', 30)).toBe(true);
+    expect(ed.setProp(id('Headline'), 'Text', 'Fresh coffee')).toBe(true);
+    const headline = byName('Headline');
+    expect((headline.overrides?.[phone()] as Record<string, unknown>).TextSize).toBe(30);
+    expect(props('Headline').Text).toBe('Fresh coffee');
+    expect(props('Headline').TextSize).not.toBe(30);
+
+    ed.resetProp(id('Headline'), 'TextSize');
+    expect(byName('Headline').overrides?.[phone()]).not.toHaveProperty('TextSize');
+  });
+
+  it('refuses invalid values with a toast', () => {
+    expect(ed.setProp(id('Coins'), 'Size', [1, 2])).toBe(false);
+    expect(ed.state.toast?.text).toMatch(/can't take Size/);
+  });
+
+  it('makes a gesture one undo step', () => {
+    ed.beginGesture();
+    for (const t of [0.2, 0.4, 0.6]) ed.setProp(id('Coins'), 'BackgroundTransparency', t);
+    ed.endGesture();
+    expect(props('Coins').BackgroundTransparency).toBe(0.6);
+    ed.undo();
+    expect(props('Coins').BackgroundTransparency).not.toBe(0.2);
+    expect(ed.state.canUndo).toBe(false);
+  });
+
+  it('renames objects but not services, and keeps the old name for a blank one', () => {
+    ed.startRename(id('Coins'));
+    expect(ed.state.renaming).toBe(id('Coins'));
+    ed.endRename('  Gold  ');
+    expect(ed.state.renaming).toBeNull();
+    expect(Object.values(ed.doc.instances).some((i) => i.props.Name === 'Gold')).toBe(true);
+    ed.startRename(id('Gold'));
+    ed.endRename('   ');
+    expect(byName('Gold')).toBeDefined();
+    ed.startRename(id('StarterGui'));
+    expect(ed.state.renaming).toBeNull();
+  });
+
+  it('reparents from the Explorer', () => {
+    ed.moveTo(id('Version'), id('Panel'));
+    expect(ed.doc.instances[id('Version')]!.parent).toBe(id('Panel'));
+    expect(ed.state.selection).toBe(id('Version'));
+    ed.moveTo(id('Panel'), id('Version'));
+    expect(ed.state.toast?.text).toMatch(/can't go inside itself/);
+  });
+
+  it('hides an object at the breakpoint shown, and a ScreenGui everywhere', () => {
+    ed.setDevice(phone());
+    ed.toggleVisible(id('Headline'));
+    expect((byName('Headline').overrides?.[phone()] as Record<string, unknown>).Visible).toBe(
+      false,
+    );
+    expect(props('Headline').Visible).toBe(true);
+    ed.toggleVisible(id('MainMenu'));
+    expect(props('MainMenu').Enabled).toBe(false);
+  });
+
+  it('opens the ancestors of the selection in the Explorer', () => {
+    ed.select(id('Amount'));
+    expect(ed.state.expanded.has(id('Coins'))).toBe(true);
+    expect(ed.state.expanded.has(id('MainMenu'))).toBe(true);
+    ed.setExpanded(id('Coins'));
+    expect(ed.state.expanded.has(id('Coins'))).toBe(false);
+  });
+});
+
+describe('converting units', () => {
+  it('rewrites the selection as Scale or Offset without moving it', () => {
+    ed.select(id('MainMenu'));
+    const frame = ed.insert('Frame')!;
+    ed.setProp(frame, 'Size', [0.25, 40, 0.1, 20]);
+    ed.convertUnits(true);
+    const size = ed.doc.instances[frame]!.props as Record<string, unknown>;
+    expect(size.Size).toEqual([0.2793, 0, 0.126, 0]);
+    ed.convertUnits(false);
+    expect((ed.doc.instances[frame]!.props as Record<string, unknown>).Size).toEqual([
+      0, 382, 0, 97,
+    ]);
+  });
+});
+
+describe('pictures and projects', () => {
+  const png = 'data:image/png;base64,iVBORw0KGgo=';
+
+  it('keeps a preview picture in the image library', () => {
+    ed.select(id('MainMenu'));
+    const image = ed.insert('ImageLabel')!;
+    ed.setImagePreview(image, png);
+    const asset = ed.doc.instances[image]!.preview!;
+    expect(ed.state.assets[asset]).toBe(png);
+    ed.setImagePreview(image, null);
+    expect(ed.doc.instances[image]!.preview).toBeUndefined();
+    ed.setImagePreview(image, 'data:text/plain;base64,aGk=');
+    expect(ed.state.toast?.text).toBe('That file isn’t a picture Framecraft can use.');
+  });
+
+  it('sets a picture property such as a page’s social image', () => {
+    ed.setPicture(id('Home'), 'SocialImage', png);
+    const asset = props('Home').SocialImage as string;
+    expect(ed.state.assets[asset]).toBe(png);
+    ed.setPicture(id('Home'), 'SocialImage', null);
+    expect(props('Home').SocialImage).toBe('');
+  });
+
+  it('opens another project, and the toast brings the old one back', () => {
+    const old = ed.doc;
+    ed.select(id('Coins'));
+    ed.openProject({ doc: blankSiteDoc(), assets: {} }, 'Started a blank project.');
+    expect(ed.state.selection).toBeNull();
+    expect(ed.state.canUndo).toBe(false);
+    expect(ed.state.toast?.text).toBe('Started a blank project.');
+    ed.state.toast!.action!.run();
+    expect(ed.doc).toBe(old);
   });
 });
