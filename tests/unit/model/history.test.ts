@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { insert, move, remove } from '../../../src/model/commands.ts';
+import { insert, move, remove, resetOverrides, type Command } from '../../../src/model/commands.ts';
 import {
   createInstance,
   ModelError,
@@ -8,7 +8,7 @@ import {
 } from '../../../src/model/document.ts';
 import { History } from '../../../src/model/history.ts';
 import { blankDoc } from '../../../src/model/sample.ts';
-import { byName, childNames, counterIds, sample } from './helpers.ts';
+import { bp, byName, childNames, counterIds, ofClass, sample, site } from './helpers.ts';
 
 const setSize = (id: string, size: readonly number[]) =>
   ({ type: 'setProps', id, props: { Size: size } }) as const;
@@ -158,5 +158,84 @@ describe('History', () => {
     expect(h.doc).toBe(blank);
     expect(h.canUndo).toBe(false);
     expect(h.canRedo).toBe(false);
+  });
+});
+
+describe('History with breakpoints', () => {
+  const at = (id: string, breakpoint: string | undefined, props: Record<string, unknown>) =>
+    ({ type: 'setProps', id, props, ...(breakpoint && { breakpoint }) }) as Command;
+
+  /** Runs `steps` as one gesture and checks undo gives the start back and redo the end. */
+  function gesture(steps: (doc: ReturnType<typeof site>) => Command[]) {
+    const h = new History(site());
+    const start = h.doc;
+    h.begin();
+    for (const s of steps(start)) h.execute(s);
+    h.commit();
+    const end = h.doc;
+    expect(h.undo()).toBe(true);
+    expect(h.doc).toEqual(start);
+    expect(h.redo()).toBe(true);
+    expect(h.doc).toEqual(end);
+    expect(h.undo()).toBe(true);
+    expect(h.undo()).toBe(false);
+    return { start, end };
+  }
+
+  it('turns a drag on Phone into one step that undoes back to no change', () => {
+    const { start, end } = gesture((doc) => {
+      const cta = byName(doc, 'Subscribe').id;
+      return Array.from({ length: 20 }, (_, x) =>
+        at(cta, bp(doc, 'Phone'), { Position: [0.5, x, 0.66, 0] }),
+      );
+    });
+    const cta = byName(start, 'Subscribe').id;
+    expect(start.instances[cta]!.overrides).toBeUndefined();
+    expect(end.instances[cta]!.overrides).toEqual({
+      [bp(start, 'Phone')]: { Position: [0.5, 19, 0.66, 0] },
+    });
+  });
+
+  it('keeps edits at different breakpoints apart within a gesture', () => {
+    const { end, start } = gesture((doc) => {
+      const headline = byName(doc, 'Headline').id;
+      return [
+        at(headline, undefined, { TextSize: 60 }),
+        at(headline, bp(doc, 'Tablet'), { TextSize: 40 }),
+        at(headline, bp(doc, 'Phone'), { TextSize: 30 }),
+        at(headline, undefined, { TextSize: 64 }),
+      ];
+    });
+    const headline = ofClass(end.instances[byName(start, 'Headline').id]!, 'TextLabel');
+    expect(headline.props.TextSize).toBe(64);
+    expect(headline.overrides![bp(start, 'Tablet')]).toMatchObject({ TextSize: 40 });
+    expect(headline.overrides![bp(start, 'Phone')]).toMatchObject({ TextSize: 30 });
+  });
+
+  it('merges a set followed by a reset of the same property', () => {
+    const { start, end } = gesture((doc) => {
+      const headline = byName(doc, 'Headline').id;
+      const phone = bp(doc, 'Phone');
+      return [
+        at(headline, phone, { TextSize: 20, Visible: false }),
+        resetOverrides(headline, phone, ['TextSize']),
+        at(headline, phone, { Size: [1, 0, 0, 100] }),
+      ];
+    });
+    const id = byName(start, 'Headline').id;
+    expect(end.instances[id]!.overrides![bp(start, 'Phone')]).toEqual({
+      Size: [1, 0, 0, 100],
+      Visible: false,
+    });
+  });
+
+  it('merges a reset followed by a new value for the same property', () => {
+    const { start, end } = gesture((doc) => {
+      const links = byName(doc, 'Links', 'Home').id;
+      const phone = bp(doc, 'Phone');
+      return [resetOverrides(links, phone, ['Visible']), at(links, phone, { Visible: true })];
+    });
+    const id = byName(start, 'Links', 'Home').id;
+    expect(end.instances[id]!.overrides).toEqual({ [bp(start, 'Phone')]: { Visible: true } });
   });
 });

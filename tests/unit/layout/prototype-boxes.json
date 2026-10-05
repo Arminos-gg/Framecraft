@@ -1,0 +1,515 @@
+{
+  "source": "The prototype's layout engine (prototype/src/4-render.js) run on its sample menu in Chromium, for each device preset. Boxes by Name, rounded to 6 decimals.",
+  "devices": {
+    "laptop": {
+      "width": 1366,
+      "height": 768,
+      "boxes": {
+        "MainMenu": {
+          "x": 0,
+          "y": 0,
+          "w": 1366,
+          "h": 768,
+          "visible": true,
+          "listItem": false
+        },
+        "Coins": {
+          "x": 1170,
+          "y": 20,
+          "w": 176,
+          "h": 52,
+          "visible": true,
+          "listItem": false
+        },
+        "Panel": {
+          "x": 450.78,
+          "y": 107.52,
+          "w": 464.44,
+          "h": 552.96,
+          "visible": true,
+          "listItem": false
+        },
+        "Version": {
+          "x": 18,
+          "y": 734,
+          "w": 260,
+          "h": 20,
+          "visible": true,
+          "listItem": false
+        },
+        "CoinIcon": {
+          "x": 1180,
+          "y": 29,
+          "w": 34,
+          "h": 34,
+          "visible": true,
+          "listItem": false
+        },
+        "Amount": {
+          "x": 1224,
+          "y": 20,
+          "w": 108,
+          "h": 52,
+          "visible": true,
+          "listItem": false
+        },
+        "Title": {
+          "x": 474.78,
+          "y": 131.52,
+          "w": 416.44,
+          "h": 100.992,
+          "visible": true,
+          "listItem": false
+        },
+        "Subtitle": {
+          "x": 474.78,
+          "y": 238.512,
+          "w": 416.44,
+          "h": 25.248,
+          "visible": true,
+          "listItem": false
+        },
+        "Buttons": {
+          "x": 474.78,
+          "y": 323.4048,
+          "w": 416.44,
+          "h": 313.0752,
+          "visible": true,
+          "listItem": false
+        },
+        "PlayButton": {
+          "x": 474.78,
+          "y": 342.189312,
+          "w": 416.44,
+          "h": 87.661056,
+          "visible": true,
+          "listItem": true
+        },
+        "ShopButton": {
+          "x": 474.78,
+          "y": 445.504128,
+          "w": 416.44,
+          "h": 87.661056,
+          "visible": true,
+          "listItem": true
+        },
+        "SettingsButton": {
+          "x": 474.78,
+          "y": 548.818944,
+          "w": 416.44,
+          "h": 87.661056,
+          "visible": true,
+          "listItem": true
+        }
+      }
+    },
+    "hd": {
+      "width": 1920,
+      "height": 1080,
+      "boxes": {
+        "MainMenu": {
+          "x": 0,
+          "y": 0,
+          "w": 1920,
+          "h": 1080,
+          "visible": true,
+          "listItem": false
+        },
+        "Coins": {
+          "x": 1724,
+          "y": 20,
+          "w": 176,
+          "h": 52,
+          "visible": true,
+          "listItem": false
+        },
+        "Panel": {
+          "x": 633.6,
+          "y": 151.2,
+          "w": 652.8,
+          "h": 777.6,
+          "visible": true,
+          "listItem": false
+        },
+        "Version": {
+          "x": 18,
+          "y": 1046,
+          "w": 260,
+          "h": 20,
+          "visible": true,
+          "listItem": false
+        },
+        "CoinIcon": {
+          "x": 1734,
+          "y": 29,
+          "w": 34,
+          "h": 34,
+          "visible": true,
+          "listItem": false
+        },
+        "Amount": {
+          "x": 1778,
+          "y": 20,
+          "w": 108,
+          "h": 52,
+          "visible": true,
+          "listItem": false
+        },
+        "Title": {
+          "x": 657.6,
+          "y": 175.2,
+          "w": 604.8,
+          "h": 145.92,
+          "visible": true,
+          "listItem": false
+        },
+        "Subtitle": {
+          "x": 657.6,
+          "y": 327.12,
+          "w": 604.8,
+          "h": 36.48,
+          "visible": true,
+          "listItem": false
+        },
+        "Buttons": {
+          "x": 657.6,
+          "y": 452.448,
+          "w": 604.8,
+          "h": 452.352,
+          "visible": true,
+          "listItem": false
+        },
+        "PlayButton": {
+          "x": 657.6,
+          "y": 479.58912,
+          "w": 604.8,
+          "h": 126.65856,
+          "visible": true,
+          "listItem": true
+        },
+        "ShopButton": {
+          "x": 657.6,
+          "y": 628.86528,
+          "w": 604.8,
+          "h": 126.65856,
+          "visible": true,
+          "listItem": true
+        },
+        "SettingsButton": {
+          "x": 657.6,
+          "y": 778.14144,
+          "w": 604.8,
+          "h": 126.65856,
+          "visible": true,
+          "listItem": true
+        }
+      }
+    },
+    "tablet": {
+      "width": 1024,
+      "height": 768,
+      "boxes": {
+        "MainMenu": {
+          "x": 0,
+          "y": 0,
+          "w": 1024,
+          "h": 768,
+          "visible": true,
+          "listItem": false
+        },
+        "Coins": {
+          "x": 828,
+          "y": 20,
+          "w": 176,
+          "h": 52,
+          "visible": true,
+          "listItem": false
+        },
+        "Panel": {
+          "x": 337.92,
+          "y": 107.52,
+          "w": 348.16,
+          "h": 552.96,
+          "visible": true,
+          "listItem": false
+        },
+        "Version": {
+          "x": 18,
+          "y": 734,
+          "w": 260,
+          "h": 20,
+          "visible": true,
+          "listItem": false
+        },
+        "CoinIcon": {
+          "x": 838,
+          "y": 29,
+          "w": 34,
+          "h": 34,
+          "visible": true,
+          "listItem": false
+        },
+        "Amount": {
+          "x": 882,
+          "y": 20,
+          "w": 108,
+          "h": 52,
+          "visible": true,
+          "listItem": false
+        },
+        "Title": {
+          "x": 361.92,
+          "y": 131.52,
+          "w": 300.16,
+          "h": 100.992,
+          "visible": true,
+          "listItem": false
+        },
+        "Subtitle": {
+          "x": 361.92,
+          "y": 238.512,
+          "w": 300.16,
+          "h": 25.248,
+          "visible": true,
+          "listItem": false
+        },
+        "Buttons": {
+          "x": 361.92,
+          "y": 323.4048,
+          "w": 300.16,
+          "h": 313.0752,
+          "visible": true,
+          "listItem": false
+        },
+        "PlayButton": {
+          "x": 361.92,
+          "y": 342.189312,
+          "w": 300.16,
+          "h": 87.661056,
+          "visible": true,
+          "listItem": true
+        },
+        "ShopButton": {
+          "x": 361.92,
+          "y": 445.504128,
+          "w": 300.16,
+          "h": 87.661056,
+          "visible": true,
+          "listItem": true
+        },
+        "SettingsButton": {
+          "x": 361.92,
+          "y": 548.818944,
+          "w": 300.16,
+          "h": 87.661056,
+          "visible": true,
+          "listItem": true
+        }
+      }
+    },
+    "phoneL": {
+      "width": 844,
+      "height": 390,
+      "boxes": {
+        "MainMenu": {
+          "x": 0,
+          "y": 0,
+          "w": 844,
+          "h": 390,
+          "visible": true,
+          "listItem": false
+        },
+        "Coins": {
+          "x": 648,
+          "y": 20,
+          "w": 176,
+          "h": 52,
+          "visible": true,
+          "listItem": false
+        },
+        "Panel": {
+          "x": 278.52,
+          "y": 54.6,
+          "w": 286.96,
+          "h": 280.8,
+          "visible": true,
+          "listItem": false
+        },
+        "Version": {
+          "x": 18,
+          "y": 356,
+          "w": 260,
+          "h": 20,
+          "visible": true,
+          "listItem": false
+        },
+        "CoinIcon": {
+          "x": 658,
+          "y": 29,
+          "w": 34,
+          "h": 34,
+          "visible": true,
+          "listItem": false
+        },
+        "Amount": {
+          "x": 702,
+          "y": 20,
+          "w": 108,
+          "h": 52,
+          "visible": true,
+          "listItem": false
+        },
+        "Title": {
+          "x": 302.52,
+          "y": 78.6,
+          "w": 238.96,
+          "h": 46.56,
+          "visible": true,
+          "listItem": false
+        },
+        "Subtitle": {
+          "x": 302.52,
+          "y": 131.16,
+          "w": 238.96,
+          "h": 11.64,
+          "visible": true,
+          "listItem": false
+        },
+        "Buttons": {
+          "x": 302.52,
+          "y": 167.064,
+          "w": 238.96,
+          "h": 144.336,
+          "visible": true,
+          "listItem": false
+        },
+        "PlayButton": {
+          "x": 302.52,
+          "y": 175.72416,
+          "w": 238.96,
+          "h": 40.41408,
+          "visible": true,
+          "listItem": true
+        },
+        "ShopButton": {
+          "x": 302.52,
+          "y": 223.35504,
+          "w": 238.96,
+          "h": 40.41408,
+          "visible": true,
+          "listItem": true
+        },
+        "SettingsButton": {
+          "x": 302.52,
+          "y": 270.98592,
+          "w": 238.96,
+          "h": 40.41408,
+          "visible": true,
+          "listItem": true
+        }
+      }
+    },
+    "phoneP": {
+      "width": 390,
+      "height": 844,
+      "boxes": {
+        "MainMenu": {
+          "x": 0,
+          "y": 0,
+          "w": 390,
+          "h": 844,
+          "visible": true,
+          "listItem": false
+        },
+        "Coins": {
+          "x": 194,
+          "y": 20,
+          "w": 176,
+          "h": 52,
+          "visible": true,
+          "listItem": false
+        },
+        "Panel": {
+          "x": 128.7,
+          "y": 118.16,
+          "w": 132.6,
+          "h": 607.68,
+          "visible": true,
+          "listItem": false
+        },
+        "Version": {
+          "x": 18,
+          "y": 810,
+          "w": 260,
+          "h": 20,
+          "visible": true,
+          "listItem": false
+        },
+        "CoinIcon": {
+          "x": 204,
+          "y": 29,
+          "w": 34,
+          "h": 34,
+          "visible": true,
+          "listItem": false
+        },
+        "Amount": {
+          "x": 248,
+          "y": 20,
+          "w": 108,
+          "h": 52,
+          "visible": true,
+          "listItem": false
+        },
+        "Title": {
+          "x": 152.7,
+          "y": 142.16,
+          "w": 84.6,
+          "h": 111.936,
+          "visible": true,
+          "listItem": false
+        },
+        "Subtitle": {
+          "x": 152.7,
+          "y": 260.096,
+          "w": 84.6,
+          "h": 27.984,
+          "visible": true,
+          "listItem": false
+        },
+        "Buttons": {
+          "x": 152.7,
+          "y": 354.8384,
+          "w": 84.6,
+          "h": 347.0016,
+          "visible": true,
+          "listItem": false
+        },
+        "PlayButton": {
+          "x": 152.7,
+          "y": 375.658496,
+          "w": 84.6,
+          "h": 97.160448,
+          "visible": true,
+          "listItem": true
+        },
+        "ShopButton": {
+          "x": 152.7,
+          "y": 490.169024,
+          "w": 84.6,
+          "h": 97.160448,
+          "visible": true,
+          "listItem": true
+        },
+        "SettingsButton": {
+          "x": 152.7,
+          "y": 604.679552,
+          "w": 84.6,
+          "h": 97.160448,
+          "visible": true,
+          "listItem": true
+        }
+      }
+    }
+  }
+}

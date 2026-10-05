@@ -42,6 +42,9 @@ Paste this into Claude Code as the first message:
 | Export Luau with `IgnoreGuiInset = true` | The editor treats the ScreenGui as the full screen | If we add a top-bar or safe-area preview |
 | Snapshot undo (whole-document JSON strings) | Simplest thing that works for a prototype | Done in the port: `src/model/` uses commands with inverses |
 | UIGradient props stored as `GradColor`, `GradTransparency`, `GradRotation` | One global property schema couldn't hold two different `Color` types | Done in the port: per-class schemas use Color, Transparency and Rotation; version 1 files are converted on open |
+| One project holds both Roblox screens and a website: a DataModel root with StarterGui and Site | Pages reuse the same objects, layout and editor; the Luau export skips the web-only parts | If people never mix the two in one project |
+| Changes per breakpoint are stored on each object, keyed by a Breakpoint object (Tablet up to 1199 px, Phone up to 809 px) | Breakpoints get undo and renaming for free, and `resolveProps` is the one place values are worked out | If we add hover or other states, which may need the same mechanism |
+| Images live in a library next to the document, referenced by id | The document stays small enough to compare and undo; a picture used twice is stored once | When the autosave moves to IndexedDB (step 6) |
 
 ## Known gaps in the prototype
 
@@ -84,7 +87,7 @@ Keep `prototype/` working as the reference until the new app reaches parity. A s
 
 ```
 src/
-  model/     classes.ts (registry), document.ts, commands.ts (undo/redo)
+  model/     classes.ts (registry), document.ts, commands.ts (undo/redo), assets.ts (images)
   layout/    layout.ts (pure functions)
   export/    luau.ts, html.ts, json.ts
   render/    canvas.ts (DOM renderer), overlay.ts
@@ -94,9 +97,9 @@ tests/       Vitest unit tests and Playwright end-to-end tests
 ```
 
 1. **Scaffold.** Vite, TypeScript (strict), React for the panels, Vitest, Playwright, ESLint and Prettier. Done when `npm run dev` serves an empty editor shell and `npm test` runs both the unit tests and the existing prototype smoke test.
-2. **Model.** A typed class registry with per-class property schemas, so UIGradient uses its real names (Color, Transparency, Rotation). Document types, plus commands with undo and redo instead of snapshots. Done when unit tests cover insert, delete, reparent, property edits, undo and redo.
-3. **Layout engine.** A pure function from document and screen size to boxes. Done when unit tests reproduce every number under "Verified" above, plus edge cases: AnchorPoint (1, 1), negative offsets, Scale padding, list alignment Center and Right, horizontal lists, aspect ratios and invisible list items.
-4. **Exporters.** Luau, HTML and JSON as pure functions. Done when the output for the sample project is byte-identical to `prototype/examples/` (or every difference is intentional and explained) and the Luau parses with luaparse.
+2. **Model.** A typed class registry with per-class property schemas, so UIGradient uses its real names (Color, Transparency, Rotation). Document types, plus commands with undo and redo instead of snapshots. Done when unit tests cover insert, delete, reparent, property edits, undo and redo. Website follow-up, also done: the DataModel root with StarterGui and Site, Page and Breakpoint classes, changes per breakpoint read through `resolveProps`, the image library, Link values, and project file version 3, which still opens version 1 and 2 files. From here on, each step also builds its website part (findings: https://claude.ai/code/artifact/d0980ca9-4396-4ec4-b9a6-b7b0784430c8).
+3. **Layout engine.** A pure function from document and screen size to boxes. Done when unit tests reproduce every number under "Verified" above, plus edge cases: AnchorPoint (1, 1), negative offsets, Scale padding, list alignment Center and Right, horizontal lists, aspect ratios and invisible list items. Done in `src/layout/`: every box of the sample menu matches the prototype on all five device presets. Website part, also done: pages are window-wide, Scale inside them is a fraction of the window, the page grows to fit its content, and layout reads each object's values at the current breakpoint.
+4. **Exporters.** Luau, HTML and JSON as pure functions. Done when the output for the sample project is byte-identical to `prototype/examples/` (or every difference is intentional and explained) and the Luau parses with luaparse. Roblox part done in `src/export/`: the Luau (both targets) and HTML for the sample menu are byte-identical to the goldens. The project file is version 3 now, so it differs from `sample-project.json` on purpose (see step 2). Website part, also done: `exportSite` writes an HTML file per page (`/pricing` is `pricing/index.html`, NotFound is `404.html`) and the pictures it uses, with each breakpoint's changes as media queries. Objects gained web-only Link, HtmlTag and AltText. A Playwright test checks that every exported page matches the layout engine at desktop, tablet and phone widths. Still at the base values on every breakpoint: Scale corner radii under 0.5, aspect ratios and TextScaled.
 5. **Renderer and interactions.** DOM canvas, selection overlay with handles and the AnchorPoint dot, drag, resize, smart snapping, nudge, zoom and device presets. Done when Playwright tests cover the same interactions as `tests/smoke.mjs`.
 6. **Panels.** Explorer with drag-to-reparent, rename and keyboard navigation; Properties with typed editors and Studio shorthand; ribbon; export dialog; Code tab. Done when every Properties editor type has a test.
 7. **Parity and cleanup.** Walk through the prototype side by side, fix gaps, then move `prototype/` to `legacy/` or delete it.

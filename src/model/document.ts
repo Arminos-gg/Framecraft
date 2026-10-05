@@ -7,12 +7,13 @@ import {
   classDef,
   defaultProps,
   isClassName,
+  isOverridable,
   normalizeProp,
   propNames,
   type ClassName,
   type PropsOf,
 } from './classes.ts';
-import { valueEquals } from './values.ts';
+import { ASSET_ID_PATTERN, valueEquals, type AssetId } from './values.ts';
 
 export type InstanceId = string;
 
@@ -21,9 +22,15 @@ export interface Instance<C extends ClassName = ClassName> {
   readonly className: C;
   readonly parent: InstanceId | null;
   readonly children: readonly InstanceId[];
+  /** Base values: what Desktop shows, and what every breakpoint starts from. */
   readonly props: PropsOf<C>;
-  /** ImageLabel and ImageButton: an uploaded picture (data URL) shown in place of the Roblox asset. */
-  readonly preview?: string;
+  /**
+   * Values changed for a breakpoint, keyed by the Breakpoint's id. Only overridable
+   * properties, and only the ones changed there. Absent when there are none.
+   */
+  readonly overrides?: Readonly<Record<InstanceId, Partial<PropsOf<C>>>>;
+  /** ImageLabel and ImageButton: a picture from the image library, shown in place of the Roblox asset. */
+  readonly preview?: AssetId;
 }
 
 /** An instance of any class; checking `className` narrows `props`. */
@@ -142,9 +149,75 @@ export function reIdSubtree(subtree: Subtree, makeId: () => InstanceId = newId):
   return { rootId: to(subtree.rootId), instances };
 }
 
-/** A document with only the StarterGui root. */
-export function rootOnlyDoc(rootId: InstanceId = 'root'): Doc {
-  return { rootId, instances: { [rootId]: createInstance('StarterGui', {}, rootId) } };
+/** The breakpoints a new project starts with. Desktop is the base, so it has none. */
+export const DEFAULT_BREAKPOINTS = [
+  { Name: 'Tablet', MaxWidth: 1199, PreviewWidth: 810, PreviewHeight: 1080 },
+  { Name: 'Phone', MaxWidth: 809, PreviewWidth: 390, PreviewHeight: 844 },
+] as const;
+
+/**
+ * A new project: the DataModel root (Roblox scripts call it `game`) holding StarterGui for
+ * Roblox screens, Site for web pages, and the default breakpoints. `starterGui` brings in an
+ * existing StarterGui tree, which is how older files open.
+ */
+export function emptyProject(makeId: () => InstanceId = newId, starterGui?: Subtree): Doc {
+  const taken = starterGui ? starterGui.instances : {};
+  const rootId = Object.hasOwn(taken, 'game') ? makeId() : 'game';
+  const instances: Record<InstanceId, AnyInstance> = { ...taken };
+  const children: InstanceId[] = [];
+  const add = (inst: AnyInstance) => {
+    instances[inst.id] = { ...inst, parent: rootId };
+    children.push(inst.id);
+  };
+  const sg = starterGui?.instances[starterGui.rootId];
+  add(sg ?? createInstance('StarterGui', {}, makeId()));
+  add(createInstance('Site', {}, makeId()));
+  for (const bp of DEFAULT_BREAKPOINTS) add(createInstance('Breakpoint', bp, makeId()));
+  instances[rootId] = { ...createInstance('DataModel', {}, rootId), children };
+  return { rootId, instances };
+}
+
+/** The first child of the root with a given class: the StarterGui or Site service. */
+export function serviceOf<C extends 'StarterGui' | 'Site'>(doc: Doc, className: C): Instance<C> {
+  const s = childOfClass(doc, doc.rootId, className);
+  if (!s) throw new ModelError(`The project has no ${className}`);
+  return s;
+}
+
+/** The project's breakpoints, widest first: the order their changes apply in. */
+export function breakpointsOf(doc: Doc): Instance<'Breakpoint'>[] {
+  return childrenOf(doc, doc.rootId)
+    .filter((c): c is Instance<'Breakpoint'> & AnyInstance => c.className === 'Breakpoint')
+    .sort((a, b) => b.props.MaxWidth - a.props.MaxWidth);
+}
+
+/** The breakpoint a window of this width shows: the narrowest one it fits, or none (Desktop). */
+export function breakpointForWidth(doc: Doc, width: number): Instance<'Breakpoint'> | undefined {
+  return breakpointsOf(doc).findLast((b) => width <= b.props.MaxWidth);
+}
+
+/**
+ * An instance's values at a breakpoint: its base values, then the changes made for each
+ * breakpoint from the widest down to this one. So Phone shows Tablet's changes unless it has
+ * its own. Without a breakpoint, the base values. Layout and the exporters read through this.
+ */
+export function resolveProps<C extends ClassName>(
+  doc: Doc,
+  inst: Instance<C>,
+  breakpointId?: InstanceId,
+): PropsOf<C> {
+  if (breakpointId === undefined) return inst.props;
+  if (getInstance(doc, breakpointId)?.className !== 'Breakpoint')
+    throw new ModelError(`No breakpoint with id ${breakpointId}`);
+  if (!inst.overrides) return inst.props;
+  let props = inst.props;
+  // Widest first, so everything before the target is a wider breakpoint.
+  for (const bp of breakpointsOf(doc)) {
+    const changes = inst.overrides[bp.id];
+    if (changes) props = { ...props, ...changes };
+    if (bp.id === breakpointId) break;
+  }
+  return props;
 }
 
 /**
@@ -192,8 +265,25 @@ export function validateDoc(doc: Doc): string[] {
     for (const p of Object.keys(props)) {
       if (!names.includes(p as never)) problems.push(`${where} has an unknown property ${p}`);
     }
-    if (inst.preview !== undefined && !classDef(inst.className).image)
-      problems.push(`${where} has a preview picture but isn't an image`);
+    if (inst.preview !== undefined) {
+      if (!classDef(inst.className).image)
+        problems.push(`${where} has a preview picture but isn't an image`);
+      else if (!ASSET_ID_PATTERN.test(inst.preview))
+        problems.push(`${where} has an invalid preview id`);
+    }
+    if (inst.overrides !== undefined) problems.push(...overrideProblems(doc, where, inst));
+    if (classDef(inst.className).unique && inst.parent !== null) {
+      const twins = getInstance(doc, inst.parent)?.children.filter(
+        (c) => getInstance(doc, c)?.className === inst.className,
+      );
+      if (twins && twins[0] !== key) problems.push(`${where} is a second ${inst.className}`);
+    }
+  }
+
+  if (root.className === 'DataModel') {
+    for (const service of ['StarterGui', 'Site'] as const) {
+      if (!childOfClass(doc, doc.rootId, service)) problems.push(`The project has no ${service}`);
+    }
   }
 
   // Everything must hang off the root exactly once: no cycles and no orphans.
@@ -211,6 +301,25 @@ export function validateDoc(doc: Doc): string[] {
   }
   for (const id of Object.keys(doc.instances)) {
     if (!seen.has(id)) problems.push(`${id} is not connected to the root`);
+  }
+  return problems;
+}
+
+function overrideProblems(doc: Doc, where: string, inst: AnyInstance): string[] {
+  const problems: string[] = [];
+  const overrides: Readonly<Record<string, Readonly<Record<string, unknown>>>> =
+    inst.overrides ?? {};
+  if (!Object.keys(overrides).length) problems.push(`${where} has an empty overrides map`);
+  for (const [bp, changes] of Object.entries(overrides)) {
+    if (getInstance(doc, bp)?.className !== 'Breakpoint')
+      problems.push(`${where} has changes for ${bp}, which isn't a breakpoint`);
+    if (!Object.keys(changes).length) problems.push(`${where} has an empty change list for ${bp}`);
+    for (const [p, v] of Object.entries(changes)) {
+      if (!isOverridable(inst.className, p))
+        problems.push(`${where} can't change ${p} per breakpoint`);
+      else if (!valueEquals(normalizeProp(inst.className, p, v), v))
+        problems.push(`${where} has an invalid ${p} for ${bp}`);
+    }
   }
   return problems;
 }

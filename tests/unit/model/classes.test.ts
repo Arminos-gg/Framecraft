@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   canParent,
+  classDef,
   CLASSES,
   defaultProps,
+  isOverridable,
   normalizeProp,
   propNames,
   type ClassName,
@@ -58,6 +60,9 @@ describe('class registry', () => {
       'TextYAlignment',
       'TextTransparency',
       'AutoButtonColor',
+      // Web-only properties come last.
+      'Link',
+      'HtmlTag',
     ]);
   });
 
@@ -89,8 +94,72 @@ describe('canParent', () => {
     ['Frame', 'UICorner', false],
     ['UIStroke', 'UIGradient', false],
     ['StarterGui', 'ScreenGui', false],
+    ['StarterGui', 'DataModel', true],
+    ['Site', 'DataModel', true],
+    ['Breakpoint', 'DataModel', true],
+    ['Breakpoint', 'Site', false],
+    ['Page', 'Site', true],
+    ['Page', 'StarterGui', false],
+    ['ScreenGui', 'Site', false],
+    ['Frame', 'Page', true],
+    ['TextLabel', 'Site', false],
+    ['UIListLayout', 'Page', true],
+    ['UIPadding', 'Page', true],
+    ['UIPadding', 'ScreenGui', false],
+    ['UICorner', 'Page', false],
+    ['DataModel', 'DataModel', false],
   ];
   it.each(cases)('%s inside %s: %s', (child, parent, ok) => {
     expect(canParent(child, parent)).toBe(ok);
+  });
+});
+
+describe('website markers', () => {
+  it('marks what may differ per breakpoint: layout, size, visibility, text size and colors', () => {
+    for (const prop of ['Position', 'Size', 'AnchorPoint', 'Visible', 'BackgroundColor3'])
+      expect(isOverridable('Frame', prop), prop).toBe(true);
+    for (const prop of ['TextSize', 'TextColor3', 'TextXAlignment'])
+      expect(isOverridable('TextLabel', prop), prop).toBe(true);
+    expect(isOverridable('UIListLayout', 'FillDirection')).toBe(true);
+    expect(isOverridable('UIPadding', 'PaddingLeft')).toBe(true);
+    expect(isOverridable('Page', 'BackgroundColor3')).toBe(true);
+  });
+
+  it("keeps names, text, images, fonts and a page's details the same everywhere", () => {
+    expect(isOverridable('Frame', 'Name')).toBe(false);
+    expect(isOverridable('TextLabel', 'Text')).toBe(false);
+    expect(isOverridable('TextLabel', 'Font')).toBe(false);
+    expect(isOverridable('ImageLabel', 'Image')).toBe(false);
+    expect(isOverridable('UIListLayout', 'SortOrder')).toBe(false);
+    expect(isOverridable('Page', 'Path')).toBe(false);
+    expect(isOverridable('Breakpoint', 'MaxWidth')).toBe(false);
+    expect(isOverridable('Frame', 'Nope')).toBe(false);
+  });
+
+  it('marks the classes and properties Roblox does not have', () => {
+    expect(classDef('Site').web).toBe(true);
+    expect(classDef('Page').web).toBe(true);
+    expect(classDef('Frame').web).toBeUndefined();
+    const webProps = (c: ClassName) =>
+      Object.entries(classDef(c).props)
+        .filter(([, spec]) => spec.web)
+        .map(([name]) => name);
+    expect(webProps('Page')).toEqual([
+      'Path',
+      'Title',
+      'Description',
+      'SocialImage',
+      'NotFound',
+      'BackgroundColor3',
+    ]);
+    expect(webProps('TextButton')).toEqual(['Link', 'HtmlTag']);
+    expect(webProps('ImageLabel')).toEqual(['AltText', 'Link', 'HtmlTag']);
+    expect(webProps('UICorner')).toEqual([]);
+  });
+
+  it('allows one StarterGui and one Site per project', () => {
+    expect(classDef('StarterGui').unique).toBe(true);
+    expect(classDef('Site').unique).toBe(true);
+    expect(classDef('Breakpoint').unique).toBeUndefined();
   });
 });
