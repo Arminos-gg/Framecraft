@@ -1,24 +1,24 @@
 # Framecraft
 
-Build UI the way Roblox Studio does, in the browser: an Explorer tree, a Properties panel, and Scale + Offset positioning. Export the result as Luau for Roblox Studio or as a web page.
+Build UI the way Roblox Studio does, in the browser: an Explorer tree, a Properties panel, and Scale + Offset positioning. Export the result as a website, as Luau for Roblox Studio, or as a single web page.
 
-"Framecraft" is a working name. This repo holds the clickable prototype, the product plan, and the new Vite + TypeScript app the prototype is being ported to. The new app (`npm run dev`) already edits the sample game menu and website end to end: Explorer, Properties, ribbon, Code tab, export (website zip, HTML page, Luau, project file) and autosave in the browser. What's left is checking it against the prototype and retiring the prototype.
+"Framecraft" is a working name. This repo holds the editor (a Vite + TypeScript app) and the product plan. The editor started as a single-file prototype, which was ported here and then retired; it is in git history and still runs at https://claude.ai/artifact/UsJ62VRUdtaqmAUBzdjhsT.
 
-## Try the prototype
+## Try it
 
-Open `prototype/dist/framecraft.html` in Chrome, Edge or Firefox. It opens on a sample game menu. Fonts load from Google Fonts, so you need an internet connection for them.
+Run `npm install` and `npm run dev`, then open http://localhost:5173 in Chrome, Edge or Firefox. It opens on a sample website and a sample game menu. Fonts load from Google Fonts, so you need an internet connection for them.
 
-- Insert objects from the top bar; add corners, outlines, gradients, padding and list layouts to the selected object.
+- Pick the website's pages or the Roblox screens above the viewport, and a device size to see Scale-based objects adapt while Offset-based ones stay put.
+- Insert objects from the ribbon; add corners, outlines, gradients, padding and list layouts to the selected object.
 - Drag to move, use the handles to resize, and hold Alt to skip snapping.
-- Switch the device size above the viewport to see Scale-based objects adapt while Offset-based ones stay put.
-- Export gives you Luau for Studio's command bar, a standalone web page, or a project file you can import later.
+- Export downloads the website as a zip of static files. It also gives you Luau for Studio's command bar, a standalone web page, or a project file you can open later.
 
 ## Continue with Claude Code
 
 The repo is set up for Claude Code: `CLAUDE.md` loads automatically and points to `docs/HANDOVER.md`, which ends with the next tasks. The kickoff prompt is at the top of `docs/HANDOVER.md`.
 
 - **On your computer:** install Claude Code ([setup guide](https://code.claude.com/docs/en/setup)), open a terminal in this folder, run `claude` and paste the kickoff prompt.
-- **In the browser or the Claude app** ([claude.ai/code](https://claude.ai/code)): cloud sessions work from GitHub repositories, so push this folder to a GitHub repo first, then pick it when you start a session. The folder is already a git repository with one commit.
+- **In the browser or the Claude app** ([claude.ai/code](https://claude.ai/code)): cloud sessions work from GitHub repositories, so pick this repo when you start a session.
 
 ## Scripts
 
@@ -27,9 +27,9 @@ You need Node.js 22.12 or newer.
 ```
 npm install
 npx playwright install chromium   # first time only, for the tests
-npm run dev                        # serves the new app at http://localhost:5173
-npm run build                      # builds the app into dist/ and the prototype into prototype/dist/
-npm test                           # unit tests, the app's browser tests, and the prototype smoke test
+npm run dev                        # serves the app at http://localhost:5173
+npm run build                      # builds the app into dist/
+npm test                           # unit tests and browser tests
 npm run lint                       # ESLint; `npm run format` applies Prettier
 ```
 
@@ -40,8 +40,7 @@ npm run lint                       # ESLint; `npm run format` applies Prettier
 - `CLAUDE.md`: instructions Claude Code reads at the start of every session
 - `docs/PLAN.md`: product and technical plan (audience, scope, architecture, roadmap, risks)
 - `docs/HANDOVER.md`: what works, what's missing, decisions so far, next tasks
-- `src/`: the new app (model, layout and exporters as plain TypeScript; React panels in `src/ui/`; design tokens in `src/styles/`)
-- `prototype/`: the single-file prototype, its source parts, and golden example exports
-- `tests/`: unit tests (`unit/`), the app's browser tests (`e2e/`) and the prototype smoke test (`smoke.mjs`)
+- `src/`: the app (model, layout and exporters as plain TypeScript; React panels in `src/ui/`; design tokens in `src/styles/`)
+- `tests/`: unit tests (`unit/`), browser tests (`e2e/`) and the golden exports of the sample menu (`golden/`)
 
 Not affiliated with, sponsored by, or endorsed by Roblox Corporation.

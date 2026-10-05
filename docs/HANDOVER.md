@@ -11,7 +11,8 @@ Paste this into Claude Code as the first message:
 ## Where things stand
 
 - **Plan:** `docs/PLAN.md`. The live version is a Claude Doc at https://claude.ai/code/artifact/f3841492-bcbd-409d-913e-f9982b6ad143
-- **Prototype:** `prototype/dist/framecraft.html` (open it in a browser). It is also published as a claude.ai artifact at https://claude.ai/artifact/UsJ62VRUdtaqmAUBzdjhsT
+- **App:** the Vite + TypeScript editor at the repo root (`npm run dev`). Vercel builds a preview of every branch.
+- **Prototype:** retired in step 7 after the app reached parity. It is in git history (`git show c9caac6:prototype/`) and still runs as a claude.ai artifact at https://claude.ai/artifact/UsJ62VRUdtaqmAUBzdjhsT, which no longer gets updates.
 - Both links are private to Armin's claude.ai account. Claude Code can't open them, and everything it needs is in this repo.
 
 ### Verified
@@ -55,6 +56,8 @@ Paste this into Claude Code as the first message:
 
 ## Known gaps in the prototype
 
+The app inherited these from the prototype. Step 6 closed one of them: the Explorer has keyboard navigation now.
+
 Layout and rendering
 
 - UIListLayout flex features (HorizontalFlex, VerticalFlex, Wraps, UIFlexItem) are not modeled.
@@ -84,13 +87,13 @@ Exports
 
 ### For you (needs a PC or Mac with Roblox Studio)
 
-1. Open a new Baseplate in Studio, set the device emulator to 1366×768, paste `prototype/examples/sample-menu.luau` into the command bar and press Enter.
+1. Open a new Baseplate in Studio, set the device emulator to 1366×768, paste `tests/golden/sample-menu.luau` into the command bar and press Enter.
 2. Compare it with the editor at "Laptop · 1366×768". Write every difference into a new `docs/STUDIO_DIFFS.md`, with a screenshot of each side. Claude Code can fix the exporter from that list.
 3. Run the user tests from the Roadmap in `docs/PLAN.md`. Their result decides which export gets polished first.
 
 ### For Claude Code: Phase 2, port to a real codebase
 
-Keep `prototype/` working as the reference until the new app reaches parity. A suggested layout for the new code:
+`prototype/` was the reference until the new app reached parity in step 7. The suggested layout for the new code was:
 
 ```
 src/
@@ -109,10 +112,10 @@ tests/       Vitest unit tests and Playwright end-to-end tests
 4. **Exporters.** Luau, HTML and JSON as pure functions. Done when the output for the sample project is byte-identical to `prototype/examples/` (or every difference is intentional and explained) and the Luau parses with luaparse. Roblox part done in `src/export/`: the Luau (both targets) and HTML for the sample menu are byte-identical to the goldens. The project file is version 3 now, so it differs from `sample-project.json` on purpose (see step 2). Website part, also done: `exportSite` writes an HTML file per page (`/pricing` is `pricing/index.html`, NotFound is `404.html`) and the pictures it uses, with each breakpoint's changes as media queries. Objects gained web-only Link, HtmlTag and AltText. A Playwright test checks that every exported page matches the layout engine at desktop, tablet and phone widths. Still at the base values on every breakpoint: Scale corner radii under 0.5, aspect ratios and TextScaled.
 5. **Renderer and interactions.** DOM canvas, selection overlay with handles and the AnchorPoint dot, drag, resize, smart snapping, nudge, zoom and device presets. Done when Playwright tests cover the same interactions as `tests/smoke.mjs`. Done in `src/editor/` and `src/ui/viewport/`: `tests/e2e/canvas.spec.ts` covers select, drag (Offset stays Offset), resize, click-to-select-child, undo and redo, preview, devices and phone width, plus snapping, nudging, zoom and the keyboard (delete, duplicate, copy, paste). The Properties and Explorer parts of the smoke test (shorthand input, To Scale, drag-to-reparent) belong to step 6. Website part, also done: the viewport shows the Roblox screens or one page; a page shows Desktop, Tablet or Phone and edits that breakpoint's values; pages are drawn as long as their content, with a line where the first screen ends; and links work in preview.
 6. **Panels.** Explorer with drag-to-reparent, rename and keyboard navigation; Properties with typed editors and Studio shorthand; ribbon; export dialog; Code tab. Done when every Properties editor type has a test. Done in `src/ui/` and `src/editor/`, in the editor design's look (light and dark): `tests/e2e/panels.spec.ts` edits every value type (string, int, number, bool, enum, alpha, color, vec2, udim, udim2, image, colorseq, numseq, asset, link) and covers the rest of the smoke test (shorthand input, To Scale, drag-to-reparent), plus rename, the Explorer keys, insert menus, the Code tab, export downloads and project files. Website part, also done: on a page shown at Tablet or Phone, Properties edits that breakpoint (a dot marks values changed there, and clicking it goes back to the inherited value); Link, HtmlTag and AltText show only for objects on a page; pages and pictures (preview, favicon, social image) can be added from the panels; the export dialog downloads the site as `website.zip`. The Project menu starts a new website or Roblox UI, opens the sample, and opens and saves project files; the project autosaves in the browser.
-7. **Parity and cleanup.** Walk through the prototype side by side, fix gaps, then move `prototype/` to `legacy/` or delete it. Parity checked: the sample menu renders the same as the prototype on every device (only sub-pixel text differences), every class has the prototype's properties, defaults and options (plus the web-only ones), and its editing behaviors work in the new app. The walkthrough found two gaps. Ctrl+Z with nothing to undo said nothing (the prototype shows a message), and the exported HTML page, in both apps, read sizes in whole pixels, so aspect ratios and Scale corners were up to half a pixel off. `tests/e2e/html-export.spec.ts` now checks every exported object against the layout engine on every device, and new browser tests cover what only the prototype's smoke test did (cut, Escape, Shift-resize, reordering in the Explorer, preview typing and scrolling).
+7. **Parity and cleanup.** Walk through the prototype side by side, fix gaps, then move `prototype/` to `legacy/` or delete it. Parity checked: the sample menu renders the same as the prototype on every device (only sub-pixel text differences), every class has the prototype's properties, defaults and options (plus the web-only ones), and its editing behaviors work in the new app. The walkthrough found two gaps. Ctrl+Z with nothing to undo said nothing (the prototype shows a message), and the exported HTML page, in both apps, read sizes in whole pixels, so aspect ratios and Scale corners were up to half a pixel off. `tests/e2e/html-export.spec.ts` now checks every exported object against the layout engine on every device, and new browser tests cover what only the prototype's smoke test did (cut, Escape, Shift-resize, reordering in the Explorer, preview typing and scrolling). Cleanup, also done: Armin chose to delete `prototype/` rather than keep a `legacy/` copy that nothing would test. Its smoke test went with it, the golden exports moved to `tests/golden/`, and `npm run update-golden` rewrites them from the app.
 
 After Phase 2 comes the public beta: templates, share links, side-by-side devices, the live code view, .rbxmx export and an accessibility pass.
 
-## Updating the published prototype
+## The published prototype
 
-`npm run build` also writes `prototype/dist/framecraft.artifact.html`, the body-only version the claude.ai artifact uses. To update the live prototype, ask Claude in a claude.ai conversation to publish that file to https://claude.ai/artifact/UsJ62VRUdtaqmAUBzdjhsT. The artifact uses the `downloads` capability for its "Download .html" and "Download .json" buttons.
+The claude.ai artifact at https://claude.ai/artifact/UsJ62VRUdtaqmAUBzdjhsT is a frozen copy of the prototype. The repo no longer builds it. If it ever needs an update, `git checkout c9caac6 -- prototype` brings the source back and `node prototype/build.mjs` writes `prototype/dist/framecraft.artifact.html`, the body-only version the artifact uses.

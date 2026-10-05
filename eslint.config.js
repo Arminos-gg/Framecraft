@@ -6,8 +6,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig([
-  // The prototype is plain browser JS with page globals; it stays as it is until the port reaches parity.
-  globalIgnores(['dist', 'prototype', 'tests/output', 'tests/smoke.mjs']),
+  globalIgnores(['dist', 'tests/output']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

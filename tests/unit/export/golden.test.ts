@@ -1,25 +1,29 @@
 import luaparse from 'luaparse';
 import { describe, expect, it } from 'vitest';
-import goldenHtml from '../../../prototype/examples/sample-menu.html?raw';
-import goldenLocal from '../../../prototype/examples/sample-menu.localscript.luau?raw';
-import goldenCommand from '../../../prototype/examples/sample-menu.luau?raw';
 import { exportHtml } from '../../../src/export/html.ts';
 import { exportLuau } from '../../../src/export/luau.ts';
 import { sample } from '../model/helpers.ts';
 
-describe('exports of the sample menu match the prototype byte for byte', () => {
+/**
+ * The exports of the untouched sample menu, byte for byte, against the golden files in
+ * tests/golden/. They started as the prototype's exports. After an intentional exporter
+ * change, `npm run update-golden` rewrites them; say why in the commit.
+ */
+describe('exports of the sample menu match the golden files', () => {
   const doc = sample();
 
-  it('Luau for the command bar', () => {
-    expect(exportLuau(doc, 'command')).toBe(goldenCommand);
+  it('Luau for the command bar', async () => {
+    await expect(exportLuau(doc, 'command')).toMatchFileSnapshot('../../golden/sample-menu.luau');
   });
 
-  it('Luau for a LocalScript', () => {
-    expect(exportLuau(doc, 'local')).toBe(goldenLocal);
+  it('Luau for a LocalScript', async () => {
+    await expect(exportLuau(doc, 'local')).toMatchFileSnapshot(
+      '../../golden/sample-menu.localscript.luau',
+    );
   });
 
-  it('the HTML page', () => {
-    expect(exportHtml(doc)).toBe(goldenHtml);
+  it('the HTML page', async () => {
+    await expect(exportHtml(doc)).toMatchFileSnapshot('../../golden/sample-menu.html');
   });
 
   it('Luau that parses', () => {

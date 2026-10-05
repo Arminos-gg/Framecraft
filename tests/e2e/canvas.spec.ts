@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /**
- * The viewport in the running app: the same interactions the prototype's smoke test covers
+ * The viewport in the running app: the same interactions the prototype's smoke test covered
  * (select, drag, resize, select inside, undo, preview, devices), plus snapping, nudging, zoom,
  * the keyboard, and editing a page per breakpoint.
  */

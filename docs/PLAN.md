@@ -8,7 +8,7 @@ We build a browser app where you make UI exactly the way Roblox Studio does it: 
 
 Recommendation: keep the Studio-style editor and ship both exporters, but lead with web output. At least five browser tools already export Roblox UI, while we found nobody offering Studio's way of building for the web. The editor core is identical either way, so a one-week test with real users can settle it.
 
-What exists today: this plan and a clickable prototype of the editor (in `prototype/`) with an Explorer, a Properties panel, drag and resize with smart snapping, device presets, undo/redo, and export to Luau, HTML and JSON. The next step is putting it in front of 10 creators per audience, as the Roadmap describes.
+What exists today: this plan and a working editor (the Vite + TypeScript app at the repo root, ported from the first clickable prototype) with an Explorer, a Properties panel, drag and resize with smart snapping, device presets, website pages with Tablet and Phone breakpoints, undo/redo, and export to a website, Luau, an HTML page and a project file. The next step is putting it in front of 10 creators per audience, as the Roadmap describes.
 
 ## Who it's for, and the first big decision
 

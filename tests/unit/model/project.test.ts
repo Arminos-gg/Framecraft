@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import prototypeFile from '../../../prototype/examples/sample-project.json';
+import prototypeFile from './prototype-project.json';
 import { addAsset, assetIdFor } from '../../../src/model/assets.ts';
 import { applyCommand, insert, setPreview } from '../../../src/model/commands.ts';
 import {
