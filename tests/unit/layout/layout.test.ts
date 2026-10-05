@@ -37,7 +37,7 @@ describe('the sample game menu at Laptop 1366×768', () => {
   const layout = layoutContainer(doc, byName(doc, 'MainMenu').id, LAPTOP);
   const box = (name: string) => layout.get(byName(doc, name).id);
 
-  // The numbers the prototype's smoke test checks in the browser.
+  // The numbers the prototype's smoke test checked in the browser.
   it('places the panel', () => {
     expectRect(box('Panel'), { x: 450.78, y: 107.52, w: 464.44, h: 552.96 });
   });

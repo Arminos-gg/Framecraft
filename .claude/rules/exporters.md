@@ -1,7 +1,6 @@
 ---
 paths:
-  - "prototype/src/7-export.js"
-  - "prototype/examples/**"
+  - "tests/golden/**"
   - "src/export/**"
   - "src/**/export*"
 ---
@@ -20,7 +19,7 @@ The exporters turn the document into Luau for Roblox Studio and an HTML/CSS page
 - Variable names come from the object's Name in camelCase, de-duplicated with a number. Modifiers that keep their default name are named after their parent (`panelCorner`, `playButtonGradient`).
 - Escape strings with `luaStr()`. The output must parse: `npm test` runs it through luaparse.
 - Export the base (Desktop) values and skip everything with a `web` flag (Site, pages, web-only properties). Roblox has no breakpoints.
-- In the editor, UIGradient's Color, Transparency and Rotation are stored as `GradColor`, `GradTransparency` and `GradRotation` to avoid clashing with UIStroke's `Color`. Export them under their real Roblox names. The TypeScript port should use per-class schemas and drop the prefix.
+- UIGradient's Color, Transparency and Rotation use their Roblox names in its own schema, with colors and transparencies as keypoint sequences. Prototype project files (version 1) stored them as `GradColor`, `GradTransparency` and `GradRotation`; `src/model/project.ts` converts them on open.
 
 ## HTML/CSS
 
@@ -39,4 +38,4 @@ The exporters turn the document into Luau for Roblox Studio and an HTML/CSS page
 
 ## Golden files
 
-`prototype/examples/` holds the exports of the untouched sample project. `npm test` compares byte for byte, for the prototype (`tests/smoke.mjs`) and for the port in `src/export/` (`tests/unit/export/golden.test.ts`). After an intentional change, run `npm run examples` and explain the diff in the commit message.
+`tests/golden/` holds the exports of the untouched sample menu. They started as the prototype's exports, and `tests/unit/export/golden.test.ts` compares them byte for byte. After an intentional change, run `npm run update-golden` and explain the diff in the commit message.
