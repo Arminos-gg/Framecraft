@@ -111,6 +111,27 @@ describe('HTML export', () => {
     expect(exportHtml(s.doc)).toContain('data-name="Shop panel"');
   });
 
+  it('marks objects with AutomaticSize for the fitting script, with a content box to measure', () => {
+    const s = scene();
+    const tag = s.add(s.screen, 'TextLabel', {
+      Text: 'New',
+      TextWrapped: true,
+      AutomaticSize: 'XY',
+    });
+    s.add(tag, 'UIPadding', { PaddingLeft: [0, 6], PaddingRight: [0, 6] });
+    s.add(s.screen, 'Frame');
+    const html = exportHtml(s.doc);
+    expect(html).toContain('<div class="g e1" data-auto data-name="TextLabel">');
+    expect(html).toMatch(/\.e1\{[^}]*--auto:xy;/);
+    // Its content box is written even without children: the script reads the padding there.
+    expect(html).toMatch(/<div class="c e1c">\s*<\/div>/);
+    expect(html).toContain('.e1c{left:6px;top:0px;right:6px;bottom:0px;}');
+    // Wrapped text breaks a word too long for the line, as Roblox does.
+    expect(html).toContain('white-space:pre-wrap;overflow-wrap:anywhere;');
+    expect(html).toContain('function grow(el)');
+    expect(html).not.toMatch(/data-name="Frame"[^>]*data-auto|data-auto[^>]*data-name="Frame"/);
+  });
+
   it('puts a ScrollingFrame’s children on a canvas', () => {
     const s = scene();
     const scroll = s.add(s.screen, 'ScrollingFrame', { CanvasSize: [0, 0, 3, 0] });
