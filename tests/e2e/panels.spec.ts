@@ -384,6 +384,42 @@ test.describe('export and project files', () => {
     await expect(row(page, 'Pricing')).toBeVisible();
   });
 
+  test('starts a project from a template', async ({ page }) => {
+    const openTemplates = async () => {
+      await page.getByRole('button', { name: 'Project', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'New from a template…' }).click();
+    };
+    const dialog = page.getByRole('dialog', { name: 'New from a template' });
+    const stage = page.getByTestId('screen');
+
+    await openTemplates();
+    // Seven templates, each previewed by drawing its first screen.
+    const cards = dialog.locator('.tpl');
+    await expect(cards).toHaveCount(7);
+    for (const card of await cards.all()) await expect(card.locator('.gui').first()).toBeAttached();
+    await dialog.getByRole('button', { name: /^Shop/ }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('status')).toContainText(
+      'Started a new project from the Shop template.',
+    );
+    await expect(row(page, 'Shop')).toBeVisible();
+    await expect(stage.getByText('ITEM SHOP')).toBeVisible();
+
+    // Escape leaves the project as it is.
+    await openTemplates();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(row(page, 'Shop')).toBeVisible();
+
+    // A website template opens on its first page.
+    await openTemplates();
+    await dialog.getByRole('button', { name: /^Portfolio/ }).click();
+    await expect(stage.getByText('Selected work')).toBeVisible();
+    await expect(row(page, 'Shop')).toHaveCount(0);
+    await page.getByRole('status').getByRole('button', { name: 'Undo' }).click();
+    await expect(row(page, 'Shop')).toBeVisible();
+  });
+
   test('keeps the project and the theme after a reload', async ({ page }) => {
     const id = await selectByName(page, 'Headline');
     await commit(page, '#p-Text', 'Kept');

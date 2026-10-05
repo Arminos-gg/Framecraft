@@ -9,6 +9,7 @@ import { openProjectFile, saveProjectFile } from './project-actions.ts';
 import { ProjectMenu } from './ProjectMenu.tsx';
 import { Properties } from './properties/Properties.tsx';
 import { Ribbon } from './Ribbon.tsx';
+import { TemplateDialog } from './TemplateDialog.tsx';
 import { Viewport } from './viewport/Viewport.tsx';
 
 /** Which side panel is open as a sheet on narrow screens. Wide screens show both. */
@@ -29,6 +30,7 @@ function Shell() {
   const [sheet, setSheet] = useState<Sheet>(null);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const [exporting, setExporting] = useState<ExportKind | null>(null);
+  const [picking, setPicking] = useState(false);
   const toggle = (next: Exclude<Sheet, null>) => setSheet((cur) => (cur === next ? null : next));
   // Export opens on what the viewport shows: the website, or Luau for the screens.
   const openExport = useCallback(
@@ -125,8 +127,15 @@ function Shell() {
       <Explorer open={sheet === 'explorer'} onClose={() => setSheet(null)} />
       <Viewport />
       <Properties open={sheet === 'props'} onClose={() => setSheet(null)} />
-      {menu && <ProjectMenu anchor={menu} onClose={() => setMenu(null)} />}
+      {menu && (
+        <ProjectMenu
+          anchor={menu}
+          onClose={() => setMenu(null)}
+          onTemplates={() => setPicking(true)}
+        />
+      )}
       {exporting && <ExportDialog kind={exporting} onClose={() => setExporting(null)} />}
+      {picking && <TemplateDialog onClose={() => setPicking(false)} />}
       {toast && (
         <div className="toasts">
           <div className="toast" role="status" key={toast.id}>
