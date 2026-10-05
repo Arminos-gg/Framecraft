@@ -108,12 +108,20 @@ const name = (className: string) => spec('string', 'Data', className);
 const IN_LAYERS = { kinds: ['container', 'gui'] } as const;
 const ON_OBJECTS = { kinds: ['gui'] } as const;
 
+/** Which way an object grows to fit its text and children; Size is then its smallest size. */
+export const AUTOMATIC_SIZES = ['None', 'X', 'Y', 'XY'] as const;
+export type AutomaticSize = (typeof AUTOMATIC_SIZES)[number];
+/** An object's AutomaticSize, or None for a class without one. */
+export const automaticSizeOf = (props: object): AutomaticSize =>
+  'AutomaticSize' in props ? (props.AutomaticSize as AutomaticSize) : 'None';
+
 const guiBase = (className: string, size: UDim2) => ({
   Name: name(className),
   LayoutOrder: spec('int', 'Data', 0, OV),
   AnchorPoint: spec('vec2', 'Transform', [0, 0], OV),
   Position: spec('udim2', 'Transform', [0, 0, 0, 0], OV),
   Size: spec('udim2', 'Transform', size, OV),
+  AutomaticSize: enumSpec('Transform', AUTOMATIC_SIZES, 'None', OV),
   Rotation: spec('number', 'Transform', 0, { step: 1, ...OV }),
   BackgroundColor3: spec('color', 'Appearance', [255, 255, 255], OV),
   BackgroundTransparency: spec('alpha', 'Appearance', 0, OV),
@@ -123,6 +131,13 @@ const guiBase = (className: string, size: UDim2) => ({
   ZIndex: spec('int', 'Appearance', 1, OV),
   ClipsDescendants: spec('bool', 'Behavior', false, OV),
 });
+
+/** A ScrollingFrame grows its canvas, not itself (AutomaticCanvasSize), so it has no AutomaticSize. */
+function scrollBase(className: string, size: UDim2) {
+  const { AutomaticSize, ...props } = guiBase(className, size);
+  void AutomaticSize;
+  return props;
+}
 
 const textProps = (text: string) => ({
   Text: spec('string', 'Text', text),
@@ -284,7 +299,7 @@ export const CLASSES = {
     parents: IN_LAYERS,
     scroll: true,
     props: {
-      ...guiBase('ScrollingFrame', [0, 240, 0, 200]),
+      ...scrollBase('ScrollingFrame', [0, 240, 0, 200]),
       CanvasSize: spec('udim2', 'Scrolling', [0, 0, 2, 0], OV),
       ScrollBarThickness: spec('int', 'Scrolling', 12, { min: 0, ...OV }),
       ...webProps(),

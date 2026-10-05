@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  automaticSizeOf,
   canParent,
   classDef,
   CLASSES,
@@ -7,6 +8,7 @@ import {
   isOverridable,
   normalizeProp,
   propNames,
+  propSpec,
   type ClassName,
   type PropsOf,
 } from '../../../src/model/classes.ts';
@@ -35,13 +37,14 @@ describe('class registry', () => {
     expect(normalizeProp('UIStroke', 'Color', [1, 2, 3])).toEqual([1, 2, 3]);
   });
 
-  it('keeps the prototype property order', () => {
+  it('keeps the prototype property order, with AutomaticSize after Size', () => {
     expect(propNames('TextButton')).toEqual([
       'Name',
       'LayoutOrder',
       'AnchorPoint',
       'Position',
       'Size',
+      'AutomaticSize',
       'Rotation',
       'BackgroundColor3',
       'BackgroundTransparency',
@@ -64,6 +67,21 @@ describe('class registry', () => {
       'Link',
       'HtmlTag',
     ]);
+  });
+
+  it('gives every object AutomaticSize except a ScrollingFrame, which grows its canvas', () => {
+    for (const c of [
+      'Frame',
+      'TextLabel',
+      'TextButton',
+      'TextBox',
+      'ImageLabel',
+      'ImageButton',
+    ] as const)
+      expect(propSpec(c, 'AutomaticSize')).toMatchObject({ default: 'None', overridable: true });
+    expect(propSpec('ScrollingFrame', 'AutomaticSize')).toBeUndefined();
+    expect(automaticSizeOf(defaultProps('ScrollingFrame'))).toBe('None');
+    expect(automaticSizeOf({ ...defaultProps('Frame'), AutomaticSize: 'XY' })).toBe('XY');
   });
 
   it('refuses properties a class does not have', () => {

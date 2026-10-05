@@ -9,9 +9,16 @@ export function notesFor(
 ): Partial<Record<Category, string>> {
   const notes: Partial<Record<Category, string>> = {};
   const def = classDef(inst.className);
+  const transform: string[] = [];
   if (listItem)
-    notes.Transform =
-      'A UIListLayout in the parent places this object, so Position, AnchorPoint and Rotation are ignored. Size still applies, and LayoutOrder sets the order.';
+    transform.push(
+      'A UIListLayout in the parent places this object, so Position, AnchorPoint and Rotation are ignored. Size still applies, and LayoutOrder sets the order.',
+    );
+  if (values.AutomaticSize !== undefined && values.AutomaticSize !== 'None')
+    transform.push(
+      'AutomaticSize is on, so the object grows to fit its text and children, and Size is the smallest it gets.',
+    );
+  if (transform.length) notes.Transform = transform.join(' ');
   if (values.TextScaled === true)
     notes.Text = 'TextScaled is on, so the text grows to fill the box and TextSize is ignored.';
   if (def.image)

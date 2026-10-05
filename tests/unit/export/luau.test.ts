@@ -104,6 +104,16 @@ describe('Luau export', () => {
     parses(code);
   });
 
+  it('writes AutomaticSize when it is on', () => {
+    const s = scene();
+    s.add(s.screen, 'TextLabel', { Name: 'Tag', AutomaticSize: 'XY' });
+    s.add(s.screen, 'Frame', { Name: 'Plain' });
+    const code = s.luau();
+    expect(code).toContain('tag.AutomaticSize = Enum.AutomaticSize.XY');
+    expect(code).not.toContain('plain.AutomaticSize');
+    parses(code);
+  });
+
   it('uses the base values, not a breakpoint’s', () => {
     const doc = site();
     const sg = createInstance('ScreenGui', { Name: 'Hud' }, 'hud') as AnyInstance;
