@@ -435,11 +435,12 @@ export class Editor {
 
   undo() {
     this.#drag = null;
-    this.history.undo();
+    const done = this.history.undo();
     this.#update({ gesture: null });
+    if (!done) this.toast('Nothing to undo');
   }
   redo() {
-    this.history.redo();
+    if (!this.history.redo()) return this.toast('Nothing to redo');
     this.#update({});
   }
 
