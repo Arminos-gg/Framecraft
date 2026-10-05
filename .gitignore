@@ -3,3 +3,5 @@ tests/output/
 CLAUDE.local.md
 .DS_Store
 Thumbs.db
+/dist/
+*.tsbuildinfo

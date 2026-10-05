@@ -1,0 +1,240 @@
+/* Editor shell, following the prototype: app bar and ribbon on top; Explorer left, viewport center, Properties right. */
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.4 var(--font-ui);
+  overflow: hidden;
+}
+* {
+  box-sizing: border-box;
+}
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 252px minmax(0, 1fr) 332px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-areas: 'bar bar bar' 'ribbon ribbon ribbon' 'explorer stage props';
+  gap: 8px;
+  padding-block: 10px;
+  padding-inline: 16px;
+}
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* app bar */
+.bar {
+  grid-area: bar;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: none;
+}
+.wordmark svg {
+  width: 26px;
+  height: 26px;
+  flex: none;
+}
+.wordmark b {
+  font: 700 19px/1 var(--font-display);
+  letter-spacing: -0.01em;
+}
+.chip {
+  font: 600 10px/1 var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 4px 7px;
+}
+.bar .spacer {
+  flex: 1;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--fg);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.btn:hover {
+  border-color: var(--faint);
+}
+.btn.icon {
+  width: 30px;
+  padding: 0;
+  justify-content: center;
+}
+.btn.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.narrow-only {
+  display: none !important;
+}
+
+/* ribbon */
+.ribbon {
+  grid-area: ribbon;
+  flex-direction: row;
+  align-items: center;
+  min-height: 64px;
+  padding: 6px 14px;
+}
+
+/* panel headers and bodies */
+.explorer {
+  grid-area: explorer;
+}
+.props {
+  grid-area: props;
+}
+.phead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  min-height: 40px;
+}
+.phead h2 {
+  margin: 0;
+  font: 600 11px/1 var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.phead .spacer {
+  flex: 1;
+}
+.pbody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.empty {
+  margin: 0;
+  padding: 28px 18px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.ribbon .empty {
+  padding: 0;
+}
+
+/* viewport */
+.stage {
+  grid-area: stage;
+}
+.stagebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  min-height: 40px;
+  color: var(--muted);
+}
+.canvas {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  container-type: size;
+  background-color: var(--stage);
+  background-image: radial-gradient(var(--stage-dot) 1px, transparent 1.2px);
+  background-size: 16px 16px;
+}
+/* An empty Laptop screen (1366 x 768), as large as fits with a 24px margin. */
+.device {
+  width: min(calc(100cqw - 48px), calc((100cqh - 48px) * 1366 / 768));
+  aspect-ratio: 1366 / 768;
+  background: var(--raised);
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.25),
+    0 12px 40px rgba(10, 14, 30, 0.28);
+}
+
+/* narrow screens: the viewport fills the screen, Explorer and Properties open as sheets */
+@media (max-width: 920px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'bar' 'ribbon' 'stage';
+  }
+  .narrow-only {
+    display: inline-flex !important;
+  }
+  .wide-only {
+    display: none !important;
+  }
+  .explorer,
+  .props {
+    position: fixed;
+    z-index: 40;
+    top: 10px;
+    bottom: 10px;
+    width: min(340px, calc(100% - 32px));
+    box-shadow: var(--shadow);
+    display: none;
+  }
+  .explorer {
+    left: 16px;
+  }
+  .props {
+    right: 16px;
+  }
+  .explorer.sheet-open,
+  .props.sheet-open {
+    display: flex;
+  }
+}
+@media (max-width: 560px) {
+  .bar {
+    gap: 6px;
+  }
+  .wordmark b {
+    display: none;
+  }
+  .bar .btn {
+    padding: 0 8px;
+  }
+}
