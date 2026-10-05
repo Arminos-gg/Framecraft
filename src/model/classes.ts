@@ -16,6 +16,8 @@ import {
 /** Properties panel sections, in the order they appear. */
 export const CATEGORY_ORDER = [
   'Data',
+  'Web',
+  'Breakpoint',
   'Transform',
   'Appearance',
   'Text',
@@ -40,6 +42,10 @@ export interface PropSpec<T extends PropType = PropType> {
   /** Step for drag and arrow-key edits in the Properties panel. */
   readonly step?: number;
   readonly options?: readonly string[];
+  /** May differ per breakpoint: layout, size, visibility, text size and colors. */
+  readonly overridable?: boolean;
+  /** Has no Roblox counterpart; the Luau export skips or translates it. */
+  readonly web?: boolean;
 }
 export interface EnumSpec<O extends string = string> extends PropSpec<'enum'> {
   readonly options: readonly O[];
@@ -50,32 +56,44 @@ export interface EnumSpec<O extends string = string> extends PropSpec<'enum'> {
 export type ValueOf<S> =
   S extends EnumSpec<infer O> ? O : S extends PropSpec<infer T> ? ValueTypes[T] : never;
 
-type Limits = Pick<PropSpec, 'min' | 'max' | 'step'>;
+type Options = Pick<PropSpec, 'min' | 'max' | 'step' | 'overridable' | 'web'>;
 function spec<T extends Exclude<PropType, 'enum'>>(
   type: T,
   category: Category,
   def: ValueTypes[T],
-  limits: Limits = {},
+  options: Options = {},
 ): PropSpec<T> {
-  return { type, category, default: def, ...limits };
+  return { type, category, default: def, ...options };
 }
 function enumSpec<const O extends string>(
   category: Category,
   options: readonly O[],
   def: NoInfer<O>,
+  extra: Options = {},
 ): EnumSpec<O> {
-  return { type: 'enum', category, options, default: def };
+  return { type: 'enum', category, options, default: def, ...extra };
 }
+/** Shorthand for a property that may differ per breakpoint. */
+const OV = { overridable: true } as const;
+const WEB = { web: true } as const;
 
 /**
- * root: StarterGui, the top of the tree. container: ScreenGui, a full-screen layer.
- * gui: an object that draws. modifier: a child object that changes its parent (UICorner and so on).
+ * root: the hidden DataModel at the top. service: StarterGui (Roblox screens) and Site
+ * (web pages), one of each. container: a ScreenGui or Page, a full-window layer.
+ * gui: an object that draws. modifier: a child object that changes its parent (UICorner and
+ * so on). setting: a project setting kept in the tree, such as a Breakpoint.
  */
-export type ClassKind = 'root' | 'container' | 'gui' | 'modifier';
+export type ClassKind = 'root' | 'service' | 'container' | 'gui' | 'modifier' | 'setting';
 
 export interface ClassDef {
   readonly kind: ClassKind;
   readonly props: Readonly<Record<string, PropSpec>>;
+  /** Which parents it may sit in: any class of these kinds, or these classes by name. */
+  readonly parents: { readonly kinds?: readonly ClassKind[]; readonly classes?: readonly string[] };
+  /** At most one per parent (the services). Can't be deleted or moved. */
+  readonly unique?: boolean;
+  /** Has no Roblox counterpart. */
+  readonly web?: boolean;
   readonly text?: boolean;
   readonly button?: boolean;
   readonly input?: boolean;
@@ -87,47 +105,79 @@ export interface ClassDef {
 
 const name = (className: string) => spec('string', 'Data', className);
 
+const IN_LAYERS = { kinds: ['container', 'gui'] } as const;
+const ON_OBJECTS = { kinds: ['gui'] } as const;
+
 const guiBase = (className: string, size: UDim2) => ({
   Name: name(className),
-  LayoutOrder: spec('int', 'Data', 0),
-  AnchorPoint: spec('vec2', 'Transform', [0, 0]),
-  Position: spec('udim2', 'Transform', [0, 0, 0, 0]),
-  Size: spec('udim2', 'Transform', size),
-  Rotation: spec('number', 'Transform', 0, { step: 1 }),
-  BackgroundColor3: spec('color', 'Appearance', [255, 255, 255]),
-  BackgroundTransparency: spec('alpha', 'Appearance', 0),
-  BorderColor3: spec('color', 'Appearance', [27, 42, 53]),
-  BorderSizePixel: spec('int', 'Appearance', 0, { min: 0 }),
-  Visible: spec('bool', 'Appearance', true),
-  ZIndex: spec('int', 'Appearance', 1),
-  ClipsDescendants: spec('bool', 'Behavior', false),
+  LayoutOrder: spec('int', 'Data', 0, OV),
+  AnchorPoint: spec('vec2', 'Transform', [0, 0], OV),
+  Position: spec('udim2', 'Transform', [0, 0, 0, 0], OV),
+  Size: spec('udim2', 'Transform', size, OV),
+  Rotation: spec('number', 'Transform', 0, { step: 1, ...OV }),
+  BackgroundColor3: spec('color', 'Appearance', [255, 255, 255], OV),
+  BackgroundTransparency: spec('alpha', 'Appearance', 0, OV),
+  BorderColor3: spec('color', 'Appearance', [27, 42, 53], OV),
+  BorderSizePixel: spec('int', 'Appearance', 0, { min: 0, ...OV }),
+  Visible: spec('bool', 'Appearance', true, OV),
+  ZIndex: spec('int', 'Appearance', 1, OV),
+  ClipsDescendants: spec('bool', 'Behavior', false, OV),
 });
 
 const textProps = (text: string) => ({
   Text: spec('string', 'Text', text),
   Font: enumSpec('Text', FONT_NAMES, 'SourceSans'),
-  TextColor3: spec('color', 'Text', [0, 0, 0]),
-  TextSize: spec('int', 'Text', 14, { min: 1, max: 100 }),
-  TextScaled: spec('bool', 'Text', false),
-  TextWrapped: spec('bool', 'Text', false),
-  TextXAlignment: enumSpec('Text', ['Left', 'Center', 'Right'], 'Center'),
-  TextYAlignment: enumSpec('Text', ['Top', 'Center', 'Bottom'], 'Center'),
-  TextTransparency: spec('alpha', 'Text', 0),
+  TextColor3: spec('color', 'Text', [0, 0, 0], OV),
+  TextSize: spec('int', 'Text', 14, { min: 1, max: 100, ...OV }),
+  TextScaled: spec('bool', 'Text', false, OV),
+  TextWrapped: spec('bool', 'Text', false, OV),
+  TextXAlignment: enumSpec('Text', ['Left', 'Center', 'Right'], 'Center', OV),
+  TextYAlignment: enumSpec('Text', ['Top', 'Center', 'Bottom'], 'Center', OV),
+  TextTransparency: spec('alpha', 'Text', 0, OV),
 });
 
 const imageProps = () => ({
   Image: spec('image', 'Image', ''),
-  ImageColor3: spec('color', 'Image', [255, 255, 255]),
-  ImageTransparency: spec('alpha', 'Image', 0),
-  ScaleType: enumSpec('Image', ['Stretch', 'Fit', 'Crop'], 'Stretch'),
+  ImageColor3: spec('color', 'Image', [255, 255, 255], OV),
+  ImageTransparency: spec('alpha', 'Image', 0, OV),
+  ScaleType: enumSpec('Image', ['Stretch', 'Fit', 'Crop'], 'Stretch', OV),
 });
 
 const autoButtonColor = () => ({ AutoButtonColor: spec('bool', 'Behavior', true) });
 
 export const CLASSES = {
-  StarterGui: { kind: 'root', props: { Name: name('StarterGui') } },
+  DataModel: { kind: 'root', parents: {}, props: { Name: name('DataModel') } },
+  StarterGui: {
+    kind: 'service',
+    unique: true,
+    parents: { classes: ['DataModel'] },
+    props: { Name: name('StarterGui') },
+  },
+  Site: {
+    kind: 'service',
+    unique: true,
+    web: true,
+    parents: { classes: ['DataModel'] },
+    props: {
+      Name: name('Site'),
+      Language: spec('string', 'Web', 'en', WEB),
+      Favicon: spec('asset', 'Web', '', WEB),
+      BaseUrl: spec('string', 'Web', '', WEB),
+    },
+  },
+  Breakpoint: {
+    kind: 'setting',
+    parents: { classes: ['DataModel'] },
+    props: {
+      Name: name('Breakpoint'),
+      MaxWidth: spec('int', 'Breakpoint', 1199, { min: 1 }),
+      PreviewWidth: spec('int', 'Breakpoint', 810, { min: 1 }),
+      PreviewHeight: spec('int', 'Breakpoint', 1080, { min: 1 }),
+    },
+  },
   ScreenGui: {
     kind: 'container',
+    parents: { classes: ['StarterGui'] },
     props: {
       Name: name('ScreenGui'),
       Enabled: spec('bool', 'Behavior', true),
@@ -135,14 +185,31 @@ export const CLASSES = {
       ResetOnSpawn: spec('bool', 'Behavior', false),
     },
   },
-  Frame: { kind: 'gui', props: guiBase('Frame', [0, 200, 0, 140]) },
+  Page: {
+    kind: 'container',
+    web: true,
+    scroll: true,
+    parents: { classes: ['Site'] },
+    props: {
+      Name: name('Page'),
+      Path: spec('string', 'Web', '/page', WEB),
+      Title: spec('string', 'Web', '', WEB),
+      Description: spec('string', 'Web', '', WEB),
+      SocialImage: spec('asset', 'Web', '', WEB),
+      NotFound: spec('bool', 'Web', false, WEB),
+      BackgroundColor3: spec('color', 'Appearance', [255, 255, 255], { ...OV, ...WEB }),
+    },
+  },
+  Frame: { kind: 'gui', parents: IN_LAYERS, props: guiBase('Frame', [0, 200, 0, 140]) },
   TextLabel: {
     kind: 'gui',
+    parents: IN_LAYERS,
     text: true,
     props: { ...guiBase('TextLabel', [0, 200, 0, 50]), ...textProps('Label') },
   },
   TextButton: {
     kind: 'gui',
+    parents: IN_LAYERS,
     text: true,
     button: true,
     props: {
@@ -153,6 +220,7 @@ export const CLASSES = {
   },
   TextBox: {
     kind: 'gui',
+    parents: IN_LAYERS,
     text: true,
     input: true,
     props: {
@@ -163,74 +231,85 @@ export const CLASSES = {
   },
   ImageLabel: {
     kind: 'gui',
+    parents: IN_LAYERS,
     image: true,
     props: { ...guiBase('ImageLabel', [0, 100, 0, 100]), ...imageProps() },
   },
   ImageButton: {
     kind: 'gui',
+    parents: IN_LAYERS,
     image: true,
     button: true,
     props: { ...guiBase('ImageButton', [0, 100, 0, 100]), ...imageProps(), ...autoButtonColor() },
   },
   ScrollingFrame: {
     kind: 'gui',
+    parents: IN_LAYERS,
     scroll: true,
     props: {
       ...guiBase('ScrollingFrame', [0, 240, 0, 200]),
-      CanvasSize: spec('udim2', 'Scrolling', [0, 0, 2, 0]),
-      ScrollBarThickness: spec('int', 'Scrolling', 12, { min: 0 }),
+      CanvasSize: spec('udim2', 'Scrolling', [0, 0, 2, 0], OV),
+      ScrollBarThickness: spec('int', 'Scrolling', 12, { min: 0, ...OV }),
     },
   },
   UICorner: {
     kind: 'modifier',
-    props: { Name: name('UICorner'), CornerRadius: spec('udim', 'Corner', [0, 8]) },
+    parents: ON_OBJECTS,
+    props: { Name: name('UICorner'), CornerRadius: spec('udim', 'Corner', [0, 8], OV) },
   },
   UIStroke: {
     kind: 'modifier',
+    parents: ON_OBJECTS,
     props: {
       Name: name('UIStroke'),
-      Color: spec('color', 'Stroke', [0, 0, 0]),
-      Thickness: spec('number', 'Stroke', 1, { min: 0, step: 0.5 }),
-      Transparency: spec('alpha', 'Stroke', 0),
-      ApplyStrokeMode: enumSpec('Stroke', ['Contextual', 'Border'], 'Contextual'),
+      Color: spec('color', 'Stroke', [0, 0, 0], OV),
+      Thickness: spec('number', 'Stroke', 1, { min: 0, step: 0.5, ...OV }),
+      Transparency: spec('alpha', 'Stroke', 0, OV),
+      ApplyStrokeMode: enumSpec('Stroke', ['Contextual', 'Border'], 'Contextual', OV),
     },
   },
   UIGradient: {
     kind: 'modifier',
+    parents: ON_OBJECTS,
     props: {
       Name: name('UIGradient'),
-      Color: spec('colorseq', 'Gradient', colorSequence([255, 255, 255], [0, 0, 0])),
-      Transparency: spec('numseq', 'Gradient', numberSequence(0, 0), { min: 0, max: 1 }),
-      Rotation: spec('number', 'Gradient', 0, { step: 1 }),
+      Color: spec('colorseq', 'Gradient', colorSequence([255, 255, 255], [0, 0, 0]), OV),
+      Transparency: spec('numseq', 'Gradient', numberSequence(0, 0), { min: 0, max: 1, ...OV }),
+      Rotation: spec('number', 'Gradient', 0, { step: 1, ...OV }),
     },
   },
   UIPadding: {
     kind: 'modifier',
+    // A page can have padding too; a ScreenGui can't, as in Roblox.
+    parents: { kinds: ['gui'], classes: ['Page'] },
     props: {
       Name: name('UIPadding'),
-      PaddingTop: spec('udim', 'Padding', [0, 0]),
-      PaddingBottom: spec('udim', 'Padding', [0, 0]),
-      PaddingLeft: spec('udim', 'Padding', [0, 0]),
-      PaddingRight: spec('udim', 'Padding', [0, 0]),
+      PaddingTop: spec('udim', 'Padding', [0, 0], OV),
+      PaddingBottom: spec('udim', 'Padding', [0, 0], OV),
+      PaddingLeft: spec('udim', 'Padding', [0, 0], OV),
+      PaddingRight: spec('udim', 'Padding', [0, 0], OV),
     },
   },
   UIListLayout: {
     kind: 'modifier',
     layout: true,
+    // A UIListLayout can also arrange the objects directly in a ScreenGui or Page.
+    parents: { kinds: ['gui', 'container'] },
     props: {
       Name: name('UIListLayout'),
-      FillDirection: enumSpec('Layout', ['Vertical', 'Horizontal'], 'Vertical'),
-      HorizontalAlignment: enumSpec('Layout', ['Left', 'Center', 'Right'], 'Left'),
-      VerticalAlignment: enumSpec('Layout', ['Top', 'Center', 'Bottom'], 'Top'),
-      Padding: spec('udim', 'Layout', [0, 0]),
+      FillDirection: enumSpec('Layout', ['Vertical', 'Horizontal'], 'Vertical', OV),
+      HorizontalAlignment: enumSpec('Layout', ['Left', 'Center', 'Right'], 'Left', OV),
+      VerticalAlignment: enumSpec('Layout', ['Top', 'Center', 'Bottom'], 'Top', OV),
+      Padding: spec('udim', 'Layout', [0, 0], OV),
       SortOrder: enumSpec('Layout', ['LayoutOrder', 'Name'], 'LayoutOrder'),
     },
   },
   UIAspectRatioConstraint: {
     kind: 'modifier',
+    parents: ON_OBJECTS,
     props: {
       Name: name('UIAspectRatioConstraint'),
-      AspectRatio: spec('number', 'Constraint', 1, { min: 0.01, step: 0.05 }),
+      AspectRatio: spec('number', 'Constraint', 1, { min: 0.01, step: 0.05, ...OV }),
     },
   },
 } satisfies Record<string, ClassDef>;
@@ -294,17 +373,10 @@ export function normalizeProp(className: ClassName, prop: string, value: unknown
 
 /** Whether an object of class `child` may sit directly inside one of class `parent`. */
 export function canParent(child: ClassName, parent: ClassName): boolean {
-  const ck = CLASSES[child].kind;
-  const pk = CLASSES[parent].kind;
-  switch (ck) {
-    case 'root':
-      return false;
-    case 'container':
-      return pk === 'root';
-    case 'gui':
-      return pk === 'container' || pk === 'gui';
-    case 'modifier':
-      // A UIListLayout can also arrange the objects directly in a ScreenGui.
-      return pk === 'gui' || (pk === 'container' && classDef(child).layout === true);
-  }
+  const { kinds = [], classes = [] } = classDef(child).parents;
+  return kinds.includes(classDef(parent).kind) || classes.includes(parent);
 }
+
+/** Whether a property may differ per breakpoint. */
+export const isOverridable = (className: ClassName, prop: string): boolean =>
+  propSpec(className, prop)?.overridable === true;

@@ -87,3 +87,53 @@ describe('valueEquals', () => {
     expect(valueEquals('a', 'a')).toBe(true);
   });
 });
+
+describe('website values', () => {
+  it('accepts an image library id or nothing', () => {
+    expect(normalizeValue('asset', 'img_abc123')).toBe('img_abc123');
+    expect(normalizeValue('asset', '')).toBe('');
+    expect(normalizeValue('asset', 'rbxassetid://1')).toBeUndefined();
+    expect(normalizeValue('asset', 'data:image/png;base64,AA')).toBeUndefined();
+  });
+
+  it('accepts links to a page, a section of a page, or an outside address', () => {
+    expect(normalizeValue('link', null)).toBeNull();
+    expect(normalizeValue('link', { kind: 'page', page: 'p1' })).toEqual({
+      kind: 'page',
+      page: 'p1',
+    });
+    expect(
+      normalizeValue('link', { kind: 'page', page: 'p1', section: 'plans', newTab: true }),
+    ).toEqual({
+      kind: 'page',
+      page: 'p1',
+      section: 'plans',
+      newTab: true,
+    });
+    expect(
+      normalizeValue('link', { kind: 'url', url: ' https://example.com/a ', newTab: false }),
+    ).toEqual({
+      kind: 'url',
+      url: 'https://example.com/a',
+    });
+    expect(normalizeValue('link', { kind: 'url', url: 'mailto:hi@example.com' })).toEqual({
+      kind: 'url',
+      url: 'mailto:hi@example.com',
+    });
+  });
+
+  it('refuses links that could run script or point nowhere', () => {
+    const bad = [
+      { kind: 'url', url: 'javascript:alert(1)' },
+      { kind: 'url', url: 'https://' },
+      { kind: 'url', url: 'example.com' },
+      { kind: 'page', page: '' },
+      { kind: 'page', page: 'p1', section: '1 bad' },
+      { kind: 'page', page: 'p1', newTab: 'yes' },
+      { kind: 'file', url: 'https://example.com' },
+      'https://example.com',
+      [],
+    ];
+    for (const v of bad) expect(normalizeValue('link', v), JSON.stringify(v)).toBeUndefined();
+  });
+});

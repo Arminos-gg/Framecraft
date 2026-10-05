@@ -132,28 +132,30 @@ export class History {
     this.#redo = [];
   }
 
-  /** Consecutive property edits on one instance merge, so a long drag stays one small step. */
+  /**
+   * Consecutive property edits on one instance, at the same breakpoint, merge, so a long drag
+   * stays one small step.
+   */
   #addToGroup(g: Group, cmd: Command, inverse: Command) {
-    const last = g.forward[g.forward.length - 1];
-    const lastInverse = g.inverse[g.inverse.length - 1];
+    const i = g.forward.length - 1;
+    const last = g.forward[i];
+    const lastInverse = g.inverse[i];
     if (
       cmd.type === 'setProps' &&
+      inverse.type === 'setProps' &&
       last?.type === 'setProps' &&
       lastInverse?.type === 'setProps' &&
-      inverse.type === 'setProps' &&
-      last.id === cmd.id
+      last.id === cmd.id &&
+      last.breakpoint === cmd.breakpoint
     ) {
-      g.forward[g.forward.length - 1] = {
-        ...last,
-        props: { ...last.props, ...cmd.props },
-        preview: cmd.preview !== undefined ? cmd.preview : last.preview,
-      };
-      // The earliest old value of each property is the one to restore.
-      g.inverse[g.inverse.length - 1] = {
-        ...lastInverse,
-        props: { ...inverse.props, ...lastInverse.props },
-        preview: lastInverse.preview !== undefined ? lastInverse.preview : inverse.preview,
-      };
+      // Forward: the later edit wins for every property it sets or resets.
+      g.forward[i] = mergeEdits(last, cmd, cmd.preview !== undefined ? cmd.preview : last.preview);
+      // Inverse: the earliest old value of each property is the one to restore.
+      g.inverse[i] = mergeEdits(
+        inverse,
+        lastInverse,
+        lastInverse.preview !== undefined ? lastInverse.preview : inverse.preview,
+      );
       return;
     }
     g.forward.push(cmd);
@@ -164,4 +166,23 @@ export class History {
     this.#doc = doc;
     this.#listeners.forEach((l) => l());
   }
+}
+
+type SetProps = Extract<Command, { type: 'setProps' }>;
+
+/** One property edit doing what `first` then `second` do, with `preview` as given. */
+function mergeEdits(first: SetProps, second: SetProps, preview: SetProps['preview']): SetProps {
+  const touched = new Set([...Object.keys(second.props), ...(second.clear ?? [])]);
+  const props = Object.fromEntries(Object.entries(first.props).filter(([k]) => !touched.has(k)));
+  const clear = (first.clear ?? []).filter((k) => !touched.has(k));
+  const merged: Record<string, unknown> = {
+    type: 'setProps',
+    id: first.id,
+    props: { ...props, ...second.props },
+  };
+  if (first.breakpoint !== undefined) merged.breakpoint = first.breakpoint;
+  const allClear = [...clear, ...(second.clear ?? [])];
+  if (allClear.length) merged.clear = allClear;
+  if (preview !== undefined) merged.preview = preview;
+  return merged as SetProps;
 }

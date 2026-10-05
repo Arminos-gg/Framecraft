@@ -21,6 +21,20 @@ export interface NumberSequenceKeypoint {
 export type ColorSequence = readonly ColorSequenceKeypoint[];
 export type NumberSequence = readonly NumberSequenceKeypoint[];
 
+/** An image in the project's image library (see assets.ts): `img_` plus a hash of its bytes. */
+export type AssetId = string;
+export const ASSET_ID_PATTERN = /^img_[0-9a-z]+$/;
+
+/** Where a link goes: a page of the site (optionally a section on it), or an outside address. */
+export type Link =
+  | {
+      readonly kind: 'page';
+      readonly page: string;
+      readonly section?: string;
+      readonly newTab?: true;
+    }
+  | { readonly kind: 'url'; readonly url: string; readonly newTab?: true };
+
 /** The value each property type holds. */
 export interface ValueTypes {
   string: string;
@@ -38,6 +52,10 @@ export interface ValueTypes {
   image: string;
   colorseq: ColorSequence;
   numseq: NumberSequence;
+  /** An image from the project's library, or '' for none. Web only. */
+  asset: AssetId;
+  /** A link target, or null for none. Web only. */
+  link: Link | null;
 }
 export type PropType = keyof ValueTypes;
 export type PropValue = ValueTypes[PropType];
@@ -134,7 +152,33 @@ function normalize(type: PropType, v: unknown, { min, max, options }: ValueLimit
       return normalizeKeypoints(v, normalizeColor);
     case 'numseq':
       return normalizeKeypoints(v, (x) => (isFiniteNumber(x) ? clamp(x, min, max) : undefined));
+    case 'asset':
+      return typeof v === 'string' && (v === '' || ASSET_ID_PATTERN.test(v)) ? v : undefined;
+    case 'link':
+      return normalizeLink(v);
   }
+}
+
+const URL_PATTERN = /^(https?:\/\/|mailto:|tel:)\S+$/i;
+const SECTION_PATTERN = /^[A-Za-z][\w-]*$/;
+
+function normalizeLink(v: unknown): Link | null | undefined {
+  if (v === null) return null;
+  if (typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const { kind, page, section, url, newTab } = v as Record<string, unknown>;
+  if (newTab !== undefined && typeof newTab !== 'boolean') return undefined;
+  const tab = newTab ? { newTab: true as const } : {};
+  if (kind === 'page') {
+    if (typeof page !== 'string' || !page) return undefined;
+    if (section !== undefined && (typeof section !== 'string' || !SECTION_PATTERN.test(section)))
+      return undefined;
+    return { kind, page, ...(section === undefined ? {} : { section }), ...tab };
+  }
+  if (kind === 'url') {
+    if (typeof url !== 'string' || !URL_PATTERN.test(url.trim())) return undefined;
+    return { kind, url: url.trim(), ...tab };
+  }
+  return undefined;
 }
 
 /** Deep equality for property values (plain JSON: primitives, arrays and objects). */
