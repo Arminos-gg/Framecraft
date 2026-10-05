@@ -60,6 +60,9 @@ describe('class registry', () => {
       'TextYAlignment',
       'TextTransparency',
       'AutoButtonColor',
+      // Web-only properties come last.
+      'Link',
+      'HtmlTag',
     ]);
   });
 
@@ -149,7 +152,9 @@ describe('website markers', () => {
       'NotFound',
       'BackgroundColor3',
     ]);
-    expect(webProps('TextButton')).toEqual([]);
+    expect(webProps('TextButton')).toEqual(['Link', 'HtmlTag']);
+    expect(webProps('ImageLabel')).toEqual(['AltText', 'Link', 'HtmlTag']);
+    expect(webProps('UICorner')).toEqual([]);
   });
 
   it('allows one StarterGui and one Site per project', () => {

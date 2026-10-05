@@ -353,7 +353,7 @@ describe('pages', () => {
   it('stacks sections from the top and fills the window width', () => {
     const home = lay('Home', 1366, 768);
     expectRect(box(home, 'Nav', 'Home'), { x: 0, y: 0, w: 1366, h: 72 });
-    expectRect(box(home, 'Hero', 'Home'), { x: 0, y: 72, w: 1366, h: 520 });
+    expectRect(box(home, 'Hero', 'Home'), { x: 0, y: 72, w: 1366, h: 696 });
     expectRect(box(home, 'Headline', 'Home'), { w: 720, h: 140 });
   });
 
@@ -373,7 +373,7 @@ describe('pages', () => {
   it('uses Tablet values on a tablet and Phone values on a phone', () => {
     expectRect(box(lay('Home', 810), 'Headline', 'Home'), { w: 714, h: 140 });
     expectRect(box(lay('Home', 390), 'Headline', 'Home'), { w: 342, h: 160 });
-    expectRect(box(lay('Home', 390), 'Hero', 'Home'), { h: 420 });
+    expectRect(box(lay('Home', 390), 'Hero', 'Home'), { y: 60, h: 900 - 60 });
   });
 
   it('hides the nav links on a phone only', () => {
@@ -399,15 +399,26 @@ describe('pages', () => {
 
   it('applies the base values when no breakpoint is given', () => {
     const base = layoutContainer(doc, page('Home'), at(390));
-    expectRect(box(base, 'Hero', 'Home'), { h: 520 });
+    expectRect(box(base, 'Hero', 'Home'), { h: 900 - 72 });
   });
 
   it('counts page padding below the last section', () => {
     let d = doc;
-    const home = byName(d, 'Home');
+    const pricing = byName(d, 'Pricing');
     const padding = createInstance('UIPadding', { PaddingBottom: [0, 300] }, 'pad') as AnyInstance;
+    d = applyCommand(d, insert(pricing.id, single(padding))).doc;
+    const layout = layoutContainer(d, pricing.id, at(1366, 768));
+    expect(layout.get(pricing.id)!.canvas!.h).toBe(72 + 420 + 300);
+  });
+
+  it('measures vertical Scale on a page against the window, less the page padding', () => {
+    expectRect(box(lay('Home', 1366, 900), 'Hero', 'Home'), { h: 900 - 72 });
+    let d = doc;
+    const home = byName(d, 'Home');
+    const padding = createInstance('UIPadding', { PaddingTop: [0.1, 0] }, 'pad') as AnyInstance;
     d = applyCommand(d, insert(home.id, single(padding))).doc;
-    const layout = layoutContainer(d, home.id, at(1366, 768));
-    expect(layout.get(home.id)!.canvas!.h).toBe(72 + 520 + 300);
+    const layout = layoutContainer(d, home.id, at(1366, 1000));
+    // 10% of the 1000 px window is padding, so the hero gets 900 - 72.
+    expectRect(layout.get(byName(d, 'Hero').id), { y: 100 + 72, h: 900 - 72 });
   });
 });

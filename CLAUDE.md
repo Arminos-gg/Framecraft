@@ -19,6 +19,7 @@ Current stage: a working single-file prototype plus a product plan, and the star
 - `src/`: the new app (Vite, strict TypeScript, React). `main.tsx` mounts `ui/App.tsx`; `styles/tokens.css` holds the design tokens copied from the prototype
 - `src/model/`: value types, class registry with per-class property schemas, immutable document, commands, undo history, image library, project files (opens prototype files too) and the samples. The root is a DataModel holding StarterGui (Roblox screens), Site (web pages) and the Breakpoints
 - `src/layout/`: the layout engine, pure functions from a document, window size and breakpoint to boxes in pixels (Roblox's AbsolutePosition and AbsoluteSize). Pages are window-wide and grow to fit their content
+- `src/export/`: the exporters as pure functions: Luau and an HTML page for the Roblox screens, and the website (`site.ts`: an HTML file per page, pictures, breakpoints as media queries). The project file is `serializeProject` in `src/model/project.ts`
 - `tests/unit/`: Vitest tests; `tests/e2e/`: Playwright tests for the new app
 - `prototype/src/1-head.html`: title, fonts and all CSS; design tokens are the `:root` block at the top
 - `prototype/src/2-body.html`: app shell markup

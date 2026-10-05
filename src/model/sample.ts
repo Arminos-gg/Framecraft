@@ -48,6 +48,10 @@ class Builder {
     this.doc = applyCommand(this.doc, insert(parentId, subtree)).doc;
     return subtree.rootId;
   }
+  /** Changes base values; the command checks the names and values. */
+  set(id: InstanceId, props: Readonly<Record<string, unknown>>) {
+    this.doc = applyCommand(this.doc, { type: 'setProps', id, props }).doc;
+  }
   /** Changes values at one breakpoint only; the command checks the names and values. */
   change(id: InstanceId, breakpoint: string, props: Readonly<Record<string, unknown>>) {
     const cmd = { type: 'setProps', id, props, breakpoint: this.breakpoint(breakpoint) } as const;
@@ -230,9 +234,11 @@ export function sampleSite(makeId: () => InstanceId = newId): Doc {
   const page = (props: Partial<PropsOf<'Page'>>) =>
     b.addSubtree(b.site, pageSubtree({ BackgroundColor3: CREAM, ...props }, makeId));
 
+  const navLinks: { id: InstanceId; to: 'home' | 'pricing' }[] = [];
   const nav = (pageId: InstanceId) => {
     const bar = b.add(pageId, 'Frame', {
       Name: 'Nav',
+      HtmlTag: 'nav',
       LayoutOrder: 1,
       Size: [1, 0, 0, 72],
       BackgroundColor3: CREAM,
@@ -274,8 +280,8 @@ export function sampleSite(makeId: () => InstanceId = newId): Doc {
         TextSize: 16,
         TextColor3: INK,
       });
-    link('HomeLink', 1, 'Home');
-    link('PricingLink', 2, 'Pricing');
+    navLinks.push({ id: link('HomeLink', 1, 'Home'), to: 'home' });
+    navLinks.push({ id: link('PricingLink', 2, 'Pricing'), to: 'pricing' });
   };
 
   const home = page({
@@ -288,12 +294,15 @@ export function sampleSite(makeId: () => InstanceId = newId): Doc {
   const hero = b.add(home, 'Frame', {
     Name: 'Hero',
     LayoutOrder: 2,
-    Size: [1, 0, 0, 520],
+    // The window's height less the nav, so the hero fills the first screen.
+    Size: [1, 0, 1, -72],
     BackgroundColor3: INK,
   });
-  b.change(hero, 'Phone', { Size: [1, 0, 0, 420] });
+  // The phone nav is 60 px, so the hero still fills the first screen.
+  b.change(hero, 'Phone', { Size: [1, 0, 1, -60] });
   const headline = b.add(hero, 'TextLabel', {
     Name: 'Headline',
+    HtmlTag: 'h1',
     AnchorPoint: [0.5, 0.5],
     Position: [0.5, 0, 0.42, 0],
     Size: [0, 720, 0, 140],
@@ -371,6 +380,11 @@ export function sampleSite(makeId: () => InstanceId = newId): Doc {
   plan('Taster', 1, 'Taster', '$12 / mo');
   plan('Regular', 2, 'Regular', '$22 / mo');
   plan('Office', 3, 'Office', '$58 / mo');
+
+  // Links need both pages, so they go in last.
+  for (const { id, to } of navLinks)
+    b.set(id, { Link: { kind: 'page', page: to === 'home' ? home : pricing } });
+  b.set(cta, { Link: { kind: 'page', page: pricing, section: 'plans' } });
 
   return b.doc;
 }

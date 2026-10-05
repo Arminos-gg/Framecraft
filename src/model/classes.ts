@@ -145,6 +145,26 @@ const imageProps = () => ({
 
 const autoButtonColor = () => ({ AutoButtonColor: spec('bool', 'Behavior', true) });
 
+/** HTML elements an object can become on a web page; Auto picks a plain one. */
+export const HTML_TAGS = [
+  'Auto',
+  'section',
+  'header',
+  'footer',
+  'nav',
+  'h1',
+  'h2',
+  'h3',
+  'p',
+] as const;
+
+/** Web-only properties every object has, last in its list. */
+const webProps = () => ({
+  Link: spec('link', 'Web', null, WEB),
+  HtmlTag: enumSpec('Web', HTML_TAGS, 'Auto', WEB),
+});
+const altText = () => ({ AltText: spec('string', 'Web', '', WEB) });
+
 export const CLASSES = {
   DataModel: { kind: 'root', parents: {}, props: { Name: name('DataModel') } },
   StarterGui: {
@@ -200,12 +220,16 @@ export const CLASSES = {
       BackgroundColor3: spec('color', 'Appearance', [255, 255, 255], { ...OV, ...WEB }),
     },
   },
-  Frame: { kind: 'gui', parents: IN_LAYERS, props: guiBase('Frame', [0, 200, 0, 140]) },
+  Frame: {
+    kind: 'gui',
+    parents: IN_LAYERS,
+    props: { ...guiBase('Frame', [0, 200, 0, 140]), ...webProps() },
+  },
   TextLabel: {
     kind: 'gui',
     parents: IN_LAYERS,
     text: true,
-    props: { ...guiBase('TextLabel', [0, 200, 0, 50]), ...textProps('Label') },
+    props: { ...guiBase('TextLabel', [0, 200, 0, 50]), ...textProps('Label'), ...webProps() },
   },
   TextButton: {
     kind: 'gui',
@@ -216,6 +240,7 @@ export const CLASSES = {
       ...guiBase('TextButton', [0, 200, 0, 50]),
       ...textProps('Button'),
       ...autoButtonColor(),
+      ...webProps(),
     },
   },
   TextBox: {
@@ -227,20 +252,32 @@ export const CLASSES = {
       ...guiBase('TextBox', [0, 200, 0, 50]),
       ...textProps(''),
       PlaceholderText: spec('string', 'Text', 'Type here'),
+      ...webProps(),
     },
   },
   ImageLabel: {
     kind: 'gui',
     parents: IN_LAYERS,
     image: true,
-    props: { ...guiBase('ImageLabel', [0, 100, 0, 100]), ...imageProps() },
+    props: {
+      ...guiBase('ImageLabel', [0, 100, 0, 100]),
+      ...imageProps(),
+      ...altText(),
+      ...webProps(),
+    },
   },
   ImageButton: {
     kind: 'gui',
     parents: IN_LAYERS,
     image: true,
     button: true,
-    props: { ...guiBase('ImageButton', [0, 100, 0, 100]), ...imageProps(), ...autoButtonColor() },
+    props: {
+      ...guiBase('ImageButton', [0, 100, 0, 100]),
+      ...imageProps(),
+      ...autoButtonColor(),
+      ...altText(),
+      ...webProps(),
+    },
   },
   ScrollingFrame: {
     kind: 'gui',
@@ -250,6 +287,7 @@ export const CLASSES = {
       ...guiBase('ScrollingFrame', [0, 240, 0, 200]),
       CanvasSize: spec('udim2', 'Scrolling', [0, 0, 2, 0], OV),
       ScrollBarThickness: spec('int', 'Scrolling', 12, { min: 0, ...OV }),
+      ...webProps(),
     },
   },
   UICorner: {
