@@ -2,18 +2,48 @@
   "name": "framecraft",
   "version": "0.1.0",
   "private": true,
-  "description": "Build UI the way Roblox Studio does, in the browser. Prototype stage.",
+  "description": "Build UI the way Roblox Studio does, in the browser.",
   "type": "module",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12"
   },
   "scripts": {
-    "build": "node prototype/build.mjs",
-    "test": "node tests/smoke.mjs",
-    "examples": "node tests/smoke.mjs --update-examples"
+    "dev": "vite",
+    "build": "npm run build:app && npm run build:prototype",
+    "build:app": "tsc -b && vite build",
+    "build:prototype": "node prototype/build.mjs",
+    "preview": "vite preview",
+    "test": "npm run test:unit && npm run test:e2e && npm run test:prototype",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "test:prototype": "node tests/smoke.mjs",
+    "examples": "node tests/smoke.mjs --update-examples",
+    "lint": "eslint .",
+    "typecheck": "tsc -b",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.56.0",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "eslint": "10.12.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.7",
+    "globals": "17.13.0",
     "luaparse": "0.3.1",
-    "playwright": "1.56.0"
+    "playwright": "1.56.0",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.0",
+    "vite": "8.3.2",
+    "vitest": "5.0.3"
   }
 }

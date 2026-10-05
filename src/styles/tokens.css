@@ -1,0 +1,69 @@
+/* Design tokens, copied from prototype/src/1-head.html. Light by default; dark follows the system unless data-theme="light" is set on <html>, and data-theme="dark" forces it. */
+:root {
+  --bg: #e8ebf1;
+  --panel: #f7f8fb;
+  --raised: #ffffff;
+  --line: #d2d7e1;
+  --line-soft: #e4e7ee;
+  --fg: #171b29;
+  --muted: #586075;
+  --faint: #868ea3;
+  --accent: #2c4fd8;
+  --accent-soft: rgba(44, 79, 216, 0.12);
+  --on-accent: #ffffff;
+  --scale: #0a8276;
+  --offset: #ae5f08;
+  --guide: #db2f89;
+  --danger: #c2362b;
+  --stage: #d8dce5;
+  --stage-dot: rgba(23, 27, 41, 0.14);
+  --shadow: 0 1px 2px rgba(20, 24, 40, 0.06), 0 6px 20px rgba(20, 24, 40, 0.07);
+  --font-ui: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: 'Bricolage Grotesque', 'Instrument Sans', system-ui, sans-serif;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #101217;
+    --panel: #171a21;
+    --raised: #1e222b;
+    --line: #2b303c;
+    --line-soft: #232731;
+    --fg: #e4e7ee;
+    --muted: #9aa1b3;
+    --faint: #6d7487;
+    --accent: #7189ff;
+    --accent-soft: rgba(113, 137, 255, 0.16);
+    --on-accent: #0d1020;
+    --scale: #3fc6b6;
+    --offset: #f2a54a;
+    --guide: #ff5cad;
+    --danger: #ff6b5e;
+    --stage: #0b0d11;
+    --stage-dot: rgba(228, 231, 238, 0.09);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 20px rgba(0, 0, 0, 0.3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #101217;
+  --panel: #171a21;
+  --raised: #1e222b;
+  --line: #2b303c;
+  --line-soft: #232731;
+  --fg: #e4e7ee;
+  --muted: #9aa1b3;
+  --faint: #6d7487;
+  --accent: #7189ff;
+  --accent-soft: rgba(113, 137, 255, 0.16);
+  --on-accent: #0d1020;
+  --scale: #3fc6b6;
+  --offset: #f2a54a;
+  --guide: #ff5cad;
+  --danger: #ff6b5e;
+  --stage: #0b0d11;
+  --stage-dot: rgba(228, 231, 238, 0.09);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 20px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+}

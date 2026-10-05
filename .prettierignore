@@ -1,0 +1,8 @@
+# The prototype and the docs keep their hand formatting.
+prototype/
+docs/
+*.md
+tests/smoke.mjs
+tests/output/
+dist/
+package-lock.json
