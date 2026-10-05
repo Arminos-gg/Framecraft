@@ -10,7 +10,7 @@ test('shows the editor shell with no page errors', async ({ page }) => {
   await expect(page.getByRole('main', { name: 'Viewport' })).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Properties' })).toBeVisible();
 
-  // The empty screen keeps the Laptop 1366 x 768 aspect ratio.
+  // The sample site's home page at Desktop size fills one 1366 x 768 window.
   const screen = await page.getByTestId('screen').boundingBox();
   expect(screen).not.toBeNull();
   expect(screen!.width / screen!.height).toBeCloseTo(1366 / 768, 2);

@@ -36,8 +36,8 @@ const BACKDROP_CSS: Record<Backdrop, string> = {
   checker: '#f2f2f2',
 };
 
-const ALIGN_X = { Left: 'flex-start', Center: 'center', Right: 'flex-end' } as const;
-const ALIGN_Y = { Top: 'flex-start', Center: 'center', Bottom: 'flex-end' } as const;
+export const ALIGN_X = { Left: 'flex-start', Center: 'center', Right: 'flex-end' } as const;
+export const ALIGN_Y = { Top: 'flex-start', Center: 'center', Bottom: 'flex-end' } as const;
 const FLEX = {
   Left: 'flex-start',
   Top: 'flex-start',
@@ -45,7 +45,7 @@ const FLEX = {
   Right: 'flex-end',
   Bottom: 'flex-end',
 } as const;
-const OBJECT_FIT = { Stretch: 'fill', Fit: 'contain', Crop: 'cover' } as const;
+export const OBJECT_FIT = { Stretch: 'fill', Fit: 'contain', Crop: 'cover' } as const;
 
 /** Google Fonts families with a single style, which take no weight list. */
 const STATIC_FAMILIES = new Set(['Luckiest Guy', 'Bangers', 'Press Start 2P', 'Permanent Marker']);
@@ -95,13 +95,13 @@ function stops<T>(seq: readonly { time: number; value: T }[], css: (v: T) => str
   if (seq.length === 2) return seq.map((k) => css(k.value)).join(', ');
   return seq.map((k) => `${css(k.value)} ${roundTo(k.time * 100, 2)}%`).join(', ');
 }
-const gradientCss = (color: ColorSequence, rotation: number) =>
+export const gradientCss = (color: ColorSequence, rotation: number) =>
   `linear-gradient(${90 + rotation}deg, ${stops<Color3>(color, rgb)})`;
-const maskCss = (transparency: NumberSequence, rotation: number) =>
+export const maskCss = (transparency: NumberSequence, rotation: number) =>
   `linear-gradient(${90 + rotation}deg, ${stops<number>(transparency, (t) => `rgba(0,0,0,${roundTo(1 - t, 3)})`)})`;
 
 /** A text outline drawn as a ring of shadows. */
-function textRing(thickness: number, color: string): string {
+export function textRing(thickness: number, color: string): string {
   const out: string[] = [];
   const n = thickness <= 1.5 ? 8 : 16;
   for (let i = 0; i < n; i++) {
@@ -122,11 +122,11 @@ export function calcV(scale: number, offset: number): string {
   return `calc(var(--vh) * ${s} + ${o}px)`;
 }
 
-type Gui = Extract<AnyInstance, { props: { Size: unknown; Visible: boolean } }>;
+export type Gui = Extract<AnyInstance, { props: { Size: unknown; Visible: boolean } }>;
 export const isGui = (inst: AnyInstance): inst is Gui => classDef(inst.className).kind === 'gui';
 
 /** A UIStroke on a text object outlines the letters unless ApplyStrokeMode is Border. */
-const strokesText = (inst: AnyInstance, stroke: Instance<'UIStroke'>) =>
+export const strokesText = (inst: AnyInstance, stroke: Instance<'UIStroke'>) =>
   !!classDef(inst.className).text && stroke.props.ApplyStrokeMode !== 'Border';
 
 export type Decl = readonly [property: string, value: string];
