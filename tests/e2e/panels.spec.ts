@@ -210,6 +210,39 @@ test.describe('Properties', () => {
     expect((await propsOf(page, id)).Text).toBe('v2');
   });
 
+  test('grows a label to fit its text with AutomaticSize', async ({ page }) => {
+    await page.getByLabel('Show').selectOption('screens');
+    const id = await selectByName(page, 'Version');
+    await commit(page, '#p-Text', 'A version line much longer than the 260 pixels it has');
+    const box = () =>
+      page.evaluate((i) => {
+        const b = window.framecraft!.scene.layout.get(i)!;
+        return { w: b.w, h: b.h };
+      }, id);
+    expect(await box()).toEqual({ w: 260, h: 20 });
+
+    await page.locator('#p-AutomaticSize').selectOption('X');
+    const grown = await box();
+    expect(grown.w).toBeGreaterThan(300);
+    expect(grown.h).toBe(20);
+    // The Stage draws it at the grown size, and Properties says Size is now the smallest.
+    const drawn = page.locator(`.screen .gui[data-id="${id}"]`);
+    expect((await drawn.boundingBox())!.width).toBeGreaterThan(0);
+    expect(await drawn.evaluate((el) => parseFloat(el.style.width))).toBeCloseTo(grown.w, 3);
+    await expect(page.getByText('Size is the smallest it gets')).toBeVisible();
+
+    // Wrapped, it keeps its width and grows down instead.
+    await page.locator('#p-TextWrapped').check();
+    await page.locator('#p-AutomaticSize').selectOption('Y');
+    const tall = await box();
+    expect(tall.w).toBe(260);
+    expect(tall.h).toBeGreaterThan(20);
+
+    await page.locator('#p-AutomaticSize').selectOption('None');
+    expect(await box()).toEqual({ w: 260, h: 20 });
+    expect((await propsOf(page, id)).AutomaticSize).toBe('None');
+  });
+
   test('edits colors, transparency and AnchorPoint', async ({ page }) => {
     const id = await selectByName(page, 'Coins');
     await commit(page, '#p-BackgroundColor3', '#ff8000');
