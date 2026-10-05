@@ -147,6 +147,13 @@ describe('dragging', () => {
     expect(props('Coins').Position).toEqual([1, -20, 0, 20]);
     expect(ed.dragging).toBe(false);
   });
+
+  it('says so when there is nothing to undo or redo', () => {
+    ed.undo();
+    expect(ed.state.toast?.text).toBe('Nothing to undo');
+    ed.redo();
+    expect(ed.state.toast?.text).toBe('Nothing to redo');
+  });
 });
 
 describe('breakpoints', () => {

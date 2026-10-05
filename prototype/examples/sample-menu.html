@@ -93,16 +93,21 @@
 <script>
   // Sizes that need the real box: rounded corners in Scale, aspect ratios, and TextScaled
   (function () {
+    // The exact laid-out size; offsetWidth rounds to whole pixels.
+    function size(el) {
+      var s = getComputedStyle(el);
+      return [parseFloat(s.width) || 0, parseFloat(s.height) || 0];
+    }
     function fit() {
       var ar = document.querySelectorAll('[data-ar]');
       ar.forEach(function (el) { el.style.width = ''; el.style.height = ''; });
       ar.forEach(function (el) {
-        var r = +el.dataset.ar, w = el.offsetWidth, h = el.offsetHeight;
+        var r = +el.dataset.ar, wh = size(el), w = wh[0], h = wh[1];
         if (h > 0 && w / h > r) w = h * r; else h = w / r;
         el.style.width = w + 'px'; el.style.height = h + 'px';
       });
       document.querySelectorAll('[data-r]').forEach(function (el) {
-        var p = el.dataset.r.split(','), m = Math.min(el.offsetWidth, el.offsetHeight);
+        var p = el.dataset.r.split(','), m = Math.min.apply(Math, size(el));
         el.style.borderRadius = Math.max(0, Math.min(+p[0] * m + +p[1], m / 2)) + 'px';
       });
       document.querySelectorAll('[data-fit]').forEach(function (t) {
