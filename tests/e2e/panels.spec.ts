@@ -82,6 +82,30 @@ test.describe('Explorer', () => {
     await expect(row(page, 'Version')).toHaveAttribute('aria-level', '4');
   });
 
+  test('reorders by dropping on the top edge of a row', async ({ page }) => {
+    await selectByName(page, 'Version');
+    const coins = (await row(page, 'Coins').boundingBox())!;
+    await row(page, 'Version').dragTo(row(page, 'Coins'), {
+      targetPosition: { x: coins.width / 2, y: 2 },
+    });
+    const order = await page.evaluate(() => {
+      const ed = window.framecraft!;
+      const menu = Object.values(ed.doc.instances).find((i) => i.props.Name === 'MainMenu')!;
+      return menu.children.map((c) => ed.doc.instances[c]!.props.Name);
+    });
+    expect(order.slice(0, 3)).toEqual(['Version', 'Coins', 'Panel']);
+  });
+
+  test('hovering a row outlines its object in the viewport', async ({ page }) => {
+    await page.evaluate(() => window.framecraft!.select(null));
+    await row(page, 'MainMenu').click();
+    await page.keyboard.press('ArrowRight');
+    await row(page, 'Coins').hover();
+    await expect(page.locator('.overlay .hoverbox')).toHaveCount(1);
+    await page.mouse.move(1, 1);
+    await expect(page.locator('.overlay .hoverbox')).toHaveCount(0);
+  });
+
   test('moves through the tree with the arrow keys', async ({ page }) => {
     await row(page, 'MainMenu').click();
     await expect(row(page, 'MainMenu')).toHaveAttribute('aria-expanded', 'false');
@@ -348,6 +372,15 @@ test.describe('export and project files', () => {
       buffer: await readFile(file),
     });
     await expect(page.getByText('Opened framecraft-project.json.')).toBeVisible();
+    await expect(row(page, 'Pricing')).toBeVisible();
+
+    // A file that isn't a project changes nothing.
+    const other = page.waitForEvent('filechooser');
+    await page.keyboard.press('Control+o');
+    await (
+      await other
+    ).setFiles({ name: 'notes.json', mimeType: 'application/json', buffer: Buffer.from('{}') });
+    await expect(page.getByRole('status')).toContainText(/isn.t a Framecraft project/);
     await expect(row(page, 'Pricing')).toBeVisible();
   });
 

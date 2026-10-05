@@ -167,6 +167,44 @@ test.describe('Roblox screens', () => {
     expect(await count()).toBe(n + 8);
     await page.keyboard.press('Control+z');
     expect(await count()).toBe(n);
+
+    // Cut, then paste into another object.
+    const version = await selectByName(page, 'Version');
+    await page.keyboard.press('Control+x');
+    expect(await page.evaluate((i) => i in window.framecraft!.doc.instances, version)).toBe(false);
+    await selectByName(page, 'Panel');
+    await page.keyboard.press('Control+v');
+    expect(await selectedName(page)).toBe('Version');
+    expect(
+      await page.evaluate(() => {
+        const ed = window.framecraft!;
+        const inst = ed.doc.instances[ed.state.selection!]!;
+        return ed.doc.instances[inst.parent!]!.props.Name;
+      }),
+    ).toBe('Panel');
+  });
+
+  test('Shift keeps proportions on a corner, and Escape selects the parent', async ({ page }) => {
+    const coins = await selectByName(page, 'Coins');
+    const sw = center((await page.locator('.overlay .handle[data-h="sw"]').boundingBox())!);
+    await page.keyboard.down('Shift');
+    await drag(page, sw, -60, 10);
+    await page.keyboard.up('Shift');
+    const [, w, , h] = (await propsOf(page, coins)).Size as number[];
+    expect(w).toBeGreaterThan(176);
+    expect(w! / h!).toBeCloseTo(176 / 52, 1);
+
+    await selectByName(page, 'Amount');
+    await page.keyboard.press('Escape');
+    expect(await selectedName(page)).toBe('Coins');
+    await page.keyboard.press('Escape');
+    expect(await selectedName(page)).toBe('MainMenu');
+    await page.keyboard.press('Escape');
+    expect(await selectedName(page)).toBeNull();
+    // With nothing left to undo, Ctrl+Z says so.
+    await page.keyboard.press('Control+z');
+    await page.keyboard.press('Control+z');
+    await expect(page.getByRole('status')).toHaveText('Nothing to undo');
   });
 
   test('zooms, fits and switches devices', async ({ page }) => {
@@ -203,6 +241,33 @@ test.describe('Roblox screens', () => {
     expect(await propsOf(page, coins)).toEqual(before);
     await page.keyboard.press('p');
     await expect(page.locator('.overlay .selbox')).toHaveCount(1);
+  });
+
+  test('in preview, text boxes take typing and scrolling frames scroll', async ({ page }) => {
+    const ids = await page.evaluate(() => {
+      const ed = window.framecraft!;
+      const menu = Object.values(ed.doc.instances).find((i) => i.props.Name === 'MainMenu')!.id;
+      ed.insert('TextBox', menu);
+      const box = ed.state.selection!;
+      ed.setProp(box, 'Position', [0, 20, 0, 120]);
+      ed.insert('ScrollingFrame', menu);
+      const scroll = ed.state.selection!;
+      ed.setProp(scroll, 'Position', [0, 20, 0, 200]);
+      ed.insert('Frame', scroll);
+      return { box, scroll };
+    });
+    await page.keyboard.press('p');
+    const field = page.locator(`.screen .gui[data-id="${ids.box}"] [contenteditable]`);
+    await field.click();
+    await page.keyboard.type('hello');
+    await expect(field).toHaveText('hello');
+    const scrolled = await page
+      .locator(`.screen .gui[data-id="${ids.scroll}"] > .content`)
+      .evaluate((el) => {
+        el.scrollTop = 50;
+        return el.scrollTop;
+      });
+    expect(scrolled).toBe(50);
   });
 });
 
