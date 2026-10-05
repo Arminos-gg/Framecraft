@@ -2,18 +2,22 @@
 
 A browser app for building UI the way Roblox Studio does: an Explorer tree, a Properties panel, and every Position and Size as UDim2 Scale + Offset. It exports Luau for Studio and an HTML/CSS page for the web. "Framecraft" is a working name.
 
-Current stage: a working single-file prototype plus a product plan. The next phase is porting the prototype to a real Vite + TypeScript codebase. Read `docs/HANDOVER.md` before starting any task; the product plan is `docs/PLAN.md`.
+Current stage: a working single-file prototype plus a product plan, and the start of the port to a Vite + TypeScript app at the repo root (an empty editor shell so far). Read `docs/HANDOVER.md` before starting any task; the product plan is `docs/PLAN.md`.
 
 ## Commands
 
 - First time: `npm install`, then `npx playwright install chromium`
-- `npm run build`: builds `prototype/dist/` from `prototype/src/`
-- `npm test`: smoke test (golden exports, Luau syntax, layout numbers, editor interactions, phone width)
+- `npm run dev`: serves the new app (Vite)
+- `npm run build`: builds the app into `dist/` and the prototype into `prototype/dist/` (`build:app`, `build:prototype` do one each)
+- `npm test`: runs `test:unit` (Vitest), `test:e2e` (Playwright against the dev server) and `test:prototype` (the prototype smoke test: golden exports, Luau syntax, layout numbers, editor interactions, phone width)
+- `npm run lint`, `npm run typecheck`, `npm run format` (Prettier; the prototype and docs are excluded)
 - `npm run examples`: rewrites the golden files in `prototype/examples/`; only after an intentional exporter change
 - Use the prototype: open `prototype/dist/framecraft.html` in a browser
 
 ## Repo map
 
+- `src/`: the new app (Vite, strict TypeScript, React). `main.tsx` mounts `ui/App.tsx`; `styles/tokens.css` holds the design tokens copied from the prototype
+- `tests/unit/`: Vitest tests; `tests/e2e/`: Playwright tests for the new app
 - `prototype/src/1-head.html`: title, fonts and all CSS; design tokens are the `:root` block at the top
 - `prototype/src/2-body.html`: app shell markup
 - `prototype/src/3-core.js`: class registry (`CLASSES`, `PROPS`), document model, sample project, undo history, autosave
@@ -41,6 +45,7 @@ These are facts about Roblox, not style preferences. Breaking them makes exports
 
 ## Conventions
 
+- The new app's design tokens live in `src/styles/tokens.css`; the same rules on tokens, themes and Scale/Offset colors apply there.
 - The prototype is plain JS with no dependencies inside the page. It also runs as a claude.ai artifact, whose content security policy only allows Google Fonts and a few script CDNs.
 - Every document edit goes through `mutate()`, which makes one undo step. Continuous edits (drags, sliders, the color picker) snapshot first and call `record()` when they end.
 - State lives in `doc` (saved and exported) and `ui` (editor-only). Render functions rebuild their DOM from that state and must stay side-effect free.

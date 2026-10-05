@@ -2,7 +2,7 @@
 
 Build UI the way Roblox Studio does, in the browser: an Explorer tree, a Properties panel, and Scale + Offset positioning. Export the result as Luau for Roblox Studio or as a web page.
 
-"Framecraft" is a working name. This repo holds the clickable prototype, the product plan, and the handover for building the real app.
+"Framecraft" is a working name. This repo holds the clickable prototype, the product plan, and the new Vite + TypeScript app the prototype is being ported to. The new app is an empty editor shell for now.
 
 ## Try the prototype
 
@@ -22,21 +22,26 @@ The repo is set up for Claude Code: `CLAUDE.md` loads automatically and points t
 
 ## Scripts
 
-You need Node.js 18 or newer.
+You need Node.js 22.12 or newer.
 
 ```
 npm install
 npx playwright install chromium   # first time only, for the tests
-npm run build                      # builds prototype/dist/ from prototype/src/
-npm test                           # smoke test: exports, layout numbers, editor interactions
+npm run dev                        # serves the new app at http://localhost:5173
+npm run build                      # builds the app into dist/ and the prototype into prototype/dist/
+npm test                           # unit tests, the app's browser tests, and the prototype smoke test
+npm run lint                       # ESLint; `npm run format` applies Prettier
 ```
+
+`dist/` is a static site: upload its contents to any web host.
 
 ## Repo map
 
 - `CLAUDE.md`: instructions Claude Code reads at the start of every session
 - `docs/PLAN.md`: product and technical plan (audience, scope, architecture, roadmap, risks)
 - `docs/HANDOVER.md`: what works, what's missing, decisions so far, next tasks
+- `src/`: the new app (React panels in `src/ui/`, design tokens in `src/styles/`)
 - `prototype/`: the single-file prototype, its source parts, and golden example exports
-- `tests/smoke.mjs`: the Playwright smoke test
+- `tests/`: unit tests (`unit/`), the app's browser tests (`e2e/`) and the prototype smoke test (`smoke.mjs`)
 
 Not affiliated with, sponsored by, or endorsed by Roblox Corporation.
