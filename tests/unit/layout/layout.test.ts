@@ -373,7 +373,7 @@ describe('pages', () => {
   it('uses Tablet values on a tablet and Phone values on a phone', () => {
     expectRect(box(lay('Home', 810), 'Headline', 'Home'), { w: 714, h: 140 });
     expectRect(box(lay('Home', 390), 'Headline', 'Home'), { w: 342, h: 160 });
-    expectRect(box(lay('Home', 390), 'Hero', 'Home'), { h: 420 });
+    expectRect(box(lay('Home', 390), 'Hero', 'Home'), { y: 60, h: 900 - 60 });
   });
 
   it('hides the nav links on a phone only', () => {

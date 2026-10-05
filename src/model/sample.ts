@@ -298,7 +298,8 @@ export function sampleSite(makeId: () => InstanceId = newId): Doc {
     Size: [1, 0, 1, -72],
     BackgroundColor3: INK,
   });
-  b.change(hero, 'Phone', { Size: [1, 0, 0, 420] });
+  // The phone nav is 60 px, so the hero still fills the first screen.
+  b.change(hero, 'Phone', { Size: [1, 0, 1, -60] });
   const headline = b.add(hero, 'TextLabel', {
     Name: 'Headline',
     HtmlTag: 'h1',
