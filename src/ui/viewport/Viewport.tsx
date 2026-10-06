@@ -31,6 +31,7 @@ import { rulerSteps } from './rulers.ts';
 import { Rulers } from './Rulers.tsx';
 import { Stage } from './Stage.tsx';
 import { useDocFonts } from './useDocFonts.ts';
+import { COMPONENT_MIME, decodeComponentDrag } from '../component-drag.ts';
 
 /** Space around the device when it's fitted to the viewport. */
 const PAD = 40;
@@ -356,6 +357,20 @@ export function Viewport() {
           onPointerCancel={onPointerUp}
           onPointerLeave={onPointerLeave}
           onClick={onClick}
+          onDragOver={(e) => {
+            if (state.preview || !e.dataTransfer.types.includes(COMPONENT_MIME)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }}
+          onDrop={(e) => {
+            const drag = decodeComponentDrag(e.dataTransfer.getData(COMPONENT_MIME));
+            if (!drag || state.preview) return;
+            e.preventDefault();
+            // Into the object dropped on, or else what the viewport shows.
+            const el = frameAt(e.target);
+            if (el && el.dataset.device !== device.id) editor.setDevice(el.dataset.device!);
+            editor.addComponent(drag.def, drag.options, guiIdAt(e.target));
+          }}
         >
           <div
             className="canvas-inner"

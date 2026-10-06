@@ -42,6 +42,8 @@ const PATHS = {
   reset: '<path d="M4 10a6 6 0 1 0 2-4.5"/><path d="M4 3.5V7h3.5"/>',
   upload: '<path d="M10 13V3.5M6.5 7 10 3.5 13.5 7"/><path d="M4 13v4h12v-4"/>',
   download: '<path d="M10 3v9.5M6.5 9 10 12.5 13.5 9"/><path d="M4 14.5V17h12v-2.5"/>',
+  components:
+    '<path d="M10 2.5 13 5.5 10 8.5 7 5.5zM5.5 7 8.5 10 5.5 13 2.5 10zM14.5 7 17.5 10 14.5 13 11.5 10zM10 11.5 13 14.5 10 17.5 7 14.5z"/>',
   link: '<path d="M8.5 11.5a3.5 3.5 0 0 0 5 0l2.5-2.5a3.5 3.5 0 0 0-5-5L10 5"/><path d="M11.5 8.5a3.5 3.5 0 0 0-5 0L4 11a3.5 3.5 0 0 0 5 5l1-1"/>',
   DataModel: '<circle cx="10" cy="10" r="7"/>',
   StarterGui:

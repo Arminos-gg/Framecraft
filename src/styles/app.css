@@ -1851,6 +1851,310 @@ button.bpdot.on:hover {
   line-height: 1.4;
 }
 
+/* ---------- Components drawer: pre-made pieces beside the Explorer, a preview card over the viewport ---------- */
+.app.with-drawer {
+  grid-template-columns: 248px clamp(340px, 30vw, 540px) minmax(0, 1fr) 336px;
+  grid-template-areas: 'bar bar bar bar' 'ribbon ribbon ribbon ribbon' 'explorer drawer stage props';
+}
+/* Below 1440 pixels the drawer takes the Explorer's place, so the viewport keeps its room. */
+@media (min-width: 921px) and (max-width: 1439px) {
+  .app.with-drawer {
+    grid-template-columns: clamp(340px, 30vw, 420px) minmax(0, 1fr) 336px;
+    grid-template-areas: 'bar bar bar' 'ribbon ribbon ribbon' 'drawer stage props';
+  }
+  .app.with-drawer .explorer {
+    display: none;
+  }
+}
+.tool.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.drawerwrap {
+  grid-area: drawer;
+  position: relative;
+  z-index: 5;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+.drawer {
+  flex: 1;
+  container-type: inline-size;
+}
+.dhead {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  flex: none;
+}
+.dhead .filter {
+  margin: 0;
+}
+.dhead .filter input {
+  height: 30px;
+}
+.dhead .filter > svg {
+  top: 8px;
+}
+.dtitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dtitle h2 {
+  margin: 0;
+  font: 600 15px/1.2 var(--font-display);
+}
+.drawer .count {
+  color: var(--faint);
+  font-size: 12px;
+}
+.drow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.drawerwrap .hint {
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.dmain {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.cats {
+  width: 148px;
+  flex: none;
+  overflow: auto;
+  padding: 6px;
+  border-right: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.catgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cats h3 {
+  margin: 10px 8px 4px;
+  font: 600 10.5px/1 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.cat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--fg);
+  white-space: nowrap;
+}
+.cat:hover {
+  background: var(--hover);
+}
+.cat.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.cat span:last-child {
+  color: var(--faint);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+.cgrid {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(198px, 1fr));
+  grid-auto-rows: max-content;
+  gap: 10px;
+  align-content: start;
+}
+.ccard {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--raised);
+  text-align: left;
+}
+.ccard:hover {
+  border-color: var(--line-strong);
+}
+.ccard.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.ccard .thumb,
+.cdetail .thumb {
+  display: grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--stage);
+  pointer-events: none;
+}
+.cpreview {
+  position: relative;
+  display: block;
+  overflow: hidden;
+}
+.cpreview .device {
+  border-radius: 0;
+  box-shadow: none;
+}
+.ccard .meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 10px 9px;
+}
+.ccard .nm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.ccard .ds {
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 11.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.still {
+  border-radius: 4px;
+  padding: 1px 5px;
+  background: var(--offset-soft);
+  color: var(--offset);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.cempty {
+  grid-column: 1 / -1;
+  margin: 32px 0;
+  color: var(--faint);
+  text-align: center;
+}
+.cdetail {
+  position: absolute;
+  top: 8px;
+  left: calc(100% + 16px);
+  width: 380px;
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--raised);
+  box-shadow: var(--shadow-pop);
+}
+.cbody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 16px;
+}
+.ctitle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.ctitle h3 {
+  flex: 1;
+  margin: 4px 0 0;
+  font: 600 17px/1.25 var(--font-display);
+}
+.cbody p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.fact {
+  border-radius: 99px;
+  padding: 3px 9px;
+  background: var(--field);
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.cbody .warn {
+  border-radius: 8px;
+  padding: 9px 11px;
+  background: var(--offset-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.cbody .warn b {
+  color: var(--offset);
+}
+.cbody .opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.btn.wide {
+  width: 100%;
+  height: 36px;
+  font-size: 13px;
+}
+.drawerwrap .hint.center {
+  text-align: center;
+}
+/* A narrow drawer puts the categories in a scrolling row above the cards. */
+@container (max-width: 560px) {
+  .dmain {
+    flex-direction: column;
+  }
+  .cats {
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--line-soft);
+    scrollbar-width: none;
+  }
+  .catgroup {
+    flex-direction: row;
+  }
+  .cats h3 {
+    display: none;
+  }
+  .cgrid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+}
+
 /* ---------- viewport ---------- */
 .stage {
   grid-area: stage;
@@ -2408,6 +2712,29 @@ button.bpdot.on:hover {
   .explorer.sheet-open,
   .props.sheet-open {
     display: flex;
+  }
+  .app.with-drawer {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'bar' 'ribbon' 'stage';
+  }
+  .drawerwrap {
+    position: fixed;
+    z-index: 40;
+    inset: 8px;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .drawer {
+    box-shadow: var(--shadow-pop);
+  }
+  .cdetail {
+    position: fixed;
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+    max-height: 70%;
   }
 }
 @media (pointer: coarse) {

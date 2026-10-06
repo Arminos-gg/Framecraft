@@ -13,6 +13,9 @@ import { applyCommand, insert } from '../../src/model/commands.ts';
 import { createInstance, serviceOf, single } from '../../src/model/document.ts';
 import { sampleSite } from '../../src/model/sample.ts';
 import { TEMPLATES } from '../../src/model/templates/index.ts';
+import { COMPONENTS, componentSubtree, fitsTarget } from '../../src/model/components/index.ts';
+import { pageSubtree } from '../../src/model/builder.ts';
+import { emptyProject } from '../../src/model/document.ts';
 import type * as MeasureModule from '../../src/ui/viewport/text-measure.ts';
 import { exportOrder } from './export-order.ts';
 
@@ -70,6 +73,25 @@ function testSite(): Doc {
   add(row, 'Frame', { Name: 'B', LayoutOrder: 2, Size: [0.2, 0, 1, 0] });
   add(row, 'Frame', { Name: 'C', LayoutOrder: 3, Size: [0.2, 0, 1, 0] });
   onPhone(first, { LayoutOrder: 5 });
+  return doc;
+}
+
+/**
+ * A page with every component for websites, each added as the Components drawer adds it to a
+ * page. The Roblox ones are checked on a screen in html-export.spec.ts.
+ */
+function componentsSite(): Doc {
+  let doc = emptyProject();
+  const page = pageSubtree({ Name: 'Components', Path: '/' });
+  doc = applyCommand(doc, insert(serviceOf(doc, 'Site').id, page)).doc;
+  COMPONENTS.filter((def) => fitsTarget(def, 'site')).forEach((def, i) => {
+    const look = i % 2 ? 'dark' : 'light';
+    const copy = componentSubtree(doc, def, { look, corners: 'rounded', target: 'site' }, 'page');
+    const root = copy.instances[copy.rootId]!;
+    const placed = { ...root, props: { ...root.props, LayoutOrder: i + 1 } } as AnyInstance;
+    const subtree = { ...copy, instances: { ...copy.instances, [root.id]: placed } };
+    doc = applyCommand(doc, insert(page.rootId, subtree)).doc;
+  });
   return doc;
 }
 
@@ -172,3 +194,4 @@ function checkSite(name: string, doc: Doc, { phoneHides }: { phoneHides: boolean
 checkSite('Test site', testSite(), { phoneHides: true });
 for (const t of TEMPLATES)
   if (t.kind === 'site') checkSite(`${t.name} template`, t.build(), { phoneHides: false });
+checkSite('Every component', componentsSite(), { phoneHides: false });

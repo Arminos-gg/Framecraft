@@ -11,7 +11,7 @@
   body { background: radial-gradient(120% 60% at 30% 108%, #5d9c46 0 34%, transparent 34.5%), radial-gradient(90% 50% at 85% 112%, #4c8a3b 0 38%, transparent 38.5%), linear-gradient(#7ec3f2 0%, #b7e0fa 58%, #e3f3fd 100%); overflow: hidden; }
   /* A ScreenGui covers the window. Position and Size are {Scale, Offset} pairs: calc(Scale% + Offset px). */
   .screen { position: fixed; inset: 0; }
-  .g { position: absolute; box-sizing: border-box; }
+  .g { position: absolute; box-sizing: border-box; margin: 0; font-size: inherit; font-weight: inherit; }
   .c, .t { position: absolute; }
   .t { display: flex; pointer-events: none; }
   .t > * { line-height: 1; }
