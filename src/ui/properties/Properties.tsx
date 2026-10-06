@@ -5,6 +5,7 @@
  * it goes back to the inherited value.
  */
 import { useMemo, useState, type ReactNode } from 'react';
+import { fmtRatio, textContrast, type TextContrast } from '../../editor/contrast.ts';
 import { pagesOf, sceneOf, viewOf } from '../../editor/editor.ts';
 import { isGui } from '../../export/html.ts';
 import {
@@ -17,12 +18,14 @@ import {
   type PropSpec,
 } from '../../model/classes.ts';
 import { getInstance, resolveProps, type AnyInstance } from '../../model/document.ts';
+import { rgb } from '../../export/format.ts';
 import { valueEquals, type Link } from '../../model/values.ts';
 import { useEditor, useEditorState } from '../editor-context.ts';
 import { MAX_PICTURE_BYTES, pickFile, readDataUrl } from '../files.ts';
 import { ClassIcon, Icon } from '../icons.tsx';
 import { InsertMenu } from '../InsertMenu.tsx';
 import { SidePanel } from '../Panel.tsx';
+import { onTabKeys } from '../tabs.ts';
 import { CodePane } from './CodePane.tsx';
 import {
   AlphaField,
@@ -59,7 +62,10 @@ export function Properties({ open, onClose }: { open: boolean; onClose: () => vo
     <button
       type="button"
       role="tab"
+      id={`tab-${t}`}
       aria-selected={tab === t}
+      aria-controls={`tabpanel-${t}`}
+      tabIndex={tab === t ? 0 : -1}
       className={tab === t ? 'tab on' : 'tab'}
       onClick={() => setTab(t)}
     >
@@ -73,14 +79,14 @@ export function Properties({ open, onClose }: { open: boolean; onClose: () => vo
       open={open}
       onClose={onClose}
       head={
-        <div className="tabs" role="tablist" aria-label="Properties or code">
+        <div className="tabs" role="tablist" aria-label="Properties or code" onKeyDown={onTabKeys}>
           {tabButton('props', 'Properties')}
           {tabButton('code', 'Code')}
         </div>
       }
     >
       {tab === 'props' ? (
-        <div className="pbody" role="tabpanel" aria-label="Properties">
+        <div className="pbody" role="tabpanel" id="tabpanel-props" aria-labelledby="tab-props">
           <PropsBody
             key={selection ?? 'none'}
             closed={closed}
@@ -135,6 +141,10 @@ function Help() {
           <kbd>P</kbd>
         </dt>
         <dd>Preview</dd>
+        <dt>
+          <kbd>F6</kbd>
+        </dt>
+        <dd>Move to the next panel</dd>
       </dl>
     </div>
   );
@@ -180,6 +190,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
   const listItem = !!box?.listItem;
   const onSite = viewOf(doc, inst.id)?.kind === 'page' || inst.className === 'Site';
   const notes = notesFor(inst, values, listItem, onSite);
+  const contrast = def.text ? textContrast(doc, scene, inst.id) : undefined;
   const q = filter.trim().toLowerCase();
 
   const keys = propNames(inst.className).filter((k) => {
@@ -425,12 +436,36 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
                   <span>{notes[cat]}</span>
                 </div>
               )}
+              {cat === 'Text' && contrast && !q && <ContrastNote c={contrast} />}
             </div>
           </section>
         );
       })}
       {!keys.length && <p className="empty">No properties match “{filter}”.</p>}
     </>
+  );
+}
+
+/** How readable the text is against what's behind it, by WCAG's measure. */
+function ContrastNote({ c }: { c: TextContrast }) {
+  const ok = c.ratio >= c.needed;
+  return (
+    <div className={ok ? 'note contrast' : 'note contrast warn'} data-testid="contrast">
+      <Icon name={ok ? 'check' : 'warn'} />
+      <span>
+        <span
+          className="pair"
+          aria-hidden="true"
+          style={{ color: rgb(c.text), background: rgb(c.background) }}
+        >
+          Aa
+        </span>
+        Contrast {fmtRatio(c.ratio)}.{' '}
+        {ok
+          ? `Easy to read: text this size needs ${c.needed}:1.`
+          : `Text this size needs ${c.needed}:1 to be easy to read. Make TextColor3 or the background behind it lighter or darker.`}
+      </span>
+    </div>
   );
 }
 

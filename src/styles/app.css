@@ -45,6 +45,17 @@ svg {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+/* Less movement for people who ask their system for it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
 .spacer {
   flex: 1;
 }
@@ -88,6 +99,7 @@ svg {
   padding-left: 4px;
 }
 .brand {
+  margin: 0;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -1135,6 +1147,20 @@ svg {
   margin-top: 1px;
   color: var(--faint);
 }
+.note.warn {
+  color: var(--fg);
+}
+.note.warn svg {
+  color: var(--danger);
+}
+.note.contrast .pair {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-weight: 700;
+}
 .err {
   padding-left: 152px;
   margin-top: -1px;
@@ -1644,7 +1670,8 @@ button.bpdot.on:hover {
 .menu {
   width: 250px;
 }
-.menu h4 {
+.menu h4,
+.menu .mh {
   margin: 0;
   padding: 8px 8px 4px;
   font: 600 10.5px/1 var(--font-ui);
@@ -1787,6 +1814,66 @@ button.bpdot.on:hover {
 }
 .files .d {
   color: var(--faint);
+}
+
+/* The website's accessibility checks, above its files */
+.checks {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 40%;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.checks svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+.checks.ok {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.checks.ok svg {
+  color: var(--scale);
+}
+.checks h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.checks h3 svg {
+  color: var(--danger);
+}
+.checks ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.checks li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0 6px 23px;
+  color: var(--muted);
+}
+.checks li + li {
+  border-top: 1px solid var(--line-soft);
+}
+.checks li > span {
+  flex: 1;
+}
+.checks b {
+  color: var(--fg);
+  font-weight: 600;
 }
 
 /* New from a template: a grid of cards, each a live preview of the template's first screen */
@@ -2464,4 +2551,9 @@ button.bpdot.on:hover {
 .code .ln.hi {
   background: var(--accent-faint);
   box-shadow: inset 2px 0 var(--accent);
+}
+
+/* The canvas takes keyboard focus; its ring goes inside, around the viewport's edge. */
+.canvas:focus-visible {
+  outline-offset: -2px;
 }

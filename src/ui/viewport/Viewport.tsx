@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
 } from 'react';
@@ -237,11 +238,22 @@ export function Viewport() {
     setMouse(null);
     editor.setHover(null);
   };
-  const onClick = (e: MouseEvent) => {
-    if (!state.preview) return;
-    const id = guiIdAt(e.target);
+  const follow = (target: EventTarget | null) => {
+    const id = guiIdAt(target);
     const out = id && editor.followLink(id);
     if (out) window.open(out.url, '_blank', 'noopener');
+  };
+  const onClick = (e: MouseEvent) => {
+    if (state.preview) follow(e.target);
+  };
+  const onKeyDown = (e: KeyboardEvent) => {
+    // In preview, Enter on a focused link follows it; Space too, on a button.
+    const el = e.target as HTMLElement;
+    if (!state.preview || !el.matches('.gui[role]')) return;
+    if (e.key === 'Enter' || (e.key === ' ' && el.getAttribute('role') === 'button')) {
+      e.preventDefault();
+      follow(el);
+    }
   };
 
   const pages = pagesOf(doc);
@@ -329,9 +341,7 @@ export function Viewport() {
           <button type="button" aria-label="Zoom out" onClick={() => zoomTo(z / 1.25)}>
             <Icon name="minus" />
           </button>
-          <span className="zv" aria-label="Zoom">
-            {Math.round(z * 100)}%
-          </span>
+          <span className="zv">{Math.round(z * 100)}%</span>
           <button type="button" aria-label="Zoom in" onClick={() => zoomTo(z * 1.25)}>
             <Icon name="plus" />
           </button>
@@ -363,6 +373,13 @@ export function Viewport() {
         <div
           className={state.preview ? 'canvas preview' : 'canvas'}
           ref={canvasRef}
+          // Focusable, so the keyboard can scroll it; the arrow keys nudge the selection.
+          tabIndex={0}
+          role="group"
+          aria-roledescription="canvas"
+          aria-label={state.preview ? 'Preview' : 'Canvas'}
+          aria-describedby="canvas-hint"
+          onKeyDown={onKeyDown}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -426,7 +443,7 @@ export function Viewport() {
                   >
                     <Stage doc={doc} scene={s} assets={state.assets} preview={state.preview} />
                   </div>
-                  <div className="overlay" style={{ left: x, top }}>
+                  <div className="overlay" style={{ left: x, top }} aria-hidden="true">
                     <Overlay state={state} scene={s} zoom={z} passive={!editing} />
                   </div>
                 </Fragment>
@@ -448,7 +465,7 @@ function StatusLine({ mouse }: { mouse: Point | null }) {
   const inst = sel === null ? undefined : getInstance(state.doc, sel);
   const hint = state.preview
     ? 'Preview: buttons react, text boxes take input and links work. Press P or Preview to go back to editing.'
-    : 'Drag to move · handles resize · Shift keeps proportions · arrows nudge · Ctrl+D duplicates';
+    : 'Drag to move · handles resize · Shift keeps proportions · arrows nudge · Ctrl+D duplicates · F6 moves between panels';
   return (
     <div className="statusline">
       {inst && isGui(inst) && box ? (
@@ -471,7 +488,9 @@ function StatusLine({ mouse }: { mouse: Point | null }) {
           Mouse {Math.round(mouse.x)}, {Math.round(mouse.y)}
         </span>
       )}
-      <span className="hint">{hint}</span>
+      <span className="hint" id="canvas-hint">
+        {hint}
+      </span>
     </div>
   );
 }

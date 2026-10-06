@@ -35,6 +35,15 @@ export function Popover({
     el.style.top = `${Math.max(8, Math.min(top, innerHeight - h - 8))}px`;
   });
 
+  // Keyboard focus moves in, onto the current choice if there is one.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || el.contains(document.activeElement)) return;
+    el.querySelector<HTMLElement>(
+      '[aria-pressed="true"], [aria-checked="true"], input, button:not([disabled])',
+    )?.focus();
+  }, []);
+
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
       const t = e.target as Node;

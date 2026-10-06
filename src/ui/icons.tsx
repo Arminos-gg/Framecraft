@@ -32,6 +32,7 @@ const PATHS = {
   search: '<circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2 17 17"/>',
   check: '<path d="M4.5 10.5l3.5 3.5 7.5-8" stroke-width="2.2"/>',
   info: '<circle cx="10" cy="10" r="7.5"/><path d="M10 9v5"/><circle cx="10" cy="6.4" r="0.9" fill="currentColor" stroke="none"/>',
+  warn: '<path d="M10 3 18 17H2z"/><path d="M10 8.5v4"/><circle cx="10" cy="14.6" r="0.9" fill="currentColor" stroke="none"/>',
   image:
     '<rect x="3" y="4" width="14" height="12" rx="1.5"/><path d="M3.5 14l4-4 3 3 2-2 4 4"/><circle cx="13" cy="7.5" r="1.2"/>',
   close: '<path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/>',

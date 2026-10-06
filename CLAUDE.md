@@ -48,6 +48,7 @@ These are facts about Roblox, not style preferences. Breaking them makes exports
 - The document is what gets saved and exported; editor-only state (selection, view, zoom, preview) lives in `Editor`. Components read both through `useEditorState()` and change them only through `Editor` methods.
 - UI copy is plain and short, in sentence case. The editor shows Scale as a percent of the parent and Offset as pixels (`50% + 20px`, see `fmtLength`), never as Scale and Offset; only exported code and Roblox property names keep them. Percents are teal (`--scale`) and pixels amber (`--offset`) everywhere in the editor.
 - All editor colors come from the tokens in `src/styles/tokens.css`; light and dark themes must both work. The user's own UI inside the viewport uses only its own property colors.
+- Accessibility: everything works from the keyboard, controls have names screen readers can say, and new tokens keep `tests/unit/ui/tokens-contrast.test.ts` passing. `tests/e2e/a11y.spec.ts` runs axe on the editor and the exported sites.
 
 ## Gotchas
 

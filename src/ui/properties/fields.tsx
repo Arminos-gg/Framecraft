@@ -450,12 +450,29 @@ export function Vec2Field({
           className="pop appop"
           onClose={() => setPick(null)}
         >
-          <div className="apgrid">
+          <div
+            className="apgrid"
+            role="group"
+            aria-label="AnchorPoint"
+            onKeyDown={(e) => {
+              // Arrow keys move around the 3 by 3 grid.
+              const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -3, ArrowDown: 3 }[e.key];
+              if (step === undefined) return;
+              const buttons = [...e.currentTarget.querySelectorAll('button')];
+              const at = buttons.indexOf(e.target as HTMLButtonElement);
+              const to = at + step;
+              const sameRow = Math.abs(step) === 3 || Math.floor(to / 3) === Math.floor(at / 3);
+              if (at < 0 || to < 0 || to > 8 || !sameRow) return;
+              e.preventDefault();
+              buttons[to]!.focus();
+            }}
+          >
             {ANCHORS.map((a) => (
               <button
                 key={a.join()}
                 type="button"
                 className={valueEquals(a, value) ? 'on' : undefined}
+                aria-pressed={valueEquals(a, value)}
                 aria-label={`AnchorPoint ${fmtVec2(a)}`}
                 title={fmtVec2(a)}
                 onClick={() => {

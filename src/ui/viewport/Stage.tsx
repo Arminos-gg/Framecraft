@@ -73,6 +73,8 @@ export const Stage = memo(function Stage({ doc, scene, assets, preview }: StageP
     props: (inst) => resolveProps(doc, inst as Instance, scene.breakpoint) as typeof inst.props,
   };
   const origin = { x: 0, y: 0, w: scene.width, h: scene.height };
+  // While editing, the drawing is a picture of the UI and the Explorer is how a screen reader
+  // reaches its objects. In preview its buttons, links and text boxes work, by keyboard too.
 
   if (scene.view.kind === 'page') {
     const page = getInstance(doc, scene.view.pageId);
@@ -84,6 +86,7 @@ export const Stage = memo(function Stage({ doc, scene, assets, preview }: StageP
         ref={ref}
         className="screen"
         data-fonts={fontsLoaded}
+        aria-hidden={!preview || undefined}
         style={{
           background: BackgroundTransparency
             ? rgba(BackgroundColor3, BackgroundTransparency)
@@ -97,7 +100,7 @@ export const Stage = memo(function Stage({ doc, scene, assets, preview }: StageP
     );
   }
   return (
-    <div ref={ref} className="screen" data-fonts={fontsLoaded}>
+    <div ref={ref} className="screen" data-fonts={fontsLoaded} aria-hidden={!preview || undefined}>
       {scene.roots.map((id, i) => {
         const sg = getInstance(doc, id);
         if (sg?.className !== 'ScreenGui') return null;
@@ -213,8 +216,26 @@ function GuiView({ inst, origin, ctx }: { inst: Gui; origin: Rect; ctx: Ctx }) {
     );
   }
 
+  // In preview, links and buttons take keyboard focus; Enter or Space follows a link.
+  const button = inst.className === 'TextButton' || inst.className === 'ImageButton';
+  const role =
+    ctx.preview && b.visible
+      ? inst.props.Link
+        ? 'link'
+        : button
+          ? 'button'
+          : undefined
+      : undefined;
+  const altText = (inst.props as { AltText?: string }).AltText;
   return (
-    <div className={classes.join(' ')} data-id={inst.id} style={style}>
+    <div
+      className={classes.join(' ')}
+      data-id={inst.id}
+      style={style}
+      role={role}
+      tabIndex={role ? 0 : undefined}
+      aria-label={role && altText ? altText : undefined}
+    >
       {(inst.className === 'ImageLabel' || inst.className === 'ImageButton') && (
         <ImageView inst={inst} ctx={ctx} />
       )}
@@ -299,6 +320,8 @@ function TextView({
       <span
         style={span}
         contentEditable={editable || undefined}
+        role={editable ? 'textbox' : undefined}
+        aria-label={editable ? inst.props.PlaceholderText || inst.props.Name : undefined}
         suppressContentEditableWarning
         spellCheck={editable ? false : undefined}
         data-ph={editable && isBox ? inst.props.PlaceholderText : undefined}

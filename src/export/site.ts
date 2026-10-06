@@ -160,6 +160,8 @@ const STATIC_CSS = `  html, body { margin: 0; }
   .t { display: flex; pointer-events: none; }
   .t > * { line-height: 1; }
   .t > input { pointer-events: auto; width: 100%; height: 100%; border: 0; background: transparent; outline: none; padding: 0; font-size: inherit; }
+  /* A clear ring around whatever the keyboard is on. */
+  a:focus-visible, input:focus-visible { outline: 2px solid #2f62ff; outline-offset: 2px; }
   .img { position: absolute; inset: 0; width: 100%; height: 100%; }
   .ph { position: absolute; inset: 0; display: grid; place-items: center; font: 12px monospace; color: #555;
         background: repeating-linear-gradient(45deg, #ddd 0 6px, #eee 6px 12px); }

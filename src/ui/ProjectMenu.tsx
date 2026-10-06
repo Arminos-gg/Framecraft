@@ -75,7 +75,9 @@ export function ProjectMenu({
         {item('Save project file', () => saveProjectFile(editor), `${mod}S`)}
         <hr />
         <div role="group" aria-label="Theme">
-          <h4>Theme</h4>
+          <div className="mh" aria-hidden="true">
+            Theme
+          </div>
           {THEMES.map(([t, label]) => (
             <button
               key={t}

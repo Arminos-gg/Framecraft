@@ -1,5 +1,6 @@
 /* Design tokens for the Framecraft editor, from the editor design (Oct 2026). Light by default; dark follows the system unless data-theme="light" is set on <html>, and data-theme="dark" forces it.
-   Scale and Offset colors mean only those two units. Viewport marks (ov, guide, readout) are the same in both themes because they draw over the user's own UI. */
+   Scale and Offset colors mean only those two units. Viewport marks (ov, guide, readout) are the same in both themes because they draw over the user's own UI.
+   Text tokens read at 4.5:1 or more on the surfaces they sit on, icons and the focus ring at 3:1 (tests/unit/ui/tokens-contrast.test.ts). */
 :root {
   --bg: #e6e9ef;
   --panel: #ffffff;
@@ -17,12 +18,12 @@
   --stage-line-strong: rgba(22, 26, 39, 0.11);
   --ruler: #f3f4f7;
   --ruler-tick: rgba(22, 26, 39, 0.3);
-  --ruler-text: #646c80;
+  --ruler-text: #5f6779;
   --ruler-device: rgba(22, 26, 39, 0.06);
   --device-edge: rgba(10, 14, 30, 0.2);
   --fg: #161a27;
   --muted: #555e72;
-  --faint: #646c80;
+  --faint: #5f6779;
   --icon: #5f677b;
   --accent: #2c4fd8;
   --accent-soft: rgba(44, 79, 216, 0.12);
@@ -69,24 +70,24 @@
     --stage-line-strong: rgba(230, 233, 240, 0.075);
     --ruler: #111318;
     --ruler-tick: rgba(230, 233, 240, 0.3);
-    --ruler-text: #8890a2;
+    --ruler-text: #99a1b2;
     --ruler-device: rgba(230, 233, 240, 0.06);
     --device-edge: rgba(230, 233, 240, 0.16);
     --fg: #e6e9f0;
     --muted: #a0a7b8;
-    --faint: #8890a2;
+    --faint: #99a1b2;
     --icon: #9aa1b3;
-    --accent: #7189ff;
-    --accent-soft: rgba(113, 137, 255, 0.14);
-    --accent-faint: rgba(113, 137, 255, 0.06);
+    --accent: #8299ff;
+    --accent-soft: rgba(130, 153, 255, 0.14);
+    --accent-faint: rgba(130, 153, 255, 0.06);
     --on-accent: #0d1020;
-    --danger: #ff6b5e;
-    --danger-soft: rgba(255, 107, 94, 0.16);
+    --danger: #ff776b;
+    --danger-soft: rgba(255, 119, 107, 0.16);
     --scale: #3fc6b6;
     --scale-soft: rgba(63, 198, 182, 0.14);
     --offset: #f2a54a;
     --offset-soft: rgba(242, 165, 74, 0.14);
-    --ico-container: #7189ff;
+    --ico-container: #8299ff;
     --ico-object: #b4bacb;
     --ico-mod: #a992ff;
     --code-str: #b9a5ff;
@@ -115,24 +116,24 @@
   --stage-line-strong: rgba(230, 233, 240, 0.075);
   --ruler: #111318;
   --ruler-tick: rgba(230, 233, 240, 0.3);
-  --ruler-text: #8890a2;
+  --ruler-text: #99a1b2;
   --ruler-device: rgba(230, 233, 240, 0.06);
   --device-edge: rgba(230, 233, 240, 0.16);
   --fg: #e6e9f0;
   --muted: #a0a7b8;
-  --faint: #8890a2;
+  --faint: #99a1b2;
   --icon: #9aa1b3;
-  --accent: #7189ff;
-  --accent-soft: rgba(113, 137, 255, 0.14);
-  --accent-faint: rgba(113, 137, 255, 0.06);
+  --accent: #8299ff;
+  --accent-soft: rgba(130, 153, 255, 0.14);
+  --accent-faint: rgba(130, 153, 255, 0.06);
   --on-accent: #0d1020;
-  --danger: #ff6b5e;
-  --danger-soft: rgba(255, 107, 94, 0.16);
+  --danger: #ff776b;
+  --danger-soft: rgba(255, 119, 107, 0.16);
   --scale: #3fc6b6;
   --scale-soft: rgba(63, 198, 182, 0.14);
   --offset: #f2a54a;
   --offset-soft: rgba(242, 165, 74, 0.14);
-  --ico-container: #7189ff;
+  --ico-container: #8299ff;
   --ico-object: #b4bacb;
   --ico-mod: #a992ff;
   --code-str: #b9a5ff;
