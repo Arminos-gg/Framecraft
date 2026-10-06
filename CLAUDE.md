@@ -1,6 +1,6 @@
 # Framecraft
 
-A browser app for building UI the way Roblox Studio does: an Explorer tree, a Properties panel, and every Position and Size as UDim2 Scale + Offset. It exports websites (static HTML/CSS), Luau for Studio, and an HTML page of the Roblox screens. "Framecraft" is a working name.
+A browser app for building UI the way Roblox Studio does: an Explorer tree, a Properties panel, and every Position and Size as UDim2 Scale + Offset. It exports websites (static HTML/CSS), Luau and Roblox model files (.rbxmx) for Studio, and an HTML page of the Roblox screens. "Framecraft" is a working name.
 
 Current stage: a Vite + TypeScript app at the repo root that works end to end (viewport, Explorer, Properties, ribbon, Code tab, export, project files and autosave), plus a product plan. It was ported from a single-file prototype, which reached parity and was deleted in step 7; it is in git history (`git show c9caac6:prototype/`). Read `docs/HANDOVER.md` before starting any task; the product plan is `docs/PLAN.md`.
 
@@ -19,12 +19,12 @@ Current stage: a Vite + TypeScript app at the repo root that works end to end (v
 - `src/model/`: value types, class registry with per-class property schemas, immutable document, commands, undo history, image library, project files (opens the prototype's version 1 files too) and the samples. The root is a DataModel holding StarterGui (Roblox screens), Site (web pages) and the Breakpoints
 - `src/model/templates/`: the starter templates (three websites, four Roblox screens) behind "New from a template", built in code with `Builder` (`src/model/builder.ts`), as the samples are
 - `src/layout/`: the layout engine, pure functions from a document, window size and breakpoint to boxes in pixels (Roblox's AbsolutePosition and AbsoluteSize). Pages are window-wide and grow to fit their content. AutomaticSize needs text sizes from `text.ts`: the browser measures them in the app (`src/ui/viewport/text-measure.ts`), an estimate stands in for Node tests
-- `src/export/`: the exporters as pure functions: Luau and an HTML page for the Roblox screens, and the website (`site.ts`: an HTML file per page, pictures, breakpoints as media queries; `zip.ts` packs it for download). The project file is `serializeProject` in `src/model/project.ts`
+- `src/export/`: the exporters as pure functions: Luau, a Roblox model file (`rbxmx.ts`) and an HTML page for the Roblox screens, and the website (`site.ts`: an HTML file per page, pictures, breakpoints as media queries; `zip.ts` packs it for download). The project file is `serializeProject` in `src/model/project.ts`
 - `src/editor/`: editor state outside React (`editor.ts`): the undo history, selection, view (the Roblox screens or one page), device (or every device side by side), zoom and preview, plus every panel action (insert, rename, reparent, property edits per breakpoint, unit conversion, opening projects) as commands. `geometry.ts` is the pure editing math (UDim2 from pixels, smart snapping, resizing), `insert.ts` where and how new objects land, `text-values.ts` Studio shorthand parsing, `autosave.ts` the browser-storage autosave
 - `src/ui/viewport/`: the canvas: `Stage` draws the user's UI from the layout, `Overlay` the selection, handles and guides, `Rulers` the rulers in device pixels, which line up with the measuring grid around the device and behind the Roblox screens (`rulers.ts` spaces both for the zoom). Dev builds expose the running editor as `window.framecraft`, which the e2e tests use
 - `src/ui/`: the panels: `Explorer` (rename, drag to reparent, keyboard), `properties/` (`Properties`, an editor per value type in `fields.tsx`, the Code tab), `Ribbon`, `ExportDialog`, `ProjectMenu` and the insert menu
 - `tests/unit/`: Vitest tests; `tests/e2e/`: Playwright tests, which also check every exported HTML page against the layout engine in Chromium
-- `tests/golden/`: the exports of the untouched sample menu (Luau for both targets and the HTML page), compared byte for byte by `tests/unit/export/golden.test.ts`
+- `tests/golden/`: the exports of the untouched sample menu (Luau for both targets, the model file and the HTML page), compared byte for byte by `tests/unit/export/golden.test.ts`
 
 ## Roblox rules the code must follow
 
