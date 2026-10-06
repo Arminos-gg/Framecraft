@@ -17,6 +17,7 @@ import {
   type Box,
   type Layout,
 } from '../layout/layout.ts';
+import { textVersion } from '../layout/text.ts';
 import { addAsset, type Assets } from '../model/assets.ts';
 import { canParent, classDef, isOverridable, type ClassName } from '../model/classes.ts';
 import { batch, insert, move, remove, setPreview, type Command } from '../model/commands.ts';
@@ -185,14 +186,15 @@ let sceneCache: { key: readonly unknown[]; scene: Scene } | null = null;
 export function sceneOf(
   state: Pick<EditorState, 'doc' | 'view' | 'screenDevice' | 'pageDevice'>,
 ): Scene {
-  const key = [state.doc, state.view, state.screenDevice, state.pageDevice];
+  const key = [state.doc, state.view, state.screenDevice, state.pageDevice, textVersion()];
   if (sceneCache && sceneCache.key.every((k, i) => k === key[i])) return sceneCache.scene;
   const scene = buildScene(state);
   sceneCache = { key, scene };
   return scene;
 }
 
-function buildScene(
+/** Lays out a view of any document, uncached; the template previews use it. */
+export function buildScene(
   state: Pick<EditorState, 'doc' | 'view' | 'screenDevice' | 'pageDevice'>,
 ): Scene {
   const { doc, view } = state;
@@ -301,6 +303,10 @@ export class Editor {
   }
   get scene(): Scene {
     return sceneOf(this.#state);
+  }
+  /** Lays the view out again, such as after web fonts load and text measures differently. */
+  refreshLayout() {
+    this.#update({});
   }
   /** A pointer is down on an object (it may not have moved yet). */
   get dragging(): boolean {
@@ -780,7 +786,7 @@ export class Editor {
     if (!cmds.length || !this.#execute(batch(...cmds))) return;
     const n = cmds.length;
     this.toast(
-      `Rewrote ${n} object${n === 1 ? '' : 's'} as ${toScale ? 'Scale' : 'Offset'}. Switch devices to see the difference.`,
+      `Rewrote ${n} object${n === 1 ? '' : 's'} in ${toScale ? 'percent' : 'pixels'}. Switch devices to see the difference.`,
     );
   }
 

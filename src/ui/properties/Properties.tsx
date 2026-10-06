@@ -30,15 +30,14 @@ import {
   ColorField,
   ColorSeqField,
   EnumField,
+  LengthField,
   LinkField,
   NumberField,
   NumSeqField,
   PictureField,
   TextField,
   UDim2Field,
-  UDim2Parts,
   UDim2Text,
-  UDimField,
   Vec2Field,
   type Gesture,
 } from './fields.tsx';
@@ -51,7 +50,6 @@ export function Properties({ open, onClose }: { open: boolean; onClose: () => vo
   const [tab, setTab] = useState<Tab>('props');
   // What stays open or closed as the selection changes.
   const [closed, setClosed] = useState<ReadonlySet<Category>>(new Set());
-  const [openParts, setOpenParts] = useState<ReadonlySet<string>>(new Set());
   const toggle = <T,>(set: ReadonlySet<T>, v: T) => {
     const next = new Set(set);
     if (!next.delete(v)) next.add(v);
@@ -87,8 +85,6 @@ export function Properties({ open, onClose }: { open: boolean; onClose: () => vo
             key={selection ?? 'none'}
             closed={closed}
             onToggleCategory={(c) => setClosed((s) => toggle(s, c))}
-            openParts={openParts}
-            onToggleParts={(k) => setOpenParts((s) => toggle(s, k))}
           />
         </div>
       ) : (
@@ -105,12 +101,12 @@ function Help() {
       <p>Click an object in the viewport or the Explorer to edit it.</p>
       <div className="unitcard">
         <div className="u2demo">
-          <UDim2Text value={[0.5, 0, 0.5, 0]} />
+          <UDim2Text value={[0.5, 20, 0, 200]} />
         </div>
         <p>
-          Every Position and Size is a pair for X and Y. <b className="s">Scale</b> is a fraction of
-          the parent, <b className="o">Offset</b> is pixels. Fields take Studio shorthand like{' '}
-          <code>0.5</code> or <code>0.25,40,0.1,20</code>.
+          Position and Size take a <b className="s">percent</b> of the parent, a number of{' '}
+          <b className="o">pixels</b>, or both, like <code>50% + 20px</code>. Percents stretch with
+          the screen, pixels stay the same. Studio’s <code>{'{0.5, 0},{0.5, 0}'}</code> works too.
         </p>
       </div>
       <h4>Shortcuts</h4>
@@ -152,11 +148,9 @@ const SERVICE_HELP: Partial<Record<string, string>> = {
 interface BodyProps {
   closed: ReadonlySet<Category>;
   onToggleCategory: (c: Category) => void;
-  openParts: ReadonlySet<string>;
-  onToggleParts: (key: string) => void;
 }
 
-function PropsBody({ closed, onToggleCategory, openParts, onToggleParts }: BodyProps) {
+function PropsBody({ closed, onToggleCategory }: BodyProps) {
   const editor = useEditor();
   const state = useEditorState();
   const [filter, setFilter] = useState('');
@@ -185,7 +179,7 @@ function PropsBody({ closed, onToggleCategory, openParts, onToggleParts }: BodyP
   const box = scene.layout.get(inst.id);
   const listItem = !!box?.listItem;
   const onSite = viewOf(doc, inst.id)?.kind === 'page' || inst.className === 'Site';
-  const notes = notesFor(inst, values, listItem);
+  const notes = notesFor(inst, values, listItem, onSite);
   const q = filter.trim().toLowerCase();
 
   const keys = propNames(inst.className).filter((k) => {
@@ -219,9 +213,9 @@ function PropsBody({ closed, onToggleCategory, openParts, onToggleParts }: BodyP
       (listItem && (key === 'Position' || key === 'AnchorPoint' || key === 'Rotation')) ||
       (key === 'TextSize' && values.TextScaled === true);
     const cls = ['prow'];
-    if (!valueEquals(v, spec.default)) cls.push('chg');
+    if (!valueEquals(v, spec.default) || (spec.type === 'image' && inst.preview)) cls.push('chg');
     if (dim) cls.push('dim');
-    const parts = spec.type === 'udim2' && openParts.has(key);
+    if (spec.type === 'udim2') cls.push('two');
     const marker =
       bpInst && isOverridable(inst.className, key) ? (
         here ? (
@@ -241,40 +235,26 @@ function PropsBody({ closed, onToggleCategory, openParts, onToggleParts }: BodyP
     return (
       <div key={key}>
         <div className={cls.join(' ')}>
-          {spec.type === 'udim2' && (
-            <button
-              className={parts ? 'exp open' : 'exp'}
-              type="button"
-              aria-expanded={parts}
-              aria-label={`Show ${key} X and Y`}
-              onClick={() => onToggleParts(key)}
-            >
-              <Icon name="chev" />
-            </button>
-          )}
-          <label htmlFor={id} title={key}>
+          <label htmlFor={spec.type === 'udim2' ? `${id}-X` : id} title={key}>
             {key}
           </label>
           {editorFor(spec, key, id, v)}
           {marker}
         </div>
-        {parts && (
-          <UDim2Parts
-            id={id}
-            label={key}
-            value={v as never}
-            onChange={set(key)}
-            rowClass={dim ? 'prow dim' : 'prow'}
-          />
-        )}
-        {key === 'Image' && (
+        {spec.type === 'image' && !onSite && (
           <div className="prow">
-            <label>Preview</label>
-            <PictureField
-              label="preview picture"
-              src={inst.preview && state.assets[inst.preview]}
-              onUpload={() => upload((url) => editor.setImagePreview(inst.id, url))}
-              onRemove={() => editor.setImagePreview(inst.id, null)}
+            <label htmlFor={`${id}-id`} title="The image’s id in Roblox, for the Roblox export">
+              Asset id
+            </label>
+            <TextField
+              id={`${id}-id`}
+              label="Asset id"
+              value={v as string}
+              placeholder="rbxassetid:// for Studio"
+              onCommit={(text) => {
+                if (text.trim() !== v) set(key)(text.trim());
+                return true;
+              }}
             />
             <span />
           </div>
@@ -302,16 +282,15 @@ function PropsBody({ closed, onToggleCategory, openParts, onToggleParts }: BodyP
           />
         );
       case 'image':
+        // The picture is what the editor and the website show. The Roblox asset id, which
+        // browsers can't load, has its own row on the Roblox screens.
         return (
-          <TextField
-            id={id}
+          <PictureField
             label={key}
-            value={v as string}
-            placeholder="rbxassetid://"
-            onCommit={(text) => {
-              if (text.trim() !== v) onChange(text.trim());
-              return true;
-            }}
+            large
+            src={inst!.preview && state.assets[inst!.preview]}
+            onUpload={() => upload((url) => editor.setImagePreview(inst!.id, url))}
+            onRemove={() => editor.setImagePreview(inst!.id, null)}
           />
         );
       case 'int':
@@ -371,7 +350,7 @@ function PropsBody({ closed, onToggleCategory, openParts, onToggleParts }: BodyP
           />
         );
       case 'udim':
-        return <UDimField id={id} label={key} value={v as never} onChange={onChange} />;
+        return <LengthField id={id} label={key} value={v as never} onChange={onChange} />;
       case 'udim2':
         return <UDim2Field id={id} label={key} value={v as never} onChange={onChange} />;
       case 'colorseq':

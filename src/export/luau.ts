@@ -3,7 +3,7 @@
  * (into StarterGui) or from a LocalScript (into each player's PlayerGui). It uses the base
  * (Desktop) values and skips everything web only, such as the Site and its pages.
  */
-import { classDef, type ClassName } from '../model/classes.ts';
+import { automaticSizeOf, classDef, type ClassName } from '../model/classes.ts';
 import {
   childrenOf,
   getInstance,
@@ -163,6 +163,8 @@ function luauProps(inst: AnyInstance): [string, string | number][] {
   if (p.AnchorPoint[0] || p.AnchorPoint[1]) add('AnchorPoint', luaVec2(p.AnchorPoint));
   if (p.Position.some((x) => x !== 0)) add('Position', luaUDim2(p.Position));
   add('Size', luaUDim2(p.Size));
+  const auto = automaticSizeOf(p);
+  if (auto !== 'None') add('AutomaticSize', 'Enum.AutomaticSize.' + auto);
   if (p.Rotation) add('Rotation', luaNum(p.Rotation));
   add('BackgroundColor3', luaColor(p.BackgroundColor3));
   if (p.BackgroundTransparency) add('BackgroundTransparency', luaNum(p.BackgroundTransparency));

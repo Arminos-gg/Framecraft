@@ -5,6 +5,7 @@ import { layoutScreenGuis } from '../../src/layout/layout.ts';
 import { classDef, type ClassName, type PropsOf } from '../../src/model/classes.ts';
 import { applyCommand, insert } from '../../src/model/commands.ts';
 import {
+  childrenOf,
   createInstance,
   serviceOf,
   single,
@@ -13,6 +14,8 @@ import {
   type InstanceId,
 } from '../../src/model/document.ts';
 import { sampleDoc } from '../../src/model/sample.ts';
+import { TEMPLATES } from '../../src/model/templates/index.ts';
+import { exportOrder } from './export-order.ts';
 
 /**
  * The HTML page for the Roblox screens, opened in Chromium, puts every object where the
@@ -111,4 +114,54 @@ for (const device of SCREEN_DEVICES) {
         expect(Math.abs(a[k] - b[k]), `${g.props.Name}.${k}: ${a[k]} vs ${b[k]}`).toBeLessThan(0.1);
     }
   });
+}
+
+// The Roblox templates repeat names (every slot has an Icon), so their boxes match in the
+// order the export writes them.
+for (const t of TEMPLATES.filter((t) => t.kind === 'roblox')) {
+  const doc = t.build();
+  const html = exportHtml(doc);
+  const starterGui = serviceOf(doc, 'StarterGui').id;
+  const order = childrenOf(doc, starterGui).flatMap((sg) => exportOrder(doc, sg.id));
+  for (const device of SCREEN_DEVICES) {
+    test(`the ${t.name} template matches the layout engine on ${device.label}`, async ({
+      page,
+    }) => {
+      const size = { width: device.width, height: device.height };
+      await page.setViewportSize(size);
+      await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+      await page.setContent(html);
+      const layout = layoutScreenGuis(doc, starterGui, size);
+      const actual = await page.$$eval('.g', (els) =>
+        els.map((el) => {
+          const r = el.getBoundingClientRect();
+          const s = getComputedStyle(el);
+          return {
+            name: (el as HTMLElement).dataset.name,
+            x: r.x,
+            y: r.y,
+            w: parseFloat(s.width),
+            h: parseFloat(s.height),
+          };
+        }),
+      );
+      expect(actual.map((a) => a.name)).toEqual(order.map((g) => g.props.Name));
+      // A rotated object's screen box grows with the turn, so it and its children only
+      // compare their sizes. The templates nest lists in lists, and Chromium's 1/64 px steps
+      // add up a little further than in the test screen above.
+      const turned = (id: InstanceId | null): boolean =>
+        id !== null &&
+        id !== starterGui &&
+        (!!layout.get(id)?.rotation || turned(doc.instances[id]!.parent));
+      order.forEach((g, i) => {
+        const b = layout.get(g.id)!;
+        const a = actual[i]!;
+        const keys = turned(g.id) ? (['w', 'h'] as const) : (['x', 'y', 'w', 'h'] as const);
+        for (const k of keys)
+          expect(Math.abs(a[k] - b[k]), `${g.props.Name}.${k}: ${a[k]} vs ${b[k]}`).toBeLessThan(
+            0.25,
+          );
+      });
+    });
+  }
 }

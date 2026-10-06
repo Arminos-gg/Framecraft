@@ -3,6 +3,7 @@ import type { Editor } from '../editor/editor.ts';
 import { ModelError } from '../model/document.ts';
 import { parseProject, serializeProject } from '../model/project.ts';
 import { blankDoc, blankSiteDoc, sampleProject } from '../model/sample.ts';
+import type { Template } from '../model/templates/index.ts';
 import { download, pickFile, readText } from './files.ts';
 
 export const PROJECT_FILE = 'framecraft-project.json';
@@ -10,6 +11,13 @@ export const PROJECT_FILE = 'framecraft-project.json';
 export function newProject(editor: Editor, kind: 'site' | 'roblox') {
   const doc = kind === 'site' ? blankSiteDoc() : blankDoc();
   editor.openProject({ doc, assets: {} }, 'Started a new project.');
+}
+
+export function newFromTemplate(editor: Editor, template: Template) {
+  editor.openProject(
+    { doc: template.build(), assets: {} },
+    `Started a new project from the ${template.name} template.`,
+  );
 }
 
 export function openSample(editor: Editor) {

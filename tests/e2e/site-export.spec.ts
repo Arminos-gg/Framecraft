@@ -1,10 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { exportSite } from '../../src/export/site.ts';
 import { layoutContainer } from '../../src/layout/layout.ts';
-import { classDef } from '../../src/model/classes.ts';
 import {
   breakpointForWidth,
-  childOfClass,
   childrenOf,
   type AnyInstance,
   type Doc,
@@ -14,23 +12,8 @@ import type { ClassName, PropsOf } from '../../src/model/classes.ts';
 import { applyCommand, insert } from '../../src/model/commands.ts';
 import { createInstance, serviceOf, single } from '../../src/model/document.ts';
 import { sampleSite } from '../../src/model/sample.ts';
-
-/** The page's objects in the order the export writes them: base list order, parents first. */
-function exportOrder(doc: Doc, id: InstanceId): AnyInstance[] {
-  const items = childrenOf(doc, id).filter((c) => classDef(c.className).kind === 'gui');
-  const list = childOfClass(doc, id, 'UIListLayout');
-  const order = list
-    ? items
-        .map((c, i) => ({ c, i }))
-        .sort(
-          (a, b) =>
-            (a.c.props as { LayoutOrder: number }).LayoutOrder -
-              (b.c.props as { LayoutOrder: number }).LayoutOrder || a.i - b.i,
-        )
-        .map((o) => o.c)
-    : items;
-  return order.flatMap((c) => [c, ...exportOrder(doc, c.id)]);
-}
+import { TEMPLATES } from '../../src/model/templates/index.ts';
+import { exportOrder } from './export-order.ts';
 
 /**
  * The sample site plus a page that tests what the sample doesn't use: free-placed sections in
@@ -80,60 +63,75 @@ function testSite(): Doc {
   return doc;
 }
 
-const doc = testSite();
-const files = exportSite(doc);
-const pages = childrenOf(doc, serviceOf(doc, 'Site').id);
-const fileOf: Record<string, string> = {
-  Home: 'index.html',
-  Pricing: 'pricing/index.html',
-  Free: 'free/index.html',
-};
 const sizes = [
   { width: 1366, height: 768 },
   { width: 810, height: 1080 },
   { width: 390, height: 844 },
 ];
 
-for (const page of pages) {
-  const file = files.find((f) => f.path === fileOf[page.props.Name])!;
-  for (const size of sizes) {
-    test(`${page.props.Name} at ${size.width}px matches the layout engine`, async ({
-      page: tab,
-    }) => {
-      await tab.setViewportSize(size);
-      await tab.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-      await tab.setContent(file.contents as string);
-      const layout = layoutContainer(doc, page.id, size, breakpointForWidth(doc, size.width)?.id);
-      // Shown on screen: its own Visible and every parent object's.
-      const shown = (inst: AnyInstance): boolean => {
-        for (let id: InstanceId | null = inst.id; id !== page.id && id !== null;) {
-          if (!layout.get(id)!.visible) return false;
-          id = doc.instances[id]!.parent;
-        }
-        return true;
-      };
-      const expected = exportOrder(doc, page.id).map((inst) => {
-        const b = layout.get(inst.id)!;
-        return { name: inst.props.Name, x: b.x, y: b.y, w: b.w, h: b.h, shown: shown(inst) };
+/**
+ * Every page of a site, exported and opened at Desktop, Tablet and Phone widths, puts each
+ * object where the layout engine does, and is as tall as the layout says.
+ */
+function checkSite(name: string, doc: Doc, { phoneHides }: { phoneHides: boolean }) {
+  const files = exportSite(doc);
+  const pages = childrenOf(doc, serviceOf(doc, 'Site').id);
+  const fileOf = (page: AnyInstance) => {
+    const path = (page.props as { Path: string }).Path.replace(/^\/|\/$/g, '');
+    return path ? `${path}/index.html` : 'index.html';
+  };
+  for (const page of pages) {
+    const file = files.find((f) => f.path === fileOf(page))!;
+    for (const size of sizes) {
+      test(`${name}: ${page.props.Name} at ${size.width}px matches the layout engine`, async ({
+        page: tab,
+      }) => {
+        await tab.setViewportSize(size);
+        await tab.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+        await tab.setContent(file.contents as string);
+        const layout = layoutContainer(doc, page.id, size, breakpointForWidth(doc, size.width)?.id);
+        // Shown on screen: its own Visible and every parent object's.
+        const shown = (inst: AnyInstance): boolean => {
+          for (let id: InstanceId | null = inst.id; id !== page.id && id !== null;) {
+            if (!layout.get(id)!.visible) return false;
+            id = doc.instances[id]!.parent;
+          }
+          return true;
+        };
+        const expected = exportOrder(doc, page.id).map((inst) => {
+          const b = layout.get(inst.id)!;
+          return { name: inst.props.Name, x: b.x, y: b.y, w: b.w, h: b.h, shown: shown(inst) };
+        });
+        const actual = await tab.$$eval('.g', (els) =>
+          els.map((el) => {
+            const r = el.getBoundingClientRect();
+            return {
+              name: (el as HTMLElement).dataset.name,
+              x: r.x,
+              y: r.y,
+              w: r.width,
+              h: r.height,
+              shown: el.getClientRects().length > 0,
+            };
+          }),
+        );
+        expect(actual.map((a) => a.name)).toEqual(expected.map((e) => e.name));
+        // Phone hides something on every page of the test site, so hidden objects are checked too.
+        if (phoneHides) expect(expected.some((e) => !e.shown) || size.width > 809).toBe(true);
+        expected.forEach((e, i) => {
+          const a = actual[i]!;
+          expect(a.shown, `${e.name} shown`).toBe(e.shown);
+          if (!e.shown) return;
+          for (const k of ['x', 'y', 'w', 'h'] as const)
+            expect(Math.abs(a[k] - e[k]), `${e.name}.${k}: ${a[k]} vs ${e[k]}`).toBeLessThan(0.05);
+        });
+        const pageHeight = await tab.evaluate(() => document.documentElement.scrollHeight);
+        expect(Math.abs(pageHeight - layout.get(page.id)!.canvas!.h)).toBeLessThan(1);
       });
-      const actual = await tab.$$eval('.g', (els) =>
-        els.map((el) => {
-          const r = el.getBoundingClientRect();
-          return { x: r.x, y: r.y, w: r.width, h: r.height, shown: el.getClientRects().length > 0 };
-        }),
-      );
-      expect(actual).toHaveLength(expected.length);
-      // Phone hides something on every page, so hidden objects are checked too.
-      expect(expected.some((e) => !e.shown) || size.width > 809).toBe(true);
-      expected.forEach((e, i) => {
-        const a = actual[i]!;
-        expect(a.shown, `${e.name} shown`).toBe(e.shown);
-        if (!e.shown) return;
-        for (const k of ['x', 'y', 'w', 'h'] as const)
-          expect(Math.abs(a[k] - e[k]), `${e.name}.${k}: ${a[k]} vs ${e[k]}`).toBeLessThan(0.05);
-      });
-      const pageHeight = await tab.evaluate(() => document.documentElement.scrollHeight);
-      expect(Math.abs(pageHeight - layout.get(page.id)!.canvas!.h)).toBeLessThan(1);
-    });
+    }
   }
 }
+
+checkSite('Test site', testSite(), { phoneHides: true });
+for (const t of TEMPLATES)
+  if (t.kind === 'site') checkSite(`${t.name} template`, t.build(), { phoneHides: false });

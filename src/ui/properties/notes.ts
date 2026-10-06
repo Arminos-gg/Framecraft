@@ -6,17 +6,25 @@ export function notesFor(
   inst: AnyInstance,
   values: Readonly<Record<string, unknown>>,
   listItem: boolean,
+  onSite: boolean,
 ): Partial<Record<Category, string>> {
   const notes: Partial<Record<Category, string>> = {};
   const def = classDef(inst.className);
+  const transform: string[] = [];
   if (listItem)
-    notes.Transform =
-      'A UIListLayout in the parent places this object, so Position, AnchorPoint and Rotation are ignored. Size still applies, and LayoutOrder sets the order.';
+    transform.push(
+      'A UIListLayout in the parent places this object, so Position, AnchorPoint and Rotation are ignored. Size still applies, and LayoutOrder sets the order.',
+    );
+  if (values.AutomaticSize !== undefined && values.AutomaticSize !== 'None')
+    transform.push(
+      'AutomaticSize is on, so the object grows to fit its text and children, and Size is the smallest it gets.',
+    );
+  if (transform.length) notes.Transform = transform.join(' ');
   if (values.TextScaled === true)
     notes.Text = 'TextScaled is on, so the text grows to fill the box and TextSize is ignored.';
-  if (def.image)
+  if (def.image && !onSite)
     notes.Image =
-      'Roblox images can’t load in a browser, so upload a preview picture. The Roblox export uses the Image asset id; the website uses the picture.';
+      'The picture shows here and in the HTML export. Roblox can’t use it, so add the image’s asset id for Studio.';
   switch (inst.className) {
     case 'ScreenGui':
       notes.Behavior =
@@ -38,10 +46,10 @@ export function notesFor(
       break;
     case 'UIPadding':
       notes.Padding =
-        'Shrinks the area children are laid out in. Scale is a fraction of the parent’s width or height.';
+        'Shrinks the area children are laid out in. A percent is of the parent’s width or height.';
       break;
     case 'UICorner':
-      notes.Corner = 'Scale is measured on the shorter side, so 0.5 makes a pill or a circle.';
+      notes.Corner = 'A percent is of the shorter side, so 50% makes a pill or a circle.';
       break;
     case 'Page':
       notes.Web =

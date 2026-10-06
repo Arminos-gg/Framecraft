@@ -4,25 +4,10 @@
  */
 import type { EditorState, Scene } from '../../editor/editor.ts';
 import { HANDLES } from '../../editor/geometry.ts';
-import { fmtNum } from '../../export/format.ts';
 import { isGui } from '../../export/html.ts';
 import { screenQuad } from '../../layout/layout.ts';
 import { getInstance, resolveProps, type Instance, type InstanceId } from '../../model/document.ts';
-import type { UDim2 } from '../../model/values.ts';
-
-export function UDim2Text({ value }: { value: UDim2 }) {
-  return (
-    <>
-      {'{'}
-      <span className="s">{fmtNum(value[0])}</span>,{' '}
-      <span className="o">{fmtNum(value[1], 0)}</span>
-      {'},{'}
-      <span className="s">{fmtNum(value[2])}</span>,{' '}
-      <span className="o">{fmtNum(value[3], 0)}</span>
-      {'}'}
-    </>
-  );
-}
+import { UDim2Text } from '../properties/fields.tsx';
 
 export function Overlay({
   state,

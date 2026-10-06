@@ -7,12 +7,14 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   fmtColor,
-  fmtUDim2,
+  fmtLength,
   fmtVec2,
   fromHex,
   hex,
   parseColor,
+  parseLength,
   parseNumber,
+  parseNums,
   parseUDim2,
   parseVec2,
 } from '../../editor/text-values.ts';
@@ -471,59 +473,89 @@ export function Vec2Field({
   );
 }
 
-/** A UDim: Scale (teal) and Offset in pixels (amber). */
-export function UDimField({
+/** Teal for a length in percent only, amber for one in pixels only. */
+const toneOf = ([scale, offset]: UDim): 's' | 'o' | undefined =>
+  scale && !offset ? 's' : offset && !scale ? 'o' : undefined;
+
+/**
+ * A UDim as one length: a percent of the parent, pixels, or both, such as `50% + 20px`. The up
+ * and down arrows step a percent by 1%, anything else by 1 px, ten times as far with Shift.
+ */
+export function LengthField({
   id,
   label,
   value,
   onChange,
+  axis,
+  onUDim2,
 }: {
   id: string;
   label: string;
   value: UDim;
   onChange: (v: UDim) => void;
+  /** A letter for the axis, shown at the left, such as X or W. */
+  axis?: string;
+  /** Applies a whole UDim2 typed in Studio's form, such as `{0.5, 0},{0.5, 0}`. */
+  onUDim2?: (v: UDim2) => void;
 }) {
-  return (
-    <span className="pair">
-      <NumberField
-        id={`${id}-s`}
-        label={`${label} Scale`}
-        value={value[0]}
-        step={0.01}
-        tone="s"
-        onChange={(s) => onChange([s, value[1]])}
-      />
-      <NumberField
-        id={`${id}-o`}
-        label={`${label} Offset`}
-        value={value[1]}
-        int
-        tone="o"
-        unit="px"
-        onChange={(o) => onChange([value[0], o])}
-      />
+  const field = (
+    <TextField
+      id={id}
+      label={label}
+      value={fmtLength(value)}
+      className={toneOf(value)}
+      onCommit={(text) => {
+        if (onUDim2 && parseNums(text)?.length === 4) {
+          onUDim2(parseUDim2(text)!);
+          return true;
+        }
+        const u = parseLength(text);
+        if (!u) return false;
+        if (!valueEquals(u, value)) onChange(u);
+        return true;
+      }}
+      onStep={(dir, big, text) => {
+        const [scale, offset] = parseLength(text) ?? value;
+        const by = dir * (big ? 10 : 1);
+        const next: UDim =
+          scale && !offset ? [roundTo(scale + by / 100, 4), 0] : [scale, offset + by];
+        if (!valueEquals(next, value)) onChange(next);
+      }}
+    />
+  );
+  return axis ? (
+    <span className="ax" data-ax={axis}>
+      {field}
     </span>
+  ) : (
+    field
   );
 }
 
-/** A UDim2 as Studio writes it, with Scale teal and Offset amber. */
+/** A length as `LengthField` shows it, with the percent teal and the pixels amber. */
+export function LengthText({ value: [scale, offset] }: { value: UDim }) {
+  if (!scale || !offset)
+    return <span className={scale ? 's' : 'o'}>{fmtLength([scale, offset])}</span>;
+  return (
+    <>
+      <span className="s">{fmtLength([scale, 0])}</span> {offset < 0 ? '-' : '+'}{' '}
+      <span className="o">{fmtLength([0, Math.abs(offset)])}</span>
+    </>
+  );
+}
+
+/** A UDim2 as its two lengths, X then Y, as the readout and the help show it. */
 export function UDim2Text({ value }: { value: UDim2 }) {
   return (
     <>
-      {'{'}
-      <span className="s">{fmtNum(value[0])}</span>,{' '}
-      <span className="o">{fmtNum(value[1], 0)}</span>
-      {'},{'}
-      <span className="s">{fmtNum(value[2])}</span>,{' '}
-      <span className="o">{fmtNum(value[3], 0)}</span>
-      {'}'}
+      <LengthText value={[value[0], value[1]]} />, <LengthText value={[value[2], value[3]]} />
     </>
   );
 }
 
 /**
- * A UDim2 in one line. It shows the value in color; a click turns it into a text field that
- * takes Studio shorthand.
+ * A UDim2 as two lengths, X and Y (width and height for a size), one field each. Studio's
+ * full form typed into either sets both.
  */
 export function UDim2Field({
   id,
@@ -536,91 +568,29 @@ export function UDim2Field({
   value: UDim2;
   onChange: (v: UDim2) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  if (editing)
-    return (
-      <TextField
-        id={id}
-        label={label}
-        value={fmtUDim2(value)}
-        autoFocus
-        onCommit={(text) => {
-          const u = parseUDim2(text);
-          if (!u) return false;
-          if (!valueEquals(u, value)) onChange(u);
-          return true;
-        }}
-        onDone={() => setEditing(false)}
-      />
-    );
-  return (
-    <button
-      id={id}
-      className="u2"
-      type="button"
-      aria-label={`${label}: ${fmtUDim2(value)}. Edit as text`}
-      title="Type Studio shorthand: 0.5, or 0.25,40,0.1,20"
-      onClick={() => setEditing(true)}
-      onFocus={() => setEditing(true)}
-    >
-      <UDim2Text value={value} />
-    </button>
-  );
-}
-
-/** The X and Y rows under an opened UDim2: each a Scale and Offset pair. */
-export function UDim2Parts({
-  id,
-  label,
-  value,
-  onChange,
-  rowClass,
-}: {
-  id: string;
-  label: string;
-  value: UDim2;
-  onChange: (v: UDim2) => void;
-  rowClass: string;
-}) {
-  const set = (i: number) => (x: number) => {
-    const u = [...value] as [number, number, number, number];
-    u[i] = x;
-    onChange(u);
+  const size = label.endsWith('Size');
+  const apply = (u: UDim2) => {
+    if (!valueEquals(u, value)) onChange(u);
   };
   return (
-    <>
-      <div className={`${rowClass} subrow colh`} aria-hidden="true">
-        <span />
-        <span className="colhead">
-          <span className="s">Scale</span>
-          <span className="o">Offset</span>
-        </span>
-      </div>
-      {(['X', 'Y'] as const).map((ax, n) => (
-        <div key={ax} className={`${rowClass} subrow`}>
-          <label htmlFor={`${id}-${ax}s`}>{ax}</label>
-          <span className="pair">
-            <NumberField
-              id={`${id}-${ax}s`}
-              label={`${label} ${ax} Scale`}
-              value={value[n * 2]!}
-              step={0.01}
-              tone="s"
-              onChange={set(n * 2)}
-            />
-            <NumberField
-              id={`${id}-${ax}o`}
-              label={`${label} ${ax} Offset`}
-              value={value[n * 2 + 1]!}
-              int
-              tone="o"
-              unit="px"
-              onChange={set(n * 2 + 1)}
-            />
-          </span>
-        </div>
-      ))}
-    </>
+    <span className="axes">
+      <LengthField
+        id={`${id}-X`}
+        label={`${label} ${size ? 'width' : 'X'}`}
+        axis={size ? 'W' : 'X'}
+        value={[value[0], value[1]]}
+        onChange={([s, o]) => apply([s, o, value[2], value[3]])}
+        onUDim2={apply}
+      />
+      <LengthField
+        id={`${id}-Y`}
+        label={`${label} ${size ? 'height' : 'Y'}`}
+        axis={size ? 'H' : 'Y'}
+        value={[value[2], value[3]]}
+        onChange={([s, o]) => apply([value[0], value[1], s, o])}
+        onUDim2={apply}
+      />
+    </span>
   );
 }
 
@@ -702,15 +672,18 @@ export function PictureField({
   src,
   onUpload,
   onRemove,
+  large,
 }: {
   label: string;
   /** The picture, if there is one. */
   src: string | undefined;
   onUpload: () => void;
   onRemove: () => void;
+  /** A bigger thumbnail, for an image object's own picture. */
+  large?: boolean;
 }) {
   return (
-    <span className="picfld">
+    <span className={large ? 'picfld big' : 'picfld'}>
       <span className="thumb" aria-hidden="true">
         {src ? <img src={src} alt="" /> : <Icon name="image" />}
       </span>

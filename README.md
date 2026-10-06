@@ -11,6 +11,7 @@ Run `npm install` and `npm run dev`, then open http://localhost:5173 in Chrome, 
 - Pick the website's pages or the Roblox screens above the viewport, and a device size to see Scale-based objects adapt while Offset-based ones stay put.
 - Insert objects from the ribbon; add corners, outlines, gradients, padding and list layouts to the selected object.
 - Drag to move, use the handles to resize, and hold Alt to skip snapping.
+- Start from a template in the Project menu: a landing page, a portfolio or a link-in-bio page, or a Roblox shop, inventory, settings menu or HUD.
 - Export downloads the website as a zip of static files. It also gives you Luau for Studio's command bar, a standalone web page, or a project file you can open later.
 
 ## Continue with Claude Code

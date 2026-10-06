@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { changedDecls, exportSite, pageFiles, slug } from '../../../src/export/site.ts';
 import { addAsset } from '../../../src/model/assets.ts';
-import { applyCommand, insert, setPreview, type Command } from '../../../src/model/commands.ts';
 import {
+  applyCommand,
+  insert,
+  remove,
+  setPreview,
+  type Command,
+} from '../../../src/model/commands.ts';
+import {
+  childOfClass,
   createInstance,
   serviceOf,
   single,
@@ -12,7 +19,7 @@ import {
   type InstanceId,
 } from '../../../src/model/document.ts';
 import type { PropsOf } from '../../../src/model/classes.ts';
-import { byName, site } from '../model/helpers.ts';
+import { bp, byName, site } from '../model/helpers.ts';
 
 const PNG = 'data:image/png;base64,iVBORw0KGgo=';
 
@@ -207,6 +214,35 @@ describe('links, tags and pictures', () => {
     expect(text(files, 'index.html')).toContain(
       '<link rel="canonical" href="https://northwind.example/">',
     );
+  });
+});
+
+describe('AutomaticSize on a page', () => {
+  it('says which way a box grows per breakpoint, and lets free-placed boxes grow the page', () => {
+    let doc = site();
+    const pricing = byName(doc, 'Pricing');
+    const note = createInstance(
+      'TextLabel',
+      { Name: 'Note', Text: 'Prices include tax.', TextWrapped: true },
+      'note',
+    ) as AnyInstance;
+    doc = edit(doc, insert(pricing.id, single(note)), {
+      type: 'setProps',
+      id: 'note',
+      props: { AutomaticSize: 'Y' },
+      breakpoint: bp(doc, 'Phone'),
+    });
+    let pricingPage = text(exportSite(doc), 'pricing/index.html');
+    expect(pricingPage).toContain('data-auto data-name="Note"');
+    const phone = pricingPage.indexOf('@media (max-width: 809px)');
+    expect(pricingPage.slice(0, phone)).toMatch(/--auto:none;/);
+    expect(pricingPage.slice(phone)).toMatch(/--auto:y;/);
+    // The page stacks its sections with a list, so it grows by itself.
+    expect(pricingPage).toContain('<div class="c pc">');
+
+    doc = edit(doc, remove(childOfClass(doc, pricing.id, 'UIListLayout')!.id));
+    pricingPage = text(exportSite(doc), 'pricing/index.html');
+    expect(pricingPage).toContain('<div class="c pc" data-grow>');
   });
 });
 

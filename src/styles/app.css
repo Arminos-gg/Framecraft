@@ -849,9 +849,6 @@ svg {
   min-height: 24px;
   padding-left: var(--pl);
 }
-.prow.subrow {
-  --pl: 36px;
-}
 .prow > label {
   font-size: 12px;
   color: var(--muted);
@@ -863,56 +860,39 @@ svg {
   color: var(--fg);
   font-weight: 500;
 }
-.prow.subrow > label {
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-}
 .prow.dim {
   opacity: 0.45;
 }
-.prow.colh {
-  min-height: 12px;
+/* a UDim2: one length per axis, stacked, with the property's name beside the first */
+.prow.two > label {
+  align-self: start;
+  line-height: 24px;
 }
-.exp {
+.prow.two > .bpdot {
+  align-self: start;
+  margin-top: 5px;
+}
+.axes {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.ax {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+.ax::before {
+  content: attr(data-ax);
   position: absolute;
-  left: 5px;
-  top: 4px;
-  width: 16px;
-  height: 16px;
-  display: grid;
-  place-items: center;
+  left: 8px;
+  top: 0;
+  font: 600 10.5px/24px var(--font-ui);
   color: var(--faint);
-  border-radius: 4px;
+  pointer-events: none;
 }
-.exp svg {
-  width: 9px;
-  height: 9px;
-  transition: transform 0.12s;
-}
-.exp.open svg {
-  transform: rotate(90deg);
-}
-.exp:hover {
-  color: var(--fg);
-  background: var(--hover);
-}
-.colhead {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
-  font: 600 10px/1 var(--font-ui);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.colhead span {
-  padding-left: 8px;
-}
-.colhead .s {
-  color: var(--scale);
-}
-.colhead .o {
-  color: var(--offset);
+.ax .fld {
+  padding-left: 22px;
 }
 
 /* fields */
@@ -989,40 +969,11 @@ svg {
 .unit .fld {
   padding-right: 26px;
 }
-.u2 {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  height: 24px;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: var(--field);
-  padding: 0 7px;
-  font: 400 12px/22px var(--font-mono);
-  color: var(--faint);
-  text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-variant-numeric: tabular-nums;
-  cursor: text;
-}
-.u2:hover {
-  border-color: var(--line);
-}
-.u2 .s,
 .u2demo .s {
   color: var(--scale);
 }
-.u2 .o,
 .u2demo .o {
   color: var(--offset);
-}
-.u2.bad {
-  border-color: var(--danger);
-  box-shadow: 0 0 0 3px var(--danger-soft);
-  color: var(--fg);
-  background: var(--panel);
 }
 .cfld {
   position: relative;
@@ -1652,6 +1603,28 @@ button.bpdot.on:hover {
   width: 14px;
   height: 14px;
 }
+/* an image object's own picture: a big thumbnail with its buttons stacked beside it */
+.picfld.big {
+  display: grid;
+  grid-template-columns: 56px auto;
+  grid-template-rows: 26px 26px;
+  grid-auto-flow: column;
+  justify-content: start;
+  gap: 4px 8px;
+}
+.picfld.big .thumb {
+  width: 56px;
+  height: 56px;
+  grid-row: span 2;
+  border-radius: 7px;
+}
+.picfld.big .thumb svg {
+  width: 22px;
+  height: 22px;
+}
+.picfld.big .btn {
+  justify-self: start;
+}
 .linkfld {
   display: grid;
   gap: 4px;
@@ -1808,6 +1781,74 @@ button.bpdot.on:hover {
 }
 .files .d {
   color: var(--faint);
+}
+
+/* New from a template: a grid of cards, each a live preview of the template's first screen */
+.modal.templates {
+  width: min(1000px, calc(100% - 32px));
+}
+.tplbody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 16px 18px;
+}
+.tplbody h3 {
+  margin: 16px 0 10px;
+  color: var(--muted);
+  font: 600 12px/1 var(--font-ui);
+}
+.tpls {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 224px);
+  justify-content: center;
+  gap: 18px 16px;
+}
+.tpl {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tpl .thumb {
+  position: relative;
+  display: block;
+  width: 224px;
+  height: 126px;
+  margin-bottom: 7px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  pointer-events: none;
+  transition: box-shadow 0.12s;
+}
+.tpl .thumb .device {
+  border-radius: 0;
+  box-shadow: none;
+}
+.tpl:hover .thumb {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 6px 18px rgba(10, 14, 30, 0.16);
+}
+.tpl:focus-visible {
+  outline-offset: 4px;
+}
+.tpl .name {
+  font: 600 13px/1.3 var(--font-ui);
+}
+.tpl .desc {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 /* ---------- viewport ---------- */
@@ -2220,16 +2261,17 @@ button.bpdot.on:hover {
     min-height: 32px;
   }
   .fld,
-  .u2,
   .filter input {
     height: 32px;
     line-height: 30px;
   }
-  .unit::after {
+  .unit::after,
+  .ax::before,
+  .prow.two > label {
     line-height: 32px;
   }
-  .exp {
-    top: 8px;
+  .prow.two > .bpdot {
+    margin-top: 9px;
   }
   .cfld .sw {
     top: 9px;

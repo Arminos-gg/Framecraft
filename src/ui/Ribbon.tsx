@@ -22,14 +22,14 @@ const MODIFIERS: readonly (readonly [ClassName, string])[] = [
 
 const UNITS: readonly (readonly [UnitMode, string, string | undefined])[] = [
   ['auto', 'Auto', undefined],
-  ['scale', 'Scale', 'su'],
-  ['offset', 'Offset', 'ou'],
+  ['scale', 'Percent', 'su'],
+  ['offset', 'Pixels', 'ou'],
 ];
 
 const UNIT_HINTS: Record<UnitMode, string> = {
   auto: 'Dragging keeps each value in the unit it already uses',
-  scale: 'Dragging writes Scale, a fraction of the parent',
-  offset: 'Dragging writes Offset, in pixels',
+  scale: 'Dragging writes percents of the parent',
+  offset: 'Dragging writes pixels',
 };
 
 export function Ribbon() {
@@ -111,26 +111,26 @@ export function Ribbon() {
           <button
             className="tool"
             type="button"
-            title="Rewrite Position and Size of the selection and its children as Scale"
+            title="Rewrite Position and Size of the selection and its children in percent"
             disabled={!convertible}
             onClick={() => editor.convertUnits(true)}
           >
             <span className="ico s">
               <Icon name="toScale" />
             </span>
-            To Scale
+            To percent
           </button>
           <button
             className="tool"
             type="button"
-            title="Rewrite Position and Size of the selection and its children as Offset"
+            title="Rewrite Position and Size of the selection and its children in pixels"
             disabled={!convertible}
             onClick={() => editor.convertUnits(false)}
           >
             <span className="ico o">
               <Icon name="toOffset" />
             </span>
-            To Offset
+            To pixels
           </button>
         </div>
         <div className="cap">Convert units</div>

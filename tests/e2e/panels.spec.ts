@@ -153,17 +153,21 @@ test.describe('Ribbon', () => {
     const frame = (await selection(page))!;
     expect((await instanceOf(page, frame))!.className).toBe('Frame');
 
-    await commit(page, '#p-Size', '0.25,40,0.1,20');
-    await commit(page, '#p-Position', '0.5');
+    // Studio's full UDim2 in either axis sets both; a lone number of 1 or less is Scale.
+    await commit(page, '#p-Size-X', '0.25,40,0.1,20');
+    await commit(page, '#p-Position-X', '50%');
+    await commit(page, '#p-Position-Y', '0.5');
     let props = await propsOf(page, frame);
     expect(props.Size).toEqual([0.25, 40, 0.1, 20]);
     expect(props.Position).toEqual([0.5, 0, 0.5, 0]);
-    // A value that isn't a UDim2 is refused, and the field says so.
-    await commit(page, '#p-Size', 'big');
-    await expect(page.locator('#p-Size')).toHaveClass(/\bbad\b/);
+    await expect(page.locator('#p-Size-X')).toHaveValue('25% + 40px');
+    await expect(page.locator('#p-Size-Y')).toHaveValue('10% + 20px');
+    // A value that isn't a length is refused, and the field says so.
+    await commit(page, '#p-Size-Y', 'big');
+    await expect(page.locator('#p-Size-Y')).toHaveClass(/\bbad\b/);
     await page.keyboard.press('Escape');
 
-    await page.getByRole('button', { name: 'To Scale' }).click();
+    await page.getByRole('button', { name: 'To percent' }).click();
     props = await propsOf(page, frame);
     const size = props.Size as number[];
     expect([size[1], size[3]]).toEqual([0, 0]);
@@ -177,7 +181,7 @@ test.describe('Ribbon', () => {
   });
 
   test('sets what dragging writes', async ({ page }) => {
-    await page.getByRole('button', { name: 'Offset', exact: true }).click();
+    await page.getByRole('button', { name: 'Pixels', exact: true }).click();
     expect(await page.evaluate(() => window.framecraft!.state.unit)).toBe('offset');
     await page.getByLabel('Smart snapping').uncheck();
     expect(await page.evaluate(() => window.framecraft!.state.snap)).toBe(false);
@@ -210,10 +214,48 @@ test.describe('Properties', () => {
     expect((await propsOf(page, id)).Text).toBe('v2');
   });
 
+  test('grows a label to fit its text with AutomaticSize', async ({ page }) => {
+    await page.getByLabel('Show').selectOption('screens');
+    const id = await selectByName(page, 'Version');
+    await commit(page, '#p-Text', 'A version line much longer than the 260 pixels it has');
+    const box = () =>
+      page.evaluate((i) => {
+        const b = window.framecraft!.scene.layout.get(i)!;
+        return { w: b.w, h: b.h };
+      }, id);
+    expect(await box()).toEqual({ w: 260, h: 20 });
+
+    await page.locator('#p-AutomaticSize').selectOption('X');
+    const grown = await box();
+    expect(grown.w).toBeGreaterThan(300);
+    expect(grown.h).toBe(20);
+    // The Stage draws it at the grown size, and Properties says Size is now the smallest.
+    const drawn = page.locator(`.screen .gui[data-id="${id}"]`);
+    expect((await drawn.boundingBox())!.width).toBeGreaterThan(0);
+    expect(await drawn.evaluate((el) => parseFloat(el.style.width))).toBeCloseTo(grown.w, 3);
+    await expect(page.getByText('Size is the smallest it gets')).toBeVisible();
+
+    // Wrapped, it keeps its width and grows down instead.
+    await page.locator('#p-TextWrapped').check();
+    await page.locator('#p-AutomaticSize').selectOption('Y');
+    const tall = await box();
+    expect(tall.w).toBe(260);
+    expect(tall.h).toBeGreaterThan(20);
+
+    await page.locator('#p-AutomaticSize').selectOption('None');
+    expect(await box()).toEqual({ w: 260, h: 20 });
+    expect((await propsOf(page, id)).AutomaticSize).toBe('None');
+  });
+
   test('edits colors, transparency and AnchorPoint', async ({ page }) => {
     const id = await selectByName(page, 'Coins');
     await commit(page, '#p-BackgroundColor3', '#ff8000');
     expect((await propsOf(page, id)).BackgroundColor3).toEqual([255, 128, 0]);
+    // One number is a gray, as in Studio.
+    await commit(page, '#p-BackgroundColor3', '255');
+    expect((await propsOf(page, id)).BackgroundColor3).toEqual([255, 255, 255]);
+    await commit(page, '#p-BackgroundColor3', '0');
+    expect((await propsOf(page, id)).BackgroundColor3).toEqual([0, 0, 0]);
     await page.getByLabel('BackgroundColor3 picker').fill('#00ff00');
     expect((await propsOf(page, id)).BackgroundColor3).toEqual([0, 255, 0]);
 
@@ -227,18 +269,27 @@ test.describe('Properties', () => {
     expect((await propsOf(page, id)).AnchorPoint).toEqual([0.5, 0.5]);
   });
 
-  test('edits UDim, UDim2 parts and gradients', async ({ page }) => {
+  test('edits lengths in percent and pixels, and gradients', async ({ page }) => {
     const coins = await idOf(page, 'Coins');
     await selectByName(page, 'Coins');
-    await page.getByRole('button', { name: 'Show Size X and Y' }).click();
-    await commit(page, '#p-Size-Xo', '200');
-    await commit(page, '#p-Size-Ys', '0.1');
-    expect((await propsOf(page, coins)).Size).toEqual([0, 200, 0.1, 52]);
+    await expect(page.getByLabel('Size width')).toHaveValue('176px');
+    await commit(page, '#p-Size-X', '210px');
+    await commit(page, '#p-Size-Y', '10% + 52px');
+    expect((await propsOf(page, coins)).Size).toEqual([0, 210, 0.1, 52]);
+    // The arrows step pixels, or a percent when that's all there is; Shift steps ten.
+    await page.locator('#p-Size-X').press('ArrowUp');
+    await page.locator('#p-Size-Y').press('Shift+ArrowDown');
+    await commit(page, '#p-Position-X', '50%');
+    await page.locator('#p-Position-X').press('ArrowUp');
+    expect((await propsOf(page, coins)).Size).toEqual([0, 211, 0.1, 42]);
+    expect(((await propsOf(page, coins)).Position as number[]).slice(0, 2)).toEqual([0.51, 0]);
+    await expect(page.locator('#p-Size-Y')).toHaveValue('10% + 42px');
 
     // The UICorner on Coins: a UDim.
     await page.getByRole('button', { name: 'UICorner', exact: true }).click();
     const corner = (await selection(page))!;
-    await commit(page, '#p-CornerRadius-o', '12');
+    await expect(page.locator('#p-CornerRadius')).toHaveValue('50%');
+    await commit(page, '#p-CornerRadius', '50% + 12px');
     expect((await propsOf(page, corner)).CornerRadius).toEqual([0.5, 12]);
 
     const gradient = await selectByName(page, 'UIGradient');
@@ -253,13 +304,20 @@ test.describe('Properties', () => {
     await page.getByLabel('Show').selectOption('screens');
     await page.locator('[data-insert="ImageLabel"]').click();
     const image = (await selection(page))!;
-    await commit(page, '#p-Image', 'rbxassetid://123');
+    await commit(page, '#p-Image-id', 'rbxassetid://123');
     expect((await propsOf(page, image)).Image).toBe('rbxassetid://123');
     const chooser = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: 'Upload preview picture' }).click();
+    await page.getByRole('button', { name: 'Upload Image' }).click();
     await (await chooser).setFiles({ name: 'dot.png', mimeType: 'image/png', buffer: PNG });
     await expect(page.locator('.gui[data-id="' + image + '"] img.pic')).toBeVisible();
+    await expect(page.locator('.picfld.big img')).toBeVisible();
     expect((await instanceOf(page, image))!.preview).toMatch(/^img_/);
+
+    // On a page, an image is only its picture: Roblox asset ids don't apply.
+    await page.getByLabel('Show').selectOption('page:' + (await idOf(page, 'Home')));
+    await page.locator('[data-insert="ImageLabel"]').click();
+    await expect(page.getByRole('button', { name: 'Upload Image' })).toBeVisible();
+    await expect(page.locator('#p-Image-id')).toHaveCount(0);
 
     const home = await selectByName(page, 'Home');
     const socialChooser = page.waitForEvent('filechooser');
@@ -382,6 +440,42 @@ test.describe('export and project files', () => {
     ).setFiles({ name: 'notes.json', mimeType: 'application/json', buffer: Buffer.from('{}') });
     await expect(page.getByRole('status')).toContainText(/isn.t a Framecraft project/);
     await expect(row(page, 'Pricing')).toBeVisible();
+  });
+
+  test('starts a project from a template', async ({ page }) => {
+    const openTemplates = async () => {
+      await page.getByRole('button', { name: 'Project', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'New from a template…' }).click();
+    };
+    const dialog = page.getByRole('dialog', { name: 'New from a template' });
+    const stage = page.getByTestId('screen');
+
+    await openTemplates();
+    // Seven templates, each previewed by drawing its first screen.
+    const cards = dialog.locator('.tpl');
+    await expect(cards).toHaveCount(7);
+    for (const card of await cards.all()) await expect(card.locator('.gui').first()).toBeAttached();
+    await dialog.getByRole('button', { name: /^Shop/ }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('status')).toContainText(
+      'Started a new project from the Shop template.',
+    );
+    await expect(row(page, 'Shop')).toBeVisible();
+    await expect(stage.getByText('ITEM SHOP')).toBeVisible();
+
+    // Escape leaves the project as it is.
+    await openTemplates();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(row(page, 'Shop')).toBeVisible();
+
+    // A website template opens on its first page.
+    await openTemplates();
+    await dialog.getByRole('button', { name: /^Portfolio/ }).click();
+    await expect(stage.getByText('Selected work')).toBeVisible();
+    await expect(row(page, 'Shop')).toHaveCount(0);
+    await page.getByRole('status').getByRole('button', { name: 'Undo' }).click();
+    await expect(row(page, 'Shop')).toBeVisible();
   });
 
   test('keeps the project and the theme after a reload', async ({ page }) => {
