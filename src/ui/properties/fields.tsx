@@ -673,6 +673,7 @@ export function PictureField({
   onUpload,
   onRemove,
   large,
+  tint,
 }: {
   label: string;
   /** The picture, if there is one. */
@@ -681,11 +682,13 @@ export function PictureField({
   onRemove: () => void;
   /** A bigger thumbnail, for an image object's own picture. */
   large?: boolean;
+  /** A CSS filter that tints the thumbnail as ImageColor3 tints the picture. */
+  tint?: string;
 }) {
   return (
     <span className={large ? 'picfld big' : 'picfld'}>
       <span className="thumb" aria-hidden="true">
-        {src ? <img src={src} alt="" /> : <Icon name="image" />}
+        {src ? <img src={src} alt="" style={{ filter: tint }} /> : <Icon name="image" />}
       </span>
       <button
         className="btn sm"

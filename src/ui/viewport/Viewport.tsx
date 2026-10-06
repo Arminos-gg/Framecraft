@@ -26,6 +26,7 @@ import { isGui, type Backdrop } from '../../export/html.ts';
 import { getInstance, isAncestor } from '../../model/document.ts';
 import { useEditor, useEditorState } from '../editor-context.ts';
 import { Icon } from '../icons.tsx';
+import { hasPictures, picturesIn } from '../pictures.ts';
 import { Overlay } from './Overlay.tsx';
 import { rulerSteps } from './rulers.ts';
 import { Rulers } from './Rulers.tsx';
@@ -374,18 +375,32 @@ export function Viewport() {
             if (!state.preview) e.preventDefault();
           }}
           onDragOver={(e) => {
-            if (state.preview || !e.dataTransfer.types.includes(COMPONENT_MIME)) return;
+            if (state.preview) return;
+            // A component from the drawer, or image and SVG files, which become ImageLabels.
+            const types = [...e.dataTransfer.types];
+            if (!types.includes(COMPONENT_MIME) && !types.includes('Files')) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = 'copy';
           }}
           onDrop={(e) => {
-            const drag = decodeComponentDrag(e.dataTransfer.getData(COMPONENT_MIME));
-            if (!drag || state.preview) return;
+            if (state.preview) return;
+            if (e.dataTransfer.types.includes(COMPONENT_MIME)) {
+              const drag = decodeComponentDrag(e.dataTransfer.getData(COMPONENT_MIME));
+              if (!drag) return;
+              e.preventDefault();
+              // Into the object dropped on, or else what the viewport shows.
+              const el = frameAt(e.target);
+              if (el && el.dataset.device !== device.id) editor.setDevice(el.dataset.device!);
+              editor.addComponent(drag.def, drag.options, guiIdAt(e.target));
+              return;
+            }
+            if (!hasPictures(e.dataTransfer)) return;
             e.preventDefault();
-            // Into the object dropped on, or else what the viewport shows.
-            const el = frameAt(e.target);
-            if (el && el.dataset.device !== device.id) editor.setDevice(el.dataset.device!);
-            editor.addComponent(drag.def, drag.options, guiIdAt(e.target));
+            picturesIn(e.dataTransfer).then(
+              (pics) => pics.forEach((pic) => editor.insertPicture(pic)),
+              (err: unknown) =>
+                editor.toast(err instanceof Error ? err.message : 'That file couldn’t be added.'),
+            );
           }}
         >
           <div
