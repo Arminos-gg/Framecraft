@@ -362,12 +362,12 @@ describe('pages', () => {
   });
 
   it('grows the page to fit its sections', () => {
-    // On a phone the Plans section is 1000 px tall, below a 60 px nav, so the page is taller
-    // than the window.
+    // On a phone the Plans section is 1000 px tall, below a 60 px nav and an 88 px title, so
+    // the page is taller than the window.
     const phone = lay('Pricing', 390, 844);
-    expect(phone.get(page('Pricing'))!.canvas!.h).toBeCloseTo(60 + 1000, 6);
+    expect(phone.get(page('Pricing'))!.canvas!.h).toBeCloseTo(60 + 88 + 1000, 6);
     const short = lay('Pricing', 390, 400);
-    expect(short.get(page('Pricing'))!.canvas!.h).toBeCloseTo(1060, 6);
+    expect(short.get(page('Pricing'))!.canvas!.h).toBeCloseTo(1148, 6);
   });
 
   it('uses Tablet values on a tablet and Phone values on a phone', () => {
@@ -388,11 +388,12 @@ describe('pages', () => {
     expect(['Taster', 'Regular', 'Office'].map((n) => box(desktop, n, 'Pricing').x)).toEqual([
       209, 533, 857,
     ]);
-    expect(box(desktop, 'Taster', 'Pricing').y).toBe(72 + 48);
+    // Below the 72 px nav and the 120 px heading.
+    expect(box(desktop, 'Taster', 'Pricing').y).toBe(72 + 120 + 48);
 
     const phone = lay('Pricing', 390);
     expect(['Taster', 'Regular', 'Office'].map((n) => box(phone, n, 'Pricing').y)).toEqual([
-      108, 412, 716,
+      196, 500, 804,
     ]);
     expectRect(box(phone, 'Office', 'Pricing'), { x: 40, w: 310, h: 280 });
   });
@@ -408,7 +409,7 @@ describe('pages', () => {
     const padding = createInstance('UIPadding', { PaddingBottom: [0, 300] }, 'pad') as AnyInstance;
     d = applyCommand(d, insert(pricing.id, single(padding))).doc;
     const layout = layoutContainer(d, pricing.id, at(1366, 768));
-    expect(layout.get(pricing.id)!.canvas!.h).toBe(72 + 420 + 300);
+    expect(layout.get(pricing.id)!.canvas!.h).toBe(72 + 120 + 420 + 300);
   });
 
   it('measures vertical Scale on a page against the window, less the page padding', () => {

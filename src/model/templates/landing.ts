@@ -9,7 +9,7 @@ import { column, corner, group, label, padAll, padX, sizeAt, stroke } from './ki
 
 const INK: Color3 = [17, 24, 39];
 const BODY: Color3 = [75, 85, 99];
-const MUTED: Color3 = [107, 114, 128];
+const MUTED: Color3 = [103, 109, 123];
 const ACCENT: Color3 = [79, 70, 229];
 const ACCENT_SOFT: Color3 = [238, 242, 255];
 const LINE: Color3 = [229, 231, 235];

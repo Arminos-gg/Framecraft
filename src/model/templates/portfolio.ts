@@ -11,8 +11,8 @@ const PAPER: Color3 = [246, 244, 239];
 const SAND: Color3 = [238, 234, 226];
 const INK: Color3 = [28, 28, 28];
 const BODY: Color3 = [74, 74, 74];
-const MUTED: Color3 = [128, 124, 118];
-const ACCENT: Color3 = [196, 82, 50];
+const MUTED: Color3 = [108, 104, 99];
+const ACCENT: Color3 = [184, 77, 47];
 const WHITE: Color3 = [255, 255, 255];
 
 export function portfolioTemplate(makeId: () => InstanceId = newId): Doc {
@@ -344,7 +344,7 @@ function addAbout(b: Builder, page: InstanceId) {
   sizeAt(b, portrait, { base: [0, 400, 1, 0], Tablet: [0.42, 0, 1, 0], Phone: [1, 0, 0, 360] });
   corner(b, portrait, [0, 16]);
   b.add(portrait, 'UIGradient', {
-    Color: colorSequence([226, 170, 128], [128, 76, 62]),
+    Color: colorSequence([183, 138, 104], [128, 76, 62]),
     Rotation: 120,
   });
   label(b, portrait, {
@@ -354,7 +354,6 @@ function addAbout(b: Builder, page: InstanceId) {
     Font: 'Merriweather',
     TextSize: 96,
     TextColor3: WHITE,
-    TextTransparency: 0.15,
   });
 
   const text = group(b, content, { Name: 'Text', LayoutOrder: 2, AutomaticSize: 'Y' });
