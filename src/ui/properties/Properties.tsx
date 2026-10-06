@@ -17,6 +17,7 @@ import {
   type PropSpec,
 } from '../../model/classes.ts';
 import { getInstance, resolveProps, type AnyInstance } from '../../model/document.ts';
+import type { FontName, FontWeight } from '../../model/fonts.ts';
 import { valueEquals, type Color3, type Link } from '../../model/values.ts';
 import { useEditor, useEditorState } from '../editor-context.ts';
 import { pickFile } from '../files.ts';
@@ -25,6 +26,7 @@ import { ClassIcon, Icon } from '../icons.tsx';
 import { InsertMenu } from '../InsertMenu.tsx';
 import { SidePanel } from '../Panel.tsx';
 import { CodePane } from './CodePane.tsx';
+import { FontField, FontWeightField } from './FontFields.tsx';
 import {
   AlphaField,
   BoolField,
@@ -268,6 +270,17 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
 
   function editorFor(spec: PropSpec, key: string, id: string, v: unknown): ReactNode {
     const onChange = set(key);
+    if (key === 'Font')
+      return <FontField id={id} value={v as FontName} onSite={onSite} onChange={onChange} />;
+    if (key === 'FontWeight')
+      return (
+        <FontWeightField
+          id={id}
+          font={values.Font as FontName}
+          value={v as FontWeight}
+          onChange={onChange}
+        />
+      );
     switch (spec.type) {
       case 'string':
         return (
@@ -308,6 +321,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
             min={spec.min}
             max={spec.max}
             step={spec.step}
+            unit={key === 'LetterSpacing' ? 'px' : undefined}
             onChange={onChange}
           />
         );

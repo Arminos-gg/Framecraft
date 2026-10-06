@@ -20,6 +20,7 @@ import {
 import { textVersion } from '../layout/text.ts';
 import { addAsset, type Assets } from '../model/assets.ts';
 import { canParent, classDef, isOverridable, type ClassName } from '../model/classes.ts';
+import { FONT_WEIGHTS, type FontStyle, type FontWeight } from '../model/fonts.ts';
 import { batch, insert, move, remove, setPreview, type Command } from '../model/commands.ts';
 import {
   childOfClass,
@@ -727,6 +728,21 @@ export class Editor {
     const bp = this.breakpointFor(id);
     const here = bp !== undefined && isOverridable(inst.className, key) ? bp : undefined;
     return this.#execute(edit(id, { [key]: value }, here));
+  }
+
+  /**
+   * Ctrl+B and Ctrl+I: turns the selected text bold (or back to Regular) or italic (or back
+   * to Normal). Returns false when the selection has no text.
+   */
+  toggleTextStyle(which: 'bold' | 'italic'): boolean {
+    const id = this.#state.selection;
+    const inst = id === null ? undefined : getInstance(this.doc, id);
+    if (!inst || !classDef(inst.className).text) return false;
+    const p = inst.props as { FontWeight: FontWeight; FontStyle: FontStyle };
+    if (which === 'italic')
+      return this.setProp(inst.id, 'FontStyle', p.FontStyle === 'Italic' ? 'Normal' : 'Italic');
+    const bold = FONT_WEIGHTS[p.FontWeight] >= FONT_WEIGHTS.SemiBold;
+    return this.setProp(inst.id, 'FontWeight', bold ? 'Regular' : 'Bold');
   }
 
   /** Drops the shown breakpoint's own value, so the property inherits again. */

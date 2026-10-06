@@ -8,8 +8,8 @@
  * ones the Luau export sets; Roblox's API dump marks IgnoreGuiInset, CornerRadius and Image as
  * loadable, though Studio now saves them as ScreenInsets, four corner radii and ImageContent.
  */
-import { classDef, propNames, propSpec, type ClassName } from '../model/classes.ts';
-import type { FontName } from '../model/fonts.ts';
+import { classDef, propNames, propSpec } from '../model/classes.ts';
+import { FONT_WEIGHTS, faceOf, robloxFace, type TextFace } from '../model/fonts.ts';
 import {
   childrenOf,
   requireInstance,
@@ -30,45 +30,14 @@ import type {
 import { fmtNum } from './format.ts';
 
 /**
- * The FontFace Studio gives each Enum.Font: its family file, weight and style. This is what
- * Studio saves for a font today (the Font enum is only read), and what `Font.fromEnum` gives.
+ * A font as Studio saves it: `<Font name="FontFace">` with its family file, weight and style.
+ * Web fonts Roblox doesn't have are written as the closest Roblox font.
  */
-const FONT_FACES: Record<FontName, readonly [family: string, weight: number, italic?: true]> = {
-  SourceSans: ['SourceSansPro', 400],
-  SourceSansLight: ['SourceSansPro', 300],
-  SourceSansSemibold: ['SourceSansPro', 600],
-  SourceSansBold: ['SourceSansPro', 700],
-  SourceSansItalic: ['SourceSansPro', 400, true],
-  Gotham: ['GothamSSm', 400],
-  GothamMedium: ['GothamSSm', 500],
-  GothamBold: ['GothamSSm', 700],
-  GothamBlack: ['GothamSSm', 900],
-  BuilderSans: ['BuilderSans', 400],
-  BuilderSansMedium: ['BuilderSans', 500],
-  BuilderSansBold: ['BuilderSans', 700],
-  BuilderSansExtraBold: ['BuilderSans', 800],
-  Arial: ['Arial', 400],
-  ArialBold: ['Arial', 700],
-  FredokaOne: ['FredokaOne', 400],
-  LuckiestGuy: ['LuckiestGuy', 400],
-  Bangers: ['Bangers', 400],
-  Arcade: ['PressStart2P', 400],
-  Oswald: ['Oswald', 400],
-  Nunito: ['Nunito', 400],
-  PermanentMarker: ['PermanentMarker', 400],
-  Roboto: ['Roboto', 400],
-  RobotoMono: ['RobotoMono', 400],
-  Code: ['Inconsolata', 400],
-  Ubuntu: ['Ubuntu', 400],
-  Merriweather: ['Merriweather', 400],
-};
-
-/** A font as Studio saves it: `<Font name="FontFace">` with its family, weight and style. */
-export function fontFace(font: FontName): string {
-  const [family, weight, italic] = FONT_FACES[font];
+export function fontFace(face: TextFace): string {
+  const { family, weight, style } = robloxFace(face);
   return (
-    `<Font name="FontFace"><Family><url>rbxasset://fonts/families/${family}.json</url></Family>` +
-    `<Weight>${weight}</Weight><Style>${italic ? 'Italic' : 'Normal'}</Style></Font>`
+    `<Font name="FontFace"><Family><url>${family}</url></Family>` +
+    `<Weight>${FONT_WEIGHTS[weight]}</Weight><Style>${style}</Style></Font>`
   );
 }
 
@@ -143,7 +112,8 @@ const numberSequence = (seq: NumberSequence) =>
   seq.map((k) => `${num(k.time)} ${num(k.value)} 0 `).join('');
 
 /** One property as its XML element. */
-function property(className: ClassName, name: string, value: PropValue): string {
+function property(inst: AnyInstance, name: string, value: PropValue): string {
+  const className = inst.className;
   const spec = propSpec(className, name)!;
   const el = (type: string, body: string) => `<${type} name="${name}">${body}</${type}>`;
   switch (spec.type) {
@@ -167,7 +137,7 @@ function property(className: ClassName, name: string, value: PropValue): string 
     case 'udim2':
       return el('UDim2', udim2(value as UDim2));
     case 'enum': {
-      if (name === 'Font') return fontFace(value as FontName);
+      if (name === 'Font') return fontFace(faceOf(inst.props as Parameters<typeof faceOf>[0]));
       const token = ENUM_TOKENS[name]?.[value as string];
       if (token === undefined) throw new Error(`No Roblox value for ${name} ${String(value)}`);
       return el('token', String(token));
@@ -189,9 +159,11 @@ function property(className: ClassName, name: string, value: PropValue): string 
 function properties(inst: AnyInstance): string[] {
   const props = inst.props as Readonly<Record<string, PropValue>>;
   const out: string[] = [];
-  for (const name of propNames(inst.className)) {
+  for (const name of propNames(inst.className) as string[]) {
     if (propSpec(inst.className, name)!.web) continue;
-    out.push(property(inst.className, name, props[name]!));
+    // FontWeight and FontStyle are parts of the FontFace that Font writes.
+    if (name === 'FontWeight' || name === 'FontStyle') continue;
+    out.push(property(inst, name, props[name]!));
   }
   // Studio's full screen, as in the editor, with children drawn above their parent.
   if (inst.className === 'ScreenGui')

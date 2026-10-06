@@ -55,16 +55,19 @@ describe('class registry', () => {
       'ClipsDescendants',
       'Text',
       'Font',
+      'FontWeight',
+      'FontStyle',
       'TextColor3',
       'TextSize',
       'LineHeight',
+      'LetterSpacing',
       'TextScaled',
       'TextWrapped',
       'TextXAlignment',
       'TextYAlignment',
       'TextTransparency',
       'AutoButtonColor',
-      // Web-only properties come last.
+      // Web-only properties come last, apart from LetterSpacing, which sits with the text.
       'Link',
       'HtmlTag',
     ]);
@@ -172,7 +175,7 @@ describe('website markers', () => {
       'BackgroundColor3',
       'BackgroundTransparency',
     ]);
-    expect(webProps('TextButton')).toEqual(['Link', 'HtmlTag']);
+    expect(webProps('TextButton')).toEqual(['LetterSpacing', 'Link', 'HtmlTag']);
     expect(webProps('ImageLabel')).toEqual(['AltText', 'Link', 'HtmlTag']);
     expect(webProps('UICorner')).toEqual([]);
   });

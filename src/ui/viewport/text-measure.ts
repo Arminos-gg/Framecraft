@@ -3,7 +3,7 @@
  * and the exported pages do (a span with the LineHeight in a flex box, `pre` or `pre-wrap`), so
  * AutomaticSize in the editor matches the exports. Results are cached until web fonts load.
  */
-import { fontCss } from '../../export/html.ts';
+import { fontCss } from '../../model/fonts.ts';
 import { setTextMeasurer, textChanged, type TextMeasurer } from '../../layout/text.ts';
 
 /** Measures text in `doc`, caching each answer; `clear` forgets them. */
@@ -12,8 +12,19 @@ export function domTextMeasurer(doc: Document = document) {
   let box: HTMLDivElement | null = null;
   let span: HTMLSpanElement | null = null;
 
-  const measure: TextMeasurer = ({ text, font, size, wrap, lineHeight = 1 }) => {
-    const key = [font, size, wrap ?? '', lineHeight, text].join('|');
+  const measure: TextMeasurer = (request) => {
+    const { text, size, wrap, lineHeight = 1, letterSpacing = 0 } = request;
+    const f = fontCss(request);
+    const key = [
+      f.family,
+      f.weight,
+      f.style,
+      size,
+      wrap ?? '',
+      lineHeight,
+      letterSpacing,
+      text,
+    ].join('|');
     const known = cache.get(key);
     if (known) return known;
     if (!box || !span || !box.isConnected) {
@@ -28,13 +39,13 @@ export function domTextMeasurer(doc: Document = document) {
       box.append(span);
       doc.body.append(box);
     }
-    const f = fontCss(font);
     const s = span.style;
     s.fontFamily = f.family;
     s.fontWeight = String(f.weight);
     s.fontStyle = f.style;
     s.fontSize = size + 'px';
     s.lineHeight = String(lineHeight);
+    s.letterSpacing = letterSpacing ? letterSpacing + 'px' : '';
     s.whiteSpace = wrap === undefined ? 'pre' : 'pre-wrap';
     s.overflowWrap = wrap === undefined ? '' : 'anywhere';
     box.style.width = wrap === undefined ? 'max-content' : wrap + 'px';

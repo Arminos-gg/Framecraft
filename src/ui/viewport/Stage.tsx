@@ -8,7 +8,6 @@ import { rgb, rgba, roundTo } from '../../export/format.ts';
 import {
   ALIGN_X,
   ALIGN_Y,
-  fontCss,
   gradientCss,
   isGui,
   isTinted,
@@ -25,6 +24,7 @@ import type { Scene } from '../../editor/editor.ts';
 import { udimPx, type Rect } from '../../layout/layout.ts';
 import type { Assets } from '../../model/assets.ts';
 import { classDef } from '../../model/classes.ts';
+import { faceOf, fontCss } from '../../model/fonts.ts';
 import {
   childOfClass,
   childrenOf,
@@ -287,7 +287,7 @@ function TextView({
   const p = ctx.props(inst);
   const isBox = inst.className === 'TextBox';
   const placeholder = isBox && !p.Text && !ctx.preview;
-  const font = fontCss(p.Font);
+  const font = fontCss(faceOf(p));
   const strokes = childrenOf(ctx.doc, inst.id)
     .filter((k): k is Instance<'UIStroke'> & AnyInstance => k.className === 'UIStroke')
     .map((s) => ({ s, sp: ctx.props(s) }))
@@ -301,6 +301,8 @@ function TextView({
     color: rgba(placeholder ? PLACEHOLDER : p.TextColor3, p.TextTransparency),
     fontSize: p.TextScaled ? 10 : p.TextSize,
     lineHeight: p.LineHeight,
+    // Letter spacing is web only, so it shows on pages only.
+    letterSpacing: ctx.scene.view.kind === 'page' && p.LetterSpacing ? p.LetterSpacing : undefined,
   };
   if (strokes.length)
     span.textShadow = strokes

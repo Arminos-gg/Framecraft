@@ -12,7 +12,8 @@ The exporters turn the document into Luau and a model file for Roblox Studio and
 ## Luau
 
 - Emit `Instance.new`, then properties, then children, and set each object's `Parent` last, after its own children are parented. Parent the ScreenGui to StarterGui (command bar version) or to the player's PlayerGui (LocalScript version) at the very end.
-- Always emit `Size`, `BackgroundColor3`, `BorderSizePixel`, and for text objects `Font`, `Text`, `TextColor3` and `TextSize`. Their `Instance.new` defaults differ from what users expect.
+- Always emit `Size`, `BackgroundColor3`, `BorderSizePixel`, and for text objects the font, `Text`, `TextColor3` and `TextSize`. Their `Instance.new` defaults differ from what users expect.
+- A font that is exactly a Roblox `Enum.Font` (Gotham at Bold is `GothamBold`, see `legacyFontOf`) is written as `Font = Enum.Font.X`, so the sample's goldens stay the same. Any other face is `FontFace = Font.new(family file, Enum.FontWeight, Enum.FontStyle)`, leaving out Regular and Normal at the end. A web font Roblox doesn't have uses its `roblox` stand-in from `FONTS`, with a comment saying so. LetterSpacing is web only and never written.
 - Only omit a property when its Roblox default is certain: Position 0, AnchorPoint 0, Rotation 0, BackgroundTransparency 0, ZIndex 1, LayoutOrder 0, Visible true, ClipsDescendants false, TextScaled false, TextWrapped false, LineHeight 1, TextXAlignment and TextYAlignment Center, TextTransparency 0, AutoButtonColor true, ImageColor3 white, ImageTransparency 0, ScaleType Stretch, ApplyStrokeMode Contextual. Check any new omission in Studio first.
 - ScreenGuis always get `IgnoreGuiInset = true` and `ZIndexBehavior = Enum.ZIndexBehavior.Sibling`.
 - Use `UDim2.fromScale` when both offsets are 0, `UDim2.fromOffset` when both scales are 0, otherwise `UDim2.new`.
@@ -27,7 +28,7 @@ The exporters turn the document into Luau and a model file for Roblox Studio and
 - The XML Studio reads with Insert from File: `<roblox version="4">`, then an `<Item class referent>` per object with its `<Properties>`, children nested inside their parent's Item. Referents are `RBX` and 32 hex digits from a counter, so the file is stable.
 - Write every non-web property, defaults included, so nothing depends on Studio's defaults for a missing one. Same objects, base values and ScreenGui extras (`IgnoreGuiInset` true, `ZIndexBehavior` Sibling) as the Luau.
 - Types follow Roblox's, not the editor's: TextSize is a `float`, colors are `Color3` from 0 to 1, enums are `<token>` numbers from `ENUM_TOKENS` (Roblox's API dump), images are `<Content><url>` or `<null>`, and sequences are `time r g b 0` or `time value 0` per keypoint.
-- Fonts are written as `FontFace` (family file, weight, style), as Studio saves them; Rojo's reader can't turn a BuilderSans Font enum into one. IgnoreGuiInset, CornerRadius and Image keep their scriptable names, which the API dump marks loadable.
+- Fonts are written as `FontFace` (family file, weight, style), as Studio saves them, from Font, FontWeight and FontStyle, which are not written on their own; Rojo's reader can't turn a BuilderSans Font enum into one. IgnoreGuiInset, CornerRadius and Image keep their scriptable names, which the API dump marks loadable.
 - Nothing in `npm test` can open the file in Studio. When changing types or names, check the output with `tools/rbxcheck` (Rojo's rbx_xml and Roblox's reflection database; `cargo run --release --manifest-path tools/rbxcheck/Cargo.toml -- file.rbxmx`) or in Studio.
 
 ## HTML/CSS
@@ -40,6 +41,7 @@ The exporters turn the document into Luau and a model file for Roblox Studio and
 - A ScrollingFrame with AutomaticCanvasSize at the base or any breakpoint gets `data-canvas`, a `--canvas` declaration and always its canvas and content box; the script grows the canvas with `min-width` and `min-height` the way it grows a box.
 - ImageColor3 multiplies a picture's colors, as in Roblox: a tinted picture's rule gets `filter: url(#fc-tint-rrggbb)`, and the page defines each color's filter once in a hidden SVG (`tintDefs`). Picture styles (object-fit, opacity, filter) are rules, not inline styles, so breakpoints can change them.
 - LineHeight becomes `line-height` on the text, written only when it isn't 1 (the page's default).
+- The font becomes `font-family` (the Google family and a fallback of its kind), `font-weight` (the nearest weight the web font has, `webWeight`) and `font-style`; the page links Google Fonts for exactly the faces it uses. LetterSpacing becomes `letter-spacing` in px on websites only (`HtmlWriter.site`); the Roblox screens' page leaves it out, as the editor does on screens.
 - Keep each object's Roblox name in `data-name` so people can find it in the page.
 - Every object resets `margin`, `font-size` and `font-weight` on `.g`, since HtmlTag can make it a heading or a paragraph, on a page and on the Roblox screens alike.
 
