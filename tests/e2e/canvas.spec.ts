@@ -229,6 +229,36 @@ test.describe('Roblox screens', () => {
     await expect(page.locator('.statusline')).toContainText('Screen 390 × 844');
   });
 
+  test('measures the screen with rulers and a grid', async ({ page }) => {
+    await expect(page.getByLabel('Backdrop')).toHaveValue('grid');
+    // The top ruler counts device pixels from the screen's left edge.
+    const screen = (await page.getByTestId('screen').boundingBox())!;
+    const zero = (await page.locator('.ruler.x text', { hasText: /^0$/ }).boundingBox())!;
+    expect(Math.abs(zero.x - 3 - screen.x)).toBeLessThan(2);
+    // The selection is shaded on both rulers, as wide and as tall as it is drawn.
+    const box = await boxOf(page, await selectByName(page, 'Coins'));
+    const across = (await page.locator('.ruler.x .sel').boundingBox())!;
+    const down = (await page.locator('.ruler.y .sel').boundingBox())!;
+    for (const [a, b] of [
+      [across.x, box.x],
+      [across.width, box.width],
+      [down.y, box.y],
+      [down.height, box.height],
+    ])
+      expect(Math.abs(a! - b!)).toBeLessThan(1.5);
+
+    // Scrolling the canvas moves the rulers with it.
+    await page.getByRole('button', { name: 'Zoom in' }).click();
+    await page.getByRole('button', { name: 'Zoom in' }).click();
+    const label = page.locator('.ruler.x text').nth(2);
+    const same = page.locator('.ruler.x text', {
+      hasText: new RegExp(`^${await label.textContent()}$`),
+    });
+    const before = (await same.boundingBox())!.x;
+    await page.locator('.canvas').evaluate((el) => el.scrollBy(40, 0));
+    await expect.poll(async () => (await same.boundingBox())?.x).toBeCloseTo(before - 40, 0);
+  });
+
   test('P toggles preview, which hides the selection', async ({ page }) => {
     const coins = await selectByName(page, 'Coins');
     await expect(page.locator('.overlay .selbox')).toHaveCount(1);

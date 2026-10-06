@@ -23,7 +23,7 @@ import type { AssetId, Color3, ColorSequence, Link, NumberSequence } from '../mo
 import { calcU, esc, fmtNum, rgb, rgba, roundTo } from './format.ts';
 
 /** What the page shows behind the UI, as the editor's backdrop menu offers. */
-export type Backdrop = 'game' | 'night' | 'checker';
+export type Backdrop = 'grid' | 'game' | 'night' | 'checker';
 
 export interface HtmlOptions {
   readonly backdrop?: Backdrop;
@@ -32,6 +32,7 @@ export interface HtmlOptions {
 }
 
 const BACKDROP_CSS: Record<Backdrop, string> = {
+  grid: 'linear-gradient(to right, rgba(255, 255, 255, 0.1) 1px, transparent 1px) 0 0 / 100px 100px, linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 1px, transparent 1px) 0 0 / 100px 100px, linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 10px 10px, linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 10px 10px, #14161b',
   game: 'radial-gradient(120% 60% at 30% 108%, #5d9c46 0 34%, transparent 34.5%), radial-gradient(90% 50% at 85% 112%, #4c8a3b 0 38%, transparent 38.5%), linear-gradient(#7ec3f2 0%, #b7e0fa 58%, #e3f3fd 100%)',
   night: 'linear-gradient(#0d1424, #1b2741 70%, #24324f)',
   checker: '#f2f2f2',

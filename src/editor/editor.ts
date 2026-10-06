@@ -277,7 +277,7 @@ export class Editor {
       preview: false,
       unit: 'auto',
       snap: true,
-      backdrop: 'game',
+      backdrop: 'grid',
       canUndo: false,
       canRedo: false,
       gesture: null,
