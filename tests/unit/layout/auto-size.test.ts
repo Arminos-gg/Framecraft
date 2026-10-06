@@ -64,6 +64,11 @@ describe('estimated text', () => {
     expect(wrap('aaaa bbbb cccc')).toEqual({ w: 90, h: 40 });
     expect(wrap('abcdefghijklmnopqrstuvwxy')).toEqual({ w: 100, h: 60 });
   });
+
+  it('makes each line LineHeight times the text size tall', () => {
+    const text = { text: 'a\nb', font: 'Gotham', size: 20 } as const;
+    expect(estimateText({ ...text, lineHeight: 1.5 })).toEqual({ w: 10, h: 60 });
+  });
 });
 
 describe('AutomaticSize', () => {
@@ -115,6 +120,22 @@ describe('AutomaticSize', () => {
       label({ Text: 'a\nb\nc', Size: [0, 100, 0, 0], AutomaticSize: 'Y' }),
     );
     expect(s.layout().get(lines)).toMatchObject({ h: 60 });
+  });
+
+  it('counts LineHeight in the text’s height', () => {
+    const s = build();
+    const id = s.add(
+      s.root,
+      'TextLabel',
+      label({
+        Text: 'aaaa bbbb cccc',
+        Size: [0, 100, 0, 0],
+        TextWrapped: true,
+        LineHeight: 1.4,
+        AutomaticSize: 'Y',
+      }),
+    );
+    expect(s.layout().get(id)!.h).toBeCloseTo(56);
   });
 
   it('grows wrapped text on X only as wide as the parent, then wraps it', () => {
@@ -293,5 +314,53 @@ describe('AutomaticSize', () => {
       s.layout({ width, height: 800 }, breakpointForWidth(s.doc, width)?.id);
     expect(at(1366).get(id)).toMatchObject({ w: 10 });
     expect(at(390).get(id)).toMatchObject({ w: 50 });
+  });
+});
+
+describe('AutomaticCanvasSize', () => {
+  const scrolling = (s: ReturnType<typeof build>, props: Partial<PropsOf<'ScrollingFrame'>>) =>
+    s.add(s.root, 'ScrollingFrame', { Size: [0, 200, 0, 100], CanvasSize: [0, 0, 0, 0], ...props });
+
+  it('keeps the canvas at CanvasSize, and never smaller than the frame, when it is None', () => {
+    const s = build();
+    const id = scrolling(s, { CanvasSize: [0, 0, 2, 0] });
+    s.add(id, 'Frame', { Size: [0, 500, 0, 500] });
+    expect(s.layout().get(id)!.canvas).toMatchObject({ w: 200, h: 200 });
+  });
+
+  it('grows the canvas on Y to fit a list and its padding, and not the frame', () => {
+    const s = build();
+    const id = scrolling(s, { AutomaticCanvasSize: 'Y' });
+    s.add(id, 'UIListLayout', { Padding: [0, 10] });
+    s.add(id, 'UIPadding', { PaddingTop: [0, 8], PaddingBottom: [0, 8] });
+    for (let i = 0; i < 5; i++) s.add(id, 'Frame', { Size: [1, 0, 0, 40], LayoutOrder: i });
+    const box = s.layout().get(id)!;
+    expect(box).toMatchObject({ w: 200, h: 100 });
+    expect(box.canvas).toMatchObject({ w: 200, h: 5 * 40 + 4 * 10 + 16 });
+    expect(box.content).toMatchObject({ y: box.y + 8, h: 5 * 40 + 4 * 10 });
+  });
+
+  it('grows on X to fit free-placed children, and keeps a bigger CanvasSize', () => {
+    const s = build();
+    const id = scrolling(s, { AutomaticCanvasSize: 'XY', CanvasSize: [0, 0, 0, 900] });
+    s.add(id, 'Frame', { Position: [0, 300, 0, 0], Size: [0, 150, 0, 20] });
+    expect(s.layout().get(id)!.canvas).toMatchObject({ w: 450, h: 900 });
+  });
+
+  it('counts children that grow', () => {
+    const s = build();
+    const id = scrolling(s, { AutomaticCanvasSize: 'Y' });
+    s.add(
+      id,
+      'TextLabel',
+      label({
+        Text: 'aaaa bbbb cccc',
+        Size: [0, 100, 0, 0],
+        TextWrapped: true,
+        AutomaticSize: 'Y',
+      }),
+    );
+    s.add(id, 'Frame', { Position: [0, 0, 0, 90], Size: [0, 10, 0, 50] });
+    expect(s.layout().get(id)!.canvas).toMatchObject({ h: 140 });
   });
 });

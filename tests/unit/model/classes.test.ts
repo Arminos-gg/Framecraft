@@ -57,6 +57,7 @@ describe('class registry', () => {
       'Font',
       'TextColor3',
       'TextSize',
+      'LineHeight',
       'TextScaled',
       'TextWrapped',
       'TextXAlignment',

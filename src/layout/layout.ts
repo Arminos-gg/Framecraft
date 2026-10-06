@@ -11,7 +11,8 @@
  * AutomaticSize grows an object to fit its text and its children, padding included; Size is
  * then the smallest it gets. The content is measured with the object at its Size, so Scale in
  * its children and padding is a share of that; then the children are placed in the grown box.
- * Text sizes come from a text measurer (see text.ts).
+ * Text sizes come from a text measurer (see text.ts). AutomaticCanvasSize grows a
+ * ScrollingFrame's canvas the same way.
  */
 import { automaticSizeOf, classDef } from '../model/classes.ts';
 import {
@@ -125,6 +126,34 @@ class Engine {
    * the width only up to the width of the parent's area, then wraps.
    */
   contentLength(inst: GuiInstance, w: number, h: number, area: Rect, axis: 'x' | 'y'): number {
+    const need = this.childrenLength(inst, w, h, axis);
+    if (!classDef(inst.className).text) return need;
+    const t = this.props(inst) as TextProps;
+    if (t.TextScaled) return need;
+    const x = axis === 'x';
+    const pad = this.paddingOf(inst.id, { w, h });
+    const padding = x ? pad.left + pad.right : pad.top + pad.bottom;
+    // An empty TextBox shows its placeholder.
+    const request = {
+      text: t.Text || (t.PlaceholderText ?? ''),
+      font: t.Font,
+      size: t.TextSize,
+      lineHeight: t.LineHeight,
+    };
+    if (x) {
+      const width = this.measure(request).w + padding;
+      return Math.max(need, t.TextWrapped ? Math.min(width, area.w) : width);
+    }
+    const content = this.padded(inst.id, { x: 0, y: 0, w, h });
+    const wrap = t.TextWrapped ? { wrap: content.w } : {};
+    return Math.max(need, this.measure({ ...request, ...wrap }).h + padding);
+  }
+
+  /**
+   * How long a box of `w` × `h` must be on one axis to hold the children of `inst`, padding
+   * included: a UIListLayout's items and gaps, or how far the free-placed children reach.
+   */
+  childrenLength(inst: GuiInstance, w: number, h: number, axis: 'x' | 'y'): number {
     const x = axis === 'x';
     const pad = this.paddingOf(inst.id, { w, h });
     const padding = x ? pad.left + pad.right : pad.top + pad.bottom;
@@ -150,19 +179,23 @@ class Engine {
           : udimPx([cp.Position[2], cp.Position[3]], content.h);
         length = Math.max(length, start - cp.AnchorPoint[x ? 0 : 1] * size + size);
       }
-    const need = length + padding;
+    return length + padding;
+  }
 
-    if (!classDef(inst.className).text) return need;
-    const t = this.props(inst) as TextProps;
-    if (t.TextScaled) return need;
-    // An empty TextBox shows its placeholder.
-    const request = { text: t.Text || (t.PlaceholderText ?? ''), font: t.Font, size: t.TextSize };
-    if (x) {
-      const width = this.measure(request).w + padding;
-      return Math.max(need, t.TextWrapped ? Math.min(width, area.w) : width);
-    }
-    const wrap = t.TextWrapped ? { wrap: content.w } : {};
-    return Math.max(need, this.measure({ ...request, ...wrap }).h + padding);
+  /**
+   * A ScrollingFrame's canvas: CanvasSize, at least as big as the frame, grown by
+   * AutomaticCanvasSize to fit the children as AutomaticSize grows a box, width first.
+   */
+  canvasOf(inst: Instance<'ScrollingFrame'>, box: Rect): Rect {
+    const p = this.props(inst);
+    const size = p.CanvasSize;
+    let w = Math.max(box.w, udimPx([size[0], size[1]], box.w));
+    let h = Math.max(box.h, udimPx([size[2], size[3]], box.h));
+    const auto = p.AutomaticCanvasSize;
+    const frame = inst as unknown as GuiInstance;
+    if (auto === 'X' || auto === 'XY') w = Math.max(w, this.childrenLength(frame, w, h, 'x'));
+    if (auto === 'Y' || auto === 'XY') h = Math.max(h, this.childrenLength(frame, w, h, 'y'));
+    return { x: box.x, y: box.y, w, h };
   }
 
   /** The instance's UIPadding in pixels for a box of this size; zeros without one. */
@@ -247,13 +280,7 @@ class Engine {
       let base: Rect = box;
       let canvas: Rect | undefined;
       if (c.className === 'ScrollingFrame') {
-        const size = this.props(c).CanvasSize;
-        canvas = {
-          x: box.x,
-          y: box.y,
-          w: Math.max(box.w, udimPx([size[0], size[1]], box.w)),
-          h: Math.max(box.h, udimPx([size[2], size[3]], box.h)),
-        };
+        canvas = this.canvasOf(c, box);
         base = canvas;
       }
       const content = this.padded(c.id, rect(base));

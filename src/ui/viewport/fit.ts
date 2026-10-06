@@ -20,6 +20,7 @@ export function fitTexts(root: HTMLElement) {
       s.fontFamily,
       s.fontWeight,
       s.fontStyle,
+      s.lineHeight,
       span.textContent,
       W,
       H,

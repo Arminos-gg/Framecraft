@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { exportSite } from '../../src/export/site.ts';
-import { layoutContainer } from '../../src/layout/layout.ts';
+import type * as LayoutModule from '../../src/layout/layout.ts';
 import {
   breakpointForWidth,
   childrenOf,
@@ -13,7 +13,17 @@ import { applyCommand, insert } from '../../src/model/commands.ts';
 import { createInstance, serviceOf, single } from '../../src/model/document.ts';
 import { sampleSite } from '../../src/model/sample.ts';
 import { TEMPLATES } from '../../src/model/templates/index.ts';
+import type * as MeasureModule from '../../src/ui/viewport/text-measure.ts';
 import { exportOrder } from './export-order.ts';
+
+interface Found {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  visible: boolean;
+  canvas: number;
+}
 
 /**
  * The sample site plus a page that tests what the sample doesn't use: free-placed sections in
@@ -71,7 +81,9 @@ const sizes = [
 
 /**
  * Every page of a site, exported and opened at Desktop, Tablet and Phone widths, puts each
- * object where the layout engine does, and is as tall as the layout says.
+ * object where the layout engine does, and is as tall as the layout says. The engine runs in
+ * the same page and measures text there, as in the editor, since the templates grow boxes to
+ * fit their text. The page comes from the dev server, so it can import the app's modules.
  */
 function checkSite(name: string, doc: Doc, { phoneHides }: { phoneHides: boolean }) {
   const files = exportSite(doc);
@@ -88,18 +100,43 @@ function checkSite(name: string, doc: Doc, { phoneHides }: { phoneHides: boolean
       }) => {
         await tab.setViewportSize(size);
         await tab.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-        await tab.setContent(file.contents as string);
-        const layout = layoutContainer(doc, page.id, size, breakpointForWidth(doc, size.width)?.id);
+        await tab.route('**/__export/page.html', (r) =>
+          r.fulfill({ contentType: 'text/html', body: file.contents as string }),
+        );
+        await tab.goto('/__export/page.html');
+        await tab.evaluate(() => document.fonts.ready);
+        const boxes: Record<InstanceId, Found> = await tab.evaluate(
+          async ({ doc, root, size, breakpoint }) => {
+            const layoutPath = '/src/layout/layout.ts';
+            const measurePath = '/src/ui/viewport/text-measure.ts';
+            const L = (await import(layoutPath)) as typeof LayoutModule;
+            const M = (await import(measurePath)) as typeof MeasureModule;
+            const layout = L.layoutContainer(
+              doc,
+              root,
+              size,
+              breakpoint,
+              M.domTextMeasurer().measure,
+            );
+            return Object.fromEntries(
+              [...layout].map(([id, b]) => [
+                id,
+                { x: b.x, y: b.y, w: b.w, h: b.h, visible: b.visible, canvas: b.canvas?.h ?? 0 },
+              ]),
+            );
+          },
+          { doc, root: page.id, size, breakpoint: breakpointForWidth(doc, size.width)?.id },
+        );
         // Shown on screen: its own Visible and every parent object's.
         const shown = (inst: AnyInstance): boolean => {
           for (let id: InstanceId | null = inst.id; id !== page.id && id !== null;) {
-            if (!layout.get(id)!.visible) return false;
+            if (!boxes[id]!.visible) return false;
             id = doc.instances[id]!.parent;
           }
           return true;
         };
         const expected = exportOrder(doc, page.id).map((inst) => {
-          const b = layout.get(inst.id)!;
+          const b = boxes[inst.id]!;
           return { name: inst.props.Name, x: b.x, y: b.y, w: b.w, h: b.h, shown: shown(inst) };
         });
         const actual = await tab.$$eval('.g', (els) =>
@@ -126,7 +163,7 @@ function checkSite(name: string, doc: Doc, { phoneHides }: { phoneHides: boolean
             expect(Math.abs(a[k] - e[k]), `${e.name}.${k}: ${a[k]} vs ${e[k]}`).toBeLessThan(0.05);
         });
         const pageHeight = await tab.evaluate(() => document.documentElement.scrollHeight);
-        expect(Math.abs(pageHeight - layout.get(page.id)!.canvas!.h)).toBeLessThan(1);
+        expect(Math.abs(pageHeight - boxes[page.id]!.canvas)).toBeLessThan(1);
       });
     }
   }

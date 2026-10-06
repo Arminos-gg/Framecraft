@@ -132,7 +132,10 @@ const guiBase = (className: string, size: UDim2) => ({
   ClipsDescendants: spec('bool', 'Behavior', false, OV),
 });
 
-/** A ScrollingFrame grows its canvas, not itself (AutomaticCanvasSize), so it has no AutomaticSize. */
+/**
+ * A ScrollingFrame grows its canvas (AutomaticCanvasSize), not itself, so it has no
+ * AutomaticSize.
+ */
 function scrollBase(className: string, size: UDim2) {
   const { AutomaticSize, ...props } = guiBase(className, size);
   void AutomaticSize;
@@ -144,6 +147,8 @@ const textProps = (text: string) => ({
   Font: enumSpec('Text', FONT_NAMES, 'SourceSans'),
   TextColor3: spec('color', 'Text', [0, 0, 0], OV),
   TextSize: spec('int', 'Text', 14, { min: 1, max: 100, ...OV }),
+  /** Each line's height as a multiple of TextSize, the text centered in it. */
+  LineHeight: spec('number', 'Text', 1, { min: 1, max: 3, step: 0.05, ...OV }),
   TextScaled: spec('bool', 'Text', false, OV),
   TextWrapped: spec('bool', 'Text', false, OV),
   TextXAlignment: enumSpec('Text', ['Left', 'Center', 'Right'], 'Center', OV),
@@ -301,6 +306,7 @@ export const CLASSES = {
     props: {
       ...scrollBase('ScrollingFrame', [0, 240, 0, 200]),
       CanvasSize: spec('udim2', 'Scrolling', [0, 0, 2, 0], OV),
+      AutomaticCanvasSize: enumSpec('Scrolling', AUTOMATIC_SIZES, 'None', OV),
       ScrollBarThickness: spec('int', 'Scrolling', 12, { min: 0, ...OV }),
       ...webProps(),
     },

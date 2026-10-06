@@ -8,8 +8,10 @@ import type { FontName } from '../model/fonts.ts';
 export interface TextRequest {
   readonly text: string;
   readonly font: FontName;
-  /** TextSize in pixels; lines are this tall (line height 1). */
+  /** TextSize in pixels. */
   readonly size: number;
+  /** LineHeight: each line is this many times the text size tall; 1 when left out. */
+  readonly lineHeight?: number;
   /** Wrap at this width, as TextWrapped does; leave it out to keep each line whole. */
   readonly wrap?: number;
 }
@@ -26,7 +28,7 @@ export type TextMeasurer = (request: TextRequest) => TextSize;
  * An estimate for where there's no browser to measure in: every character half the text size
  * wide, and lines broken at spaces, or inside a word too long for the line.
  */
-export const estimateText: TextMeasurer = ({ text, size, wrap }) => {
+export const estimateText: TextMeasurer = ({ text, size, wrap, lineHeight = 1 }) => {
   if (!text) return { w: 0, h: 0 };
   const advance = size / 2;
   const fits = wrap === undefined ? Infinity : Math.max(1, Math.floor(wrap / advance));
@@ -43,7 +45,7 @@ export const estimateText: TextMeasurer = ({ text, size, wrap }) => {
     }
     lines.push(line);
   }
-  return { w: Math.max(...lines) * advance, h: lines.length * size };
+  return { w: Math.max(...lines) * advance, h: lines.length * size * lineHeight };
 };
 
 let current: TextMeasurer = estimateText;

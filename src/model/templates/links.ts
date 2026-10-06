@@ -34,6 +34,7 @@ export function linksTemplate(makeId: () => InstanceId = newId): Doc {
     HtmlTag: 'section',
     LayoutOrder: 1,
     Size: [1, 0, 0, 880],
+    AutomaticSize: 'Y',
     BackgroundColor3: WHITE,
   });
   b.add(profile, 'UIGradient', { Color: colorSequence(PEACH, LILAC), Rotation: 90 });
@@ -42,6 +43,7 @@ export function linksTemplate(makeId: () => InstanceId = newId): Doc {
     Name: 'Card',
     AnchorPoint: [0.5, 0],
     Position: [0.5, 0, 0, 0],
+    AutomaticSize: 'Y',
   });
   sizeAt(b, card, { base: [0, 440, 1, 0], Phone: [1, -40, 1, 0] });
   const pad = b.add(card, 'UIPadding', { PaddingTop: [0, 72] });
@@ -83,9 +85,11 @@ export function linksTemplate(makeId: () => InstanceId = newId): Doc {
     HtmlTag: 'p',
     LayoutOrder: 3,
     Size: [1, 0, 0, 48],
+    AutomaticSize: 'Y',
     Text: 'Singer-songwriter from Portland. New album Paper Moons is out now.',
     Font: 'BuilderSans',
     TextSize: 17,
+    LineHeight: 1.4,
     TextWrapped: true,
     TextColor3: MAUVE,
   });

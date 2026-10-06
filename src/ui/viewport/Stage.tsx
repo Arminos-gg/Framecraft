@@ -267,6 +267,7 @@ function TextView({
       p.TextXAlignment === 'Left' ? 'left' : p.TextXAlignment === 'Right' ? 'right' : 'center',
     color: rgba(placeholder ? PLACEHOLDER : p.TextColor3, p.TextTransparency),
     fontSize: p.TextScaled ? 10 : p.TextSize,
+    lineHeight: p.LineHeight,
   };
   if (strokes.length)
     span.textShadow = strokes

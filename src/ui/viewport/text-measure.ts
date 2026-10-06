@@ -1,6 +1,6 @@
 /**
  * The browser's own text measurer for the layout engine. It lays text out exactly as the Stage
- * and the exported pages do (a span with line height 1 in a flex box, `pre` or `pre-wrap`), so
+ * and the exported pages do (a span with the LineHeight in a flex box, `pre` or `pre-wrap`), so
  * AutomaticSize in the editor matches the exports. Results are cached until web fonts load.
  */
 import { fontCss } from '../../export/html.ts';
@@ -12,8 +12,8 @@ export function domTextMeasurer(doc: Document = document) {
   let box: HTMLDivElement | null = null;
   let span: HTMLSpanElement | null = null;
 
-  const measure: TextMeasurer = ({ text, font, size, wrap }) => {
-    const key = [font, size, wrap ?? '', text].join('|');
+  const measure: TextMeasurer = ({ text, font, size, wrap, lineHeight = 1 }) => {
+    const key = [font, size, wrap ?? '', lineHeight, text].join('|');
     const known = cache.get(key);
     if (known) return known;
     if (!box || !span || !box.isConnected) {
@@ -25,7 +25,6 @@ export function domTextMeasurer(doc: Document = document) {
         'position:absolute;left:-100000px;top:0;visibility:hidden;pointer-events:none;' +
         'display:flex;align-items:flex-start;letter-spacing:normal;word-spacing:normal;' +
         'text-transform:none;font-variant:normal;font-feature-settings:normal';
-      span.style.lineHeight = '1';
       box.append(span);
       doc.body.append(box);
     }
@@ -35,6 +34,7 @@ export function domTextMeasurer(doc: Document = document) {
     s.fontWeight = String(f.weight);
     s.fontStyle = f.style;
     s.fontSize = size + 'px';
+    s.lineHeight = String(lineHeight);
     s.whiteSpace = wrap === undefined ? 'pre' : 'pre-wrap';
     s.overflowWrap = wrap === undefined ? '' : 'anywhere';
     box.style.width = wrap === undefined ? 'max-content' : wrap + 'px';

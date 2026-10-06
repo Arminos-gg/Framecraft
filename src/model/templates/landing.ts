@@ -5,7 +5,7 @@
 import { Builder, pageSubtree } from '../builder.ts';
 import { newId, type Doc, type InstanceId } from '../document.ts';
 import { colorSequence, type Color3 } from '../values.ts';
-import { column, corner, group, label, padAll, sizeAt, stroke } from './kit.ts';
+import { column, corner, group, label, padAll, padX, sizeAt, stroke } from './kit.ts';
 
 const INK: Color3 = [17, 24, 39];
 const BODY: Color3 = [75, 85, 99];
@@ -155,6 +155,7 @@ function addHero(b: Builder, page: InstanceId) {
     LayoutOrder: 2,
     BackgroundColor3: WHITE,
     ClipsDescendants: true,
+    AutomaticSize: 'Y',
   });
   sizeAt(b, hero, { base: [1, 0, 0, 860], Tablet: [1, 0, 0, 800], Phone: [1, 0, 0, 820] });
   b.add(hero, 'UIGradient', { Color: colorSequence(WHITE, [236, 239, 255]), Rotation: 90 });
@@ -166,6 +167,7 @@ function addHero(b: Builder, page: InstanceId) {
     Name: 'Badge',
     LayoutOrder: 1,
     Size: [0, 268, 0, 34],
+    AutomaticSize: 'X',
     BackgroundTransparency: 0,
     BackgroundColor3: ACCENT_SOFT,
     Text: 'New · Shared timelines are here',
@@ -174,6 +176,7 @@ function addHero(b: Builder, page: InstanceId) {
     TextColor3: ACCENT,
   });
   corner(b, badge, [0.5, 0]);
+  padX(b, badge, 16);
   stroke(b, badge, [199, 210, 254], 1, { ApplyStrokeMode: 'Border' });
 
   const headline = label(b, hero, {
@@ -183,7 +186,9 @@ function addHero(b: Builder, page: InstanceId) {
     Text: 'Plan less. Ship more.',
     Font: 'BuilderSansExtraBold',
     TextSize: 76,
+    LineHeight: 1.1,
     TextWrapped: true,
+    AutomaticSize: 'Y',
     TextColor3: INK,
   });
   sizeAt(b, headline, { base: [0, 900, 0, 88], Tablet: [1, -80, 0, 76], Phone: [1, -40, 0, 112] });
@@ -197,14 +202,16 @@ function addHero(b: Builder, page: InstanceId) {
     Text: "Orbit keeps your team's projects, deadlines and notes in one calm place, so everyone knows what's next.",
     Font: 'BuilderSans',
     TextSize: 20,
+    LineHeight: 1.4,
     TextWrapped: true,
+    AutomaticSize: 'Y',
     TextColor3: BODY,
   });
   sizeAt(b, sub, { base: [0, 640, 0, 60], Phone: [1, -40, 0, 100] });
   b.change(sub, 'Phone', { TextSize: 18 });
 
   // Taller than the buttons, so the mock below gets more room.
-  const buttons = group(b, hero, { Name: 'Buttons', LayoutOrder: 4 });
+  const buttons = group(b, hero, { Name: 'Buttons', LayoutOrder: 4, AutomaticSize: 'X' });
   sizeAt(b, buttons, { base: [0, 380, 0, 88], Phone: [1, -40, 0, 144] });
   const row = b.add(buttons, 'UIListLayout', {
     FillDirection: 'Horizontal',
@@ -223,7 +230,9 @@ function addHero(b: Builder, page: InstanceId) {
       TextColor3: fg,
     });
     sizeAt(b, id, { base: [0, 184, 0, 52], Phone: [1, 0, 0, 52] });
+    b.set(id, { AutomaticSize: 'X' });
     corner(b, id, [0, 12]);
+    padX(b, id, 24);
     return id;
   };
   button('StartFree', 1, 'Start for free', ACCENT, WHITE);
@@ -369,6 +378,7 @@ function addFeatures(b: Builder, page: InstanceId) {
     HtmlTag: 'section',
     LayoutOrder: 3,
     BackgroundColor3: WHITE,
+    AutomaticSize: 'Y',
   });
   sizeAt(b, section, { base: [1, 0, 0, 564], Tablet: [1, 0, 0, 924], Phone: [1, 0, 0, 940] });
   const pad = b.add(section, 'UIPadding', { PaddingTop: [0, 96], PaddingBottom: [0, 96] });
@@ -391,7 +401,9 @@ function addFeatures(b: Builder, page: InstanceId) {
     Text: "Everything your team needs, and nothing it doesn't",
     Font: 'BuilderSansExtraBold',
     TextSize: 40,
+    LineHeight: 1.15,
     TextWrapped: true,
+    AutomaticSize: 'Y',
     TextColor3: INK,
   });
   sizeAt(b, title, { base: [0, 720, 0, 96], Tablet: [1, -80, 0, 96], Phone: [1, -40, 0, 128] });
@@ -399,7 +411,7 @@ function addFeatures(b: Builder, page: InstanceId) {
   b.change(title, 'Phone', { TextSize: 30 });
 
   // Cards sit at the bottom of a taller row, which leaves room under the title.
-  const cards = group(b, section, { Name: 'Cards', LayoutOrder: 3 });
+  const cards = group(b, section, { Name: 'Cards', LayoutOrder: 3, AutomaticSize: 'Y' });
   sizeAt(b, cards, {
     base: [0, 1120, 0, 224],
     Tablet: [1, -80, 0, 584],
@@ -433,6 +445,7 @@ function addFeatures(b: Builder, page: InstanceId) {
         .join(''),
       LayoutOrder: i + 1,
       BackgroundColor3: ALT,
+      AutomaticSize: 'Y',
     });
     sizeAt(b, card, {
       base: [0.3333, -16, 0, 200],
@@ -482,7 +495,9 @@ function addFeatures(b: Builder, page: InstanceId) {
       Text: body,
       Font: 'BuilderSans',
       TextSize: 16,
+      LineHeight: 1.35,
       TextWrapped: true,
+      AutomaticSize: 'Y',
       TextColor3: BODY,
       TextXAlignment: 'Left',
       TextYAlignment: 'Top',
@@ -498,11 +513,16 @@ function addCallToAction(b: Builder, page: InstanceId) {
     BackgroundColor3: WHITE,
   });
   sizeAt(b, section, { base: [1, 0, 0, 360], Phone: [1, 0, 0, 384] });
+  b.set(section, { AutomaticSize: 'Y' });
+  // The room under the banner, kept when the banner grows.
+  const pad = b.add(section, 'UIPadding', { PaddingBottom: [0, 96] });
+  b.change(pad, 'Phone', { PaddingBottom: [0, 64] });
   const card = b.add(section, 'Frame', {
     Name: 'Banner',
     AnchorPoint: [0.5, 0],
     Position: [0.5, 0, 0, 0],
     BackgroundColor3: WHITE,
+    AutomaticSize: 'Y',
   });
   sizeAt(b, card, { base: [0, 1120, 0, 264], Tablet: [1, -80, 0, 264], Phone: [1, -40, 0, 320] });
   corner(b, card, [0, 24]);
@@ -519,7 +539,9 @@ function addCallToAction(b: Builder, page: InstanceId) {
     Text: 'Ready when your team is.',
     Font: 'BuilderSansExtraBold',
     TextSize: 40,
+    LineHeight: 1.15,
     TextWrapped: true,
+    AutomaticSize: 'Y',
     TextColor3: WHITE,
   });
   sizeAt(b, title, { base: [1, -64, 0, 48], Phone: [1, -48, 0, 76] });
@@ -531,14 +553,17 @@ function addCallToAction(b: Builder, page: InstanceId) {
     Text: 'Free for teams of up to 10. No card needed.',
     Font: 'BuilderSans',
     TextSize: 18,
+    LineHeight: 1.4,
     TextWrapped: true,
+    AutomaticSize: 'Y',
     TextColor3: [199, 210, 254],
   });
-  sizeAt(b, sub, { base: [1, -64, 0, 28], Phone: [1, -48, 0, 48] });
+  sizeAt(b, sub, { base: [1, -64, 0, 28], Phone: [1, -48, 0, 52] });
   const button = b.add(card, 'TextButton', {
     Name: 'StartButton',
     LayoutOrder: 3,
     Size: [0, 184, 0, 52],
+    AutomaticSize: 'X',
     BackgroundColor3: WHITE,
     Text: 'Start for free',
     Font: 'BuilderSansBold',
@@ -546,6 +571,7 @@ function addCallToAction(b: Builder, page: InstanceId) {
     TextColor3: INK,
   });
   corner(b, button, [0, 12]);
+  padX(b, button, 24);
 }
 
 function addFooter(b: Builder, page: InstanceId) {
