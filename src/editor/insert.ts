@@ -119,6 +119,8 @@ export function newSubtree(
   parent: AnyInstance,
   area: Rect,
   makeId: () => InstanceId = newId,
+  /** Properties the new object starts with, such as a shape's Size and colors. */
+  start: Readonly<Record<string, unknown>> = {},
 ): Subtree {
   if (className === 'Page') return pageSubtree(newPageProps(doc, parent.id), makeId);
   if (isModifier(className))
@@ -131,10 +133,12 @@ export function newSubtree(
   const defaults = defaultProps(className) as unknown as { Size: UDim2 };
   // Straight in a page, an object is a section: as wide as the window.
   const onPage = parent.className === 'Page';
-  const size: UDim2 = onPage
-    ? [1, 0, 0, className === 'Frame' || className === 'ScrollingFrame' ? 320 : defaults.Size[3]]
-    : defaults.Size;
-  const props: Record<string, unknown> = { Size: size };
+  const size: UDim2 =
+    (start.Size as UDim2 | undefined) ??
+    (onPage
+      ? [1, 0, 0, className === 'Frame' || className === 'ScrollingFrame' ? 320 : defaults.Size[3]]
+      : defaults.Size);
+  const props: Record<string, unknown> = { ...start, Size: size };
   // Under a UIListLayout, Position doesn't apply, so leave it at zero.
   if (!childOfClass(doc, parent.id, 'UIListLayout')) {
     const count = childrenOf(doc, parent.id).filter((c) => classDef(c.className).kind === 'gui');
