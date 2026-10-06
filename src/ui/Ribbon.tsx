@@ -2,6 +2,7 @@
  * The ribbon: insert objects and modifiers, choose what dragging writes, and convert units.
  * The first tool follows the view: ScreenGui for the Roblox screens, Page for the website.
  */
+import { useState } from 'react';
 import type { UnitMode } from '../editor/geometry.ts';
 import { insertParent } from '../editor/insert.ts';
 import { OBJECT_CLASSES, type ClassName } from '../model/classes.ts';
@@ -10,6 +11,7 @@ import { isGui } from '../export/html.ts';
 import { useEditor, useEditorState } from './editor-context.ts';
 import { ClassIcon, Icon } from './icons.tsx';
 import { Checkbox } from './properties/fields.tsx';
+import { ShapesMenu } from './ShapesMenu.tsx';
 
 const MODIFIERS: readonly (readonly [ClassName, string])[] = [
   ['UICorner', 'Corner'],
@@ -35,6 +37,7 @@ const UNIT_HINTS: Record<UnitMode, string> = {
 export function Ribbon() {
   const editor = useEditor();
   const { doc, selection, view, preview, unit, snap } = useEditorState();
+  const [shapes, setShapes] = useState<HTMLElement | null>(null);
   const sel = selection === null ? undefined : getInstance(doc, selection);
   const layer: ClassName = view.kind === 'page' ? 'Page' : 'ScreenGui';
   const convertible =
@@ -57,6 +60,19 @@ export function Ribbon() {
               {c}
             </button>
           ))}
+          <button
+            className={shapes ? 'tool is-pressed' : 'tool'}
+            type="button"
+            data-insert="shapes"
+            title="Insert a shape"
+            aria-haspopup="dialog"
+            aria-expanded={!!shapes}
+            onClick={(e) => setShapes(shapes ? null : e.currentTarget)}
+          >
+            <Icon name="shapes" />
+            Shapes
+          </button>
+          {shapes && <ShapesMenu anchor={shapes} onClose={() => setShapes(null)} />}
         </div>
         <div className="cap">Insert object</div>
       </div>

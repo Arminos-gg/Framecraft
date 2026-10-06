@@ -102,6 +102,34 @@ export const gradientCss = (color: ColorSequence, rotation: number) =>
 export const maskCss = (transparency: NumberSequence, rotation: number) =>
   `linear-gradient(${90 + rotation}deg, ${stops<number>(transparency, (t) => `rgba(0,0,0,${roundTo(1 - t, 3)})`)})`;
 
+/**
+ * ImageColor3 multiplies an image's colors, so a white picture takes the color exactly and
+ * white leaves any picture as it is. Browsers do the same multiply with an SVG color matrix
+ * filter, one per color, which the page defines once and images point to by id.
+ */
+export const isTinted = (c: Color3): boolean => c[0] !== 255 || c[1] !== 255 || c[2] !== 255;
+/** A tint color as six hex digits, its key in a set of tints. */
+export const tintKey = (c: Color3): string =>
+  c.map((v) => v.toString(16).padStart(2, '0')).join('');
+export const tintId = (key: string): string => 'fc-tint-' + key;
+/** The color matrix that multiplies by a tint. */
+export function tintMatrix(key: string): string {
+  const [r, g, b] = [0, 2, 4].map((i) => fmtNum(parseInt(key.slice(i, i + 2), 16) / 255));
+  return `${r} 0 0 0 0 0 ${g} 0 0 0 0 0 ${b} 0 0 0 0 0 1 0`;
+}
+/** The hidden SVG with a filter for each tint, or nothing when no image is tinted. */
+export function tintDefs(keys: Iterable<string>, indent = ''): string {
+  const filters = [...new Set(keys)]
+    .sort()
+    .map(
+      (k) =>
+        `\n${indent}  <filter id="${tintId(k)}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${tintMatrix(k)}"/></filter>`,
+    );
+  return filters.length
+    ? `\n${indent}<svg width="0" height="0" aria-hidden="true" style="position:absolute">${filters.join('')}\n${indent}</svg>`
+    : '';
+}
+
 /** A text outline drawn as a ring of shadows. */
 export function textRing(thickness: number, color: string): string {
   const out: string[] = [];
@@ -309,6 +337,8 @@ interface EmitContext {
 export class HtmlWriter {
   readonly rules: Rule[] = [];
   readonly fontsUsed = new Set<FontName>();
+  /** Every ImageColor3 tint the images use, by `tintKey`. */
+  readonly tints = new Set<string>();
   needsScript = false;
   seq = 0;
   readonly doc: Doc;
@@ -536,9 +566,19 @@ export class HtmlWriter {
     if (inst.className === 'ImageLabel' || inst.className === 'ImageButton') {
       const ip = this.props(inst);
       const src = inst.preview ? this.links.imageSrc(inst.preview) : undefined;
-      inner += src
-        ? `\n${ind}  <img class="img" src="${src}" alt="${esc(inst.props.AltText)}" style="object-fit:${OBJECT_FIT[ip.ScaleType]};opacity:${roundTo(1 - ip.ImageTransparency, 3)}">`
-        : `\n${ind}  <${box} class="ph">${esc(ip.Image || 'image')}</${box}>`;
+      if (src) {
+        // In a rule rather than inline, so breakpoints can change them too.
+        const ic = `${cls}i`;
+        const d: Decl[] = [['object-fit', OBJECT_FIT[ip.ScaleType]]];
+        if (ip.ImageTransparency) d.push(['opacity', fmtNum(1 - ip.ImageTransparency, 3)]);
+        if (isTinted(ip.ImageColor3)) {
+          const key = tintKey(ip.ImageColor3);
+          this.tints.add(key);
+          d.push(['filter', `url(#${tintId(key)})`]);
+        }
+        this.rule(`.${ic}`, d);
+        inner += `\n${ind}  <img class="img ${ic}" src="${src}" alt="${esc(inst.props.AltText)}">`;
+      } else inner += `\n${ind}  <${box} class="ph">${esc(ip.Image || 'image')}</${box}>`;
     }
     if (
       inst.className === 'TextLabel' ||
@@ -669,7 +709,7 @@ ${COMMENT_OPEN} Built with Framecraft (prototype). Every object keeps its Roblox
   ${w.rules.map(ruleText).join('\n  ')}
 </style>
 </head>
-<body>${screens}${w.needsScript ? FIT_SCRIPT : ''}
+<body>${tintDefs(w.tints, '  ')}${screens}${w.needsScript ? FIT_SCRIPT : ''}
 </body>
 </html>
 `;

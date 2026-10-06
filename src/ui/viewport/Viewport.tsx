@@ -26,6 +26,7 @@ import { isGui, type Backdrop } from '../../export/html.ts';
 import { getInstance, isAncestor } from '../../model/document.ts';
 import { useEditor, useEditorState } from '../editor-context.ts';
 import { Icon } from '../icons.tsx';
+import { hasPictures, picturesIn } from '../pictures.ts';
 import { Overlay } from './Overlay.tsx';
 import { rulerSteps } from './rulers.ts';
 import { Rulers } from './Rulers.tsx';
@@ -371,6 +372,21 @@ export function Viewport() {
           onClick={onClick}
           onContextMenu={(e) => {
             if (!state.preview) e.preventDefault();
+          }}
+          onDragOver={(e) => {
+            // Image and SVG files dropped here become ImageLabels.
+            if (state.preview || ![...e.dataTransfer.types].includes('Files')) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }}
+          onDrop={(e) => {
+            if (state.preview || !hasPictures(e.dataTransfer)) return;
+            e.preventDefault();
+            picturesIn(e.dataTransfer).then(
+              (pics) => pics.forEach((pic) => editor.insertPicture(pic)),
+              (err: unknown) =>
+                editor.toast(err instanceof Error ? err.message : 'That file couldn’t be added.'),
+            );
           }}
         >
           <div
