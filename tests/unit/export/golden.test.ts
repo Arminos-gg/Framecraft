@@ -2,6 +2,7 @@ import luaparse from 'luaparse';
 import { describe, expect, it } from 'vitest';
 import { exportHtml } from '../../../src/export/html.ts';
 import { exportLuau } from '../../../src/export/luau.ts';
+import { exportRbxmx } from '../../../src/export/rbxmx.ts';
 import { sample } from '../model/helpers.ts';
 
 /**
@@ -24,6 +25,10 @@ describe('exports of the sample menu match the golden files', () => {
 
   it('the HTML page', async () => {
     await expect(exportHtml(doc)).toMatchFileSnapshot('../../golden/sample-menu.html');
+  });
+
+  it('the Roblox model file', async () => {
+    await expect(exportRbxmx(doc)).toMatchFileSnapshot('../../golden/sample-menu.rbxmx');
   });
 
   it('Luau that parses', () => {

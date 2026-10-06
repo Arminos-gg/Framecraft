@@ -395,6 +395,40 @@ test.describe('website pages', () => {
     await expect(show).toHaveValue('page:' + pricing);
   });
 
+  test('a click on empty page space selects the page, for its background', async ({ page }) => {
+    // A new page is empty and white.
+    await page.getByRole('button', { name: 'Page', exact: true }).click();
+    const id = await page.evaluate(() => window.framecraft!.state.selection!);
+    const canvas = (await page.locator('.canvas').boundingBox())!;
+    await page.mouse.click(canvas.x + 8, canvas.y + 8); // off the device: nothing selected
+    expect(await selectedName(page)).toBeNull();
+
+    const spot = center((await page.getByTestId('screen').boundingBox())!);
+    await page.mouse.move(spot.x, spot.y);
+    await expect(page.locator('.overlay .hoverbox')).toHaveCount(1);
+    await page.mouse.click(spot.x, spot.y);
+    expect(await page.evaluate(() => window.framecraft!.state.selection)).toBe(id);
+    await expect(page.locator('.overlay .selbox[data-page]')).toHaveCount(1);
+    await expect(page.locator('.overlay .handle')).toHaveCount(0);
+
+    // A see-through page shows the editor's grid behind it.
+    const field = page.locator('#p-BackgroundTransparency');
+    await field.fill('0.5');
+    await field.press('Enter');
+    expect((await propsOf(page, id)).BackgroundTransparency).toBe(0.5);
+    const background = await page.evaluate(
+      () => getComputedStyle(document.querySelector('.device .screen')!).backgroundColor,
+    );
+    expect(background).toBe('rgba(255, 255, 255, 0.5)');
+
+    // A right-click selects too, without the browser's menu.
+    await page.mouse.click(canvas.x + 8, canvas.y + 8);
+    expect(await selectedName(page)).toBeNull();
+    await page.mouse.click(spot.x, spot.y, { button: 'right' });
+    expect(await page.evaluate(() => window.framecraft!.state.selection)).toBe(id);
+    expect(errors).toEqual([]);
+  });
+
   test('draws a page as long as its content', async ({ page }) => {
     await page.getByLabel('Device size').selectOption({ label: 'Phone · 390×844' });
     const pricing = await idOf(page, 'Pricing');

@@ -1,0 +1,14 @@
+# Reads a .rbxmx with Rojo's rbx_xml and checks every property against Roblox's reflection
+# database. Usage: cargo run --release --manifest-path tools/rbxcheck/Cargo.toml -- file.rbxmx
+[package]
+name = "rbxcheck"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+rbx_xml = "3.0.1"
+rbx_binary = "3.0.1"
+rbx_dom_weak = "4.2.0"
+rbx_reflection = "7.0.0"
+rbx_reflection_database = "3.0.1"

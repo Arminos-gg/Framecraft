@@ -171,10 +171,23 @@ export function Viewport() {
     cv.scrollTo({ top: top + box.y * z - 12 });
   }, [reveal, scene, top, z]);
 
+  /** The page shown, whose empty space selects it so its background can be changed. */
+  const pageId = scene.view.kind === 'page' ? scene.view.pageId : null;
+  const targetAt = (target: EventTarget | null) =>
+    guiIdAt(target) ?? (frameAt(target) ? pageId : null);
+
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || state.preview) return;
+    if (state.preview) return;
     const target = e.target as Element;
     if (target.closest('.device-name')) return;
+    if (e.button !== 0) {
+      // A right-click selects what's under it, the page included, without moving anything.
+      if (e.button !== 2) return;
+      const el = frameAt(target);
+      if (el && el.dataset.device !== device.id) editor.setDevice(el.dataset.device!);
+      editor.select(targetAt(target));
+      return;
+    }
     const handle = target.closest<HTMLElement>('.handle');
     if (handle && state.selection) {
       e.preventDefault();
@@ -191,7 +204,7 @@ export function Viewport() {
     const p = toDevice(e.clientX, e.clientY, dragFrame.current!);
     const id = guiIdAt(target);
     if (!id) {
-      editor.select(null);
+      editor.select(el ? pageId : null);
       return;
     }
     e.preventDefault();
@@ -217,7 +230,7 @@ export function Viewport() {
     // The rulers measure the device being edited, so the mouse readout does too.
     const el = frameAt(e.target);
     setMouse(el && el !== deviceRef.current ? null : toDevice(e.clientX, e.clientY));
-    if (!state.preview) editor.setHover(guiIdAt(e.target));
+    if (!state.preview) editor.setHover(targetAt(e.target));
   };
   const onPointerUp = () => editor.endDrag();
   const onPointerLeave = () => {
@@ -357,6 +370,9 @@ export function Viewport() {
           onPointerCancel={onPointerUp}
           onPointerLeave={onPointerLeave}
           onClick={onClick}
+          onContextMenu={(e) => {
+            if (!state.preview) e.preventDefault();
+          }}
           onDragOver={(e) => {
             if (state.preview || !e.dataTransfer.types.includes(COMPONENT_MIME)) return;
             e.preventDefault();
@@ -404,7 +420,9 @@ export function Viewport() {
                   <div
                     ref={editing ? deviceRef : undefined}
                     className={
-                      s.view.kind === 'screens' ? `device backdrop-${state.backdrop}` : 'device'
+                      s.view.kind === 'screens'
+                        ? `device backdrop-${state.backdrop}`
+                        : 'device page'
                     }
                     data-testid={editing ? 'screen' : undefined}
                     data-device={s.device.id}

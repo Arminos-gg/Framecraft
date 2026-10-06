@@ -1,0 +1,435 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<External>null</External>
+	<External>nil</External>
+	<Item class="ScreenGui" referent="RBX00000000000000000000000000000001">
+		<Properties>
+			<string name="Name">MainMenu</string>
+			<bool name="Enabled">true</bool>
+			<int name="DisplayOrder">0</int>
+			<bool name="ResetOnSpawn">false</bool>
+			<bool name="IgnoreGuiInset">true</bool>
+			<token name="ZIndexBehavior">1</token>
+		</Properties>
+		<Item class="Frame" referent="RBX00000000000000000000000000000002">
+			<Properties>
+				<string name="Name">Coins</string>
+				<int name="LayoutOrder">0</int>
+				<Vector2 name="AnchorPoint"><X>1</X><Y>0</Y></Vector2>
+				<UDim2 name="Position"><XS>1</XS><XO>-20</XO><YS>0</YS><YO>20</YO></UDim2>
+				<UDim2 name="Size"><XS>0</XS><XO>176</XO><YS>0</YS><YO>52</YO></UDim2>
+				<token name="AutomaticSize">0</token>
+				<float name="Rotation">0</float>
+				<Color3 name="BackgroundColor3"><R>0.086275</R><G>0.094118</G><B>0.14902</B></Color3>
+				<float name="BackgroundTransparency">0.12</float>
+				<Color3 name="BorderColor3"><R>0.105882</R><G>0.164706</G><B>0.207843</B></Color3>
+				<int name="BorderSizePixel">0</int>
+				<bool name="Visible">true</bool>
+				<int name="ZIndex">1</int>
+				<bool name="ClipsDescendants">false</bool>
+			</Properties>
+			<Item class="UICorner" referent="RBX00000000000000000000000000000003">
+				<Properties>
+					<string name="Name">UICorner</string>
+					<UDim name="CornerRadius"><S>0.5</S><O>0</O></UDim>
+				</Properties>
+			</Item>
+			<Item class="UIStroke" referent="RBX00000000000000000000000000000004">
+				<Properties>
+					<string name="Name">UIStroke</string>
+					<Color3 name="Color"><R>1</R><G>0.8</G><B>0.301961</B></Color3>
+					<float name="Thickness">2</float>
+					<float name="Transparency">0.25</float>
+					<token name="ApplyStrokeMode">0</token>
+				</Properties>
+			</Item>
+			<Item class="Frame" referent="RBX00000000000000000000000000000005">
+				<Properties>
+					<string name="Name">CoinIcon</string>
+					<int name="LayoutOrder">0</int>
+					<Vector2 name="AnchorPoint"><X>0</X><Y>0.5</Y></Vector2>
+					<UDim2 name="Position"><XS>0</XS><XO>10</XO><YS>0.5</YS><YO>0</YO></UDim2>
+					<UDim2 name="Size"><XS>0</XS><XO>34</XO><YS>0</YS><YO>34</YO></UDim2>
+					<token name="AutomaticSize">0</token>
+					<float name="Rotation">0</float>
+					<Color3 name="BackgroundColor3"><R>1</R><G>0.788235</G><B>0.235294</B></Color3>
+					<float name="BackgroundTransparency">0</float>
+					<Color3 name="BorderColor3"><R>0.105882</R><G>0.164706</G><B>0.207843</B></Color3>
+					<int name="BorderSizePixel">0</int>
+					<bool name="Visible">true</bool>
+					<int name="ZIndex">1</int>
+					<bool name="ClipsDescendants">false</bool>
+				</Properties>
+				<Item class="UICorner" referent="RBX00000000000000000000000000000006">
+					<Properties>
+						<string name="Name">UICorner</string>
+						<UDim name="CornerRadius"><S>0.5</S><O>0</O></UDim>
+					</Properties>
+				</Item>
+				<Item class="UIGradient" referent="RBX00000000000000000000000000000007">
+					<Properties>
+						<string name="Name">UIGradient</string>
+						<ColorSequence name="Color">0 1 1 1 0 1 0.870588 0.619608 0.117647 0 </ColorSequence>
+						<NumberSequence name="Transparency">0 0 0 1 0 0 </NumberSequence>
+						<float name="Rotation">90</float>
+					</Properties>
+				</Item>
+				<Item class="UIStroke" referent="RBX00000000000000000000000000000008">
+					<Properties>
+						<string name="Name">UIStroke</string>
+						<Color3 name="Color"><R>0.658824</R><G>0.407843</G><B>0.031373</B></Color3>
+						<float name="Thickness">2</float>
+						<float name="Transparency">0</float>
+						<token name="ApplyStrokeMode">0</token>
+					</Properties>
+				</Item>
+			</Item>
+			<Item class="TextLabel" referent="RBX00000000000000000000000000000009">
+				<Properties>
+					<string name="Name">Amount</string>
+					<int name="LayoutOrder">0</int>
+					<Vector2 name="AnchorPoint"><X>0</X><Y>0</Y></Vector2>
+					<UDim2 name="Position"><XS>0</XS><XO>54</XO><YS>0</YS><YO>0</YO></UDim2>
+					<UDim2 name="Size"><XS>1</XS><XO>-68</XO><YS>1</YS><YO>0</YO></UDim2>
+					<token name="AutomaticSize">0</token>
+					<float name="Rotation">0</float>
+					<Color3 name="BackgroundColor3"><R>1</R><G>1</G><B>1</B></Color3>
+					<float name="BackgroundTransparency">1</float>
+					<Color3 name="BorderColor3"><R>0.105882</R><G>0.164706</G><B>0.207843</B></Color3>
+					<int name="BorderSizePixel">0</int>
+					<bool name="Visible">true</bool>
+					<int name="ZIndex">1</int>
+					<bool name="ClipsDescendants">false</bool>
+					<string name="Text">12,450</string>
+					<Font name="FontFace"><Family><url>rbxasset://fonts/families/GothamSSm.json</url></Family><Weight>700</Weight><Style>Normal</Style></Font>
+					<Color3 name="TextColor3"><R>1</R><G>1</G><B>1</B></Color3>
+					<float name="TextSize">24</float>
+					<float name="LineHeight">1</float>
+					<bool name="TextScaled">false</bool>
+					<bool name="TextWrapped">false</bool>
+					<token name="TextXAlignment">0</token>
+					<token name="TextYAlignment">1</token>
+					<float name="TextTransparency">0</float>
+				</Properties>
+			</Item>
+		</Item>
+		<Item class="Frame" referent="RBX0000000000000000000000000000000A">
+			<Properties>
+				<string name="Name">Panel</string>
+				<int name="LayoutOrder">0</int>
+				<Vector2 name="AnchorPoint"><X>0.5</X><Y>0.5</Y></Vector2>
+				<UDim2 name="Position"><XS>0.5</XS><XO>0</XO><YS>0.5</YS><YO>0</YO></UDim2>
+				<UDim2 name="Size"><XS>0.34</XS><XO>0</XO><YS>0.72</YS><YO>0</YO></UDim2>
+				<token name="AutomaticSize">0</token>
+				<float name="Rotation">0</float>
+				<Color3 name="BackgroundColor3"><R>0.07451</R><G>0.082353</G><B>0.129412</B></Color3>
+				<float name="BackgroundTransparency">0.06</float>
+				<Color3 name="BorderColor3"><R>0.105882</R><G>0.164706</G><B>0.207843</B></Color3>
+				<int name="BorderSizePixel">0</int>
+				<bool name="Visible">true</bool>
+				<int name="ZIndex">1</int>
+				<bool name="ClipsDescendants">false</bool>
+			</Properties>
+			<Item class="UICorner" referent="RBX0000000000000000000000000000000B">
+				<Properties>
+					<string name="Name">UICorner</string>
+					<UDim name="CornerRadius"><S>0</S><O>18</O></UDim>
+				</Properties>
+			</Item>
+			<Item class="UIStroke" referent="RBX0000000000000000000000000000000C">
+				<Properties>
+					<string name="Name">UIStroke</string>
+					<Color3 name="Color"><R>1</R><G>1</G><B>1</B></Color3>
+					<float name="Thickness">1.5</float>
+					<float name="Transparency">0.84</float>
+					<token name="ApplyStrokeMode">0</token>
+				</Properties>
+			</Item>
+			<Item class="UIPadding" referent="RBX0000000000000000000000000000000D">
+				<Properties>
+					<string name="Name">UIPadding</string>
+					<UDim name="PaddingTop"><S>0</S><O>24</O></UDim>
+					<UDim name="PaddingBottom"><S>0</S><O>24</O></UDim>
+					<UDim name="PaddingLeft"><S>0</S><O>24</O></UDim>
+					<UDim name="PaddingRight"><S>0</S><O>24</O></UDim>
+				</Properties>
+			</Item>
+			<Item class="TextLabel" referent="RBX0000000000000000000000000000000E">
+				<Properties>
+					<string name="Name">Title</string>
+					<int name="LayoutOrder">0</int>
+					<Vector2 name="AnchorPoint"><X>0</X><Y>0</Y></Vector2>
+					<UDim2 name="Position"><XS>0</XS><XO>0</XO><YS>0</YS><YO>0</YO></UDim2>
+					<UDim2 name="Size"><XS>1</XS><XO>0</XO><YS>0.2</YS><YO>0</YO></UDim2>
+					<token name="AutomaticSize">0</token>
+					<float name="Rotation">0</float>
+					<Color3 name="BackgroundColor3"><R>1</R><G>1</G><B>1</B></Color3>
+					<float name="BackgroundTransparency">1</float>
+					<Color3 name="BorderColor3"><R>0.105882</R><G>0.164706</G><B>0.207843</B></Color3>
+					<int name="BorderSizePixel">0</int>
+					<bool name="Visible">true</bool>
+					<int name="ZIndex">1</int>
+					<bool name="ClipsDescendants">false</bool>
+					<string name="Text">SKY RAIDERS</string>
+					<Font name="FontFace"><Family><url>rbxasset://fonts/families/LuckiestGuy.json</url></Family><Weight>400</Weight><Style>Normal</Style></Font>
+					<Color3 name="TextColor3"><R>1</R><G>0.839216</G><B>0.360784</B></Color3>
+					<float name="TextSize">14</float>
+					<float name="LineHeight">1</float>
+					<bool name="TextScaled">true</bool>
+					<bool name="TextWrapped">false</bool>
+					<token name="TextXAlignment">2</token>
+					<token name="TextYAlignment">1</token>
+					<float name="TextTransparency">0</float>
+				</Properties>
+				<Item class="UIStroke" referent="RBX0000000000000000000000000000000F">
+					<Properties>
+						<string name="Name">UIStroke</string>
+						<Color3 name="Color"><R>0.360784</R><G>0.172549</G><B>0</B></Color3>
+						<float name="Thickness">3</float>
+						<float name="Transparency">0</float>
+						<token name="ApplyStrokeMode">0</token>
+					</Properties>
+				</Item>
+			</Item>
+			<Item class="TextLabel" referent="RBX00000000000000000000000000000010">
+				<Properties>
+					<string name="Name">Subtitle</string>
+					<int name="LayoutOrder">0</int>
+					<Vector2 name="AnchorPoint"><X>0</X><Y>0</Y></Vector2>
+					<UDim2 name="Position"><XS>0</XS><XO>0</XO><YS>0.2</YS><YO>6</YO></UDim2>
+					<UDim2 name="Size"><XS>1</XS><XO>0</XO><YS>0.05</YS><YO>0</YO></UDim2>
+					<token name="AutomaticSize">0</token>
+					<float name="Rotation">0</float>
+					<Color3 name="BackgroundColor3"><R>1</R><G>1</G><B>1</B></Color3>
+					<float name="BackgroundTransparency">1</float>
+					<Color3 name="BorderColor3"><R>0.105882</R><G>0.164706</G><B>0.207843</B></Color3>
+					<int name="BorderSizePixel">0</int>
+					<bool name="Visible">true</bool>
+					<int name="ZIndex">1</int>
+					<bool name="ClipsDescendants">false</bool>
+					<string name="Text">Season 3 · Storm Front</string>
+					<Font name="FontFace"><Family><url>rbxasset://fonts/families/GothamSSm.json</url></Family><Weight>500</Weight><Style>Normal</Style></Font>
+					<Color3 name="TextColor3"><R>0.658824</R><G>0.690196</G><B>0.8</B></Color3>
+					<float name="TextSize">14</float>
+					<float name="LineHeight">1</float>
+					<bool name="TextScaled">true</bool>
+					<bool name="TextWrapped">false</bool>
+					<token name="TextXAlignment">2</token>
+					<token name="TextYAlignment">1</token>
+					<float name="TextTransparency">0</float>
+				</Properties>
+			</Item>
+			<Item class="Frame" referent="RBX00000000000000000000000000000011">
+				<Properties>
+					<string name="Name">Buttons</string>
+					<int name="LayoutOrder">0</int>
+					<Vector2 name="AnchorPoint"><X>0</X><Y>1</Y></Vector2>
+					<UDim2 name="Position"><XS>0</XS><XO>0</XO><YS>1</YS><YO>0</YO></UDim2>
+					<UDim2 name="Size"><XS>1</XS><XO>0</XO><YS>0.62</YS><YO>0</YO></UDim2>
+					<token name="AutomaticSize">0</token>
+					<float name="Rotation">0</float>
+					<Color3 name="BackgroundColor3"><R>1</R><G>1</G><B>1</B></Color3>
+					<float name="BackgroundTransparency">1</float>
+					<Color3 name="BorderColor3"><R>0.105882</R><G>0.164706</G><B>0.207843</B></Color3>
+					<int name="BorderSizePixel">0</int>
+					<bool name="Visible">true</bool>
+					<int name="ZIndex">1</int>
+					<bool name="ClipsDescendants">false</bool>
+				</Properties>
+				<Item class="UIListLayout" referent="RBX00000000000000000000000000000012">
+					<Properties>
+						<string name="Name">UIListLayout</string>
+						<token name="FillDirection">1</token>
+						<token name="HorizontalAlignment">0</token>
+						<token name="VerticalAlignment">2</token>
+						<UDim name="Padding"><S>0.05</S><O>0</O></UDim>
+						<token name="SortOrder">2</token>
+					</Properties>
+				</Item>
+				<Item class="TextButton" referent="RBX00000000000000000000000000000013">
+					<Properties>
+						<string name="Name">PlayButton</string>
+						<int name="LayoutOrder">1</int>
+						<Vector2 name="AnchorPoint"><X>0</X><Y>0</Y></Vector2>
+						<UDim2 name="Position"><XS>0</XS><XO>0</XO><YS>0</YS><YO>0</YO></UDim2>
+						<UDim2 name="Size"><XS>1</XS><XO>0</XO><YS>0.28</YS><YO>0</YO></UDim2>
+						<token name="AutomaticSize">0</token>
+						<float name="Rotation">0</float>
+						<Color3 name="BackgroundColor3"><R>0.282353</R><G>0.780392</G><B>0.4</B></Color3>
+						<float name="BackgroundTransparency">0</float>
+						<Color3 name="BorderColor3"><R>0.105882</R><G>0.164706</G><B>0.207843</B></Color3>
+						<int name="BorderSizePixel">0</int>
+						<bool name="Visible">true</bool>
+						<int name="ZIndex">1</int>
+						<bool name="ClipsDescendants">false</bool>
+						<string name="Text">PLAY</string>
+						<Font name="FontFace"><Family><url>rbxasset://fonts/families/GothamSSm.json</url></Family><Weight>900</Weight><Style>Normal</Style></Font>
+						<Color3 name="TextColor3"><R>1</R><G>1</G><B>1</B></Color3>
+						<float name="TextSize">14</float>
+						<float name="LineHeight">1</float>
+						<bool name="TextScaled">true</bool>
+						<bool name="TextWrapped">false</bool>
+						<token name="TextXAlignment">2</token>
+						<token name="TextYAlignment">1</token>
+						<float name="TextTransparency">0</float>
+						<bool name="AutoButtonColor">true</bool>
+					</Properties>
+					<Item class="UICorner" referent="RBX00000000000000000000000000000014">
+						<Properties>
+							<string name="Name">UICorner</string>
+							<UDim name="CornerRadius"><S>0</S><O>12</O></UDim>
+						</Properties>
+					</Item>
+					<Item class="UIPadding" referent="RBX00000000000000000000000000000015">
+						<Properties>
+							<string name="Name">UIPadding</string>
+							<UDim name="PaddingTop"><S>0.26</S><O>0</O></UDim>
+							<UDim name="PaddingBottom"><S>0.26</S><O>0</O></UDim>
+							<UDim name="PaddingLeft"><S>0</S><O>0</O></UDim>
+							<UDim name="PaddingRight"><S>0</S><O>0</O></UDim>
+						</Properties>
+					</Item>
+					<Item class="UIGradient" referent="RBX00000000000000000000000000000016">
+						<Properties>
+							<string name="Name">UIGradient</string>
+							<ColorSequence name="Color">0 1 1 1 0 1 0.807843 0.831373 0.886275 0 </ColorSequence>
+							<NumberSequence name="Transparency">0 0 0 1 0 0 </NumberSequence>
+							<float name="Rotation">90</float>
+						</Properties>
+					</Item>
+				</Item>
+				<Item class="TextButton" referent="RBX00000000000000000000000000000017">
+					<Properties>
+						<string name="Name">ShopButton</string>
+						<int name="LayoutOrder">2</int>
+						<Vector2 name="AnchorPoint"><X>0</X><Y>0</Y></Vector2>
+						<UDim2 name="Position"><XS>0</XS><XO>0</XO><YS>0</YS><YO>0</YO></UDim2>
+						<UDim2 name="Size"><XS>1</XS><XO>0</XO><YS>0.28</YS><YO>0</YO></UDim2>
+						<token name="AutomaticSize">0</token>
+						<float name="Rotation">0</float>
+						<Color3 name="BackgroundColor3"><R>0.25098</R><G>0.517647</G><B>0.960784</B></Color3>
+						<float name="BackgroundTransparency">0</float>
+						<Color3 name="BorderColor3"><R>0.105882</R><G>0.164706</G><B>0.207843</B></Color3>
+						<int name="BorderSizePixel">0</int>
+						<bool name="Visible">true</bool>
+						<int name="ZIndex">1</int>
+						<bool name="ClipsDescendants">false</bool>
+						<string name="Text">SHOP</string>
+						<Font name="FontFace"><Family><url>rbxasset://fonts/families/GothamSSm.json</url></Family><Weight>900</Weight><Style>Normal</Style></Font>
+						<Color3 name="TextColor3"><R>1</R><G>1</G><B>1</B></Color3>
+						<float name="TextSize">14</float>
+						<float name="LineHeight">1</float>
+						<bool name="TextScaled">true</bool>
+						<bool name="TextWrapped">false</bool>
+						<token name="TextXAlignment">2</token>
+						<token name="TextYAlignment">1</token>
+						<float name="TextTransparency">0</float>
+						<bool name="AutoButtonColor">true</bool>
+					</Properties>
+					<Item class="UICorner" referent="RBX00000000000000000000000000000018">
+						<Properties>
+							<string name="Name">UICorner</string>
+							<UDim name="CornerRadius"><S>0</S><O>12</O></UDim>
+						</Properties>
+					</Item>
+					<Item class="UIPadding" referent="RBX00000000000000000000000000000019">
+						<Properties>
+							<string name="Name">UIPadding</string>
+							<UDim name="PaddingTop"><S>0.26</S><O>0</O></UDim>
+							<UDim name="PaddingBottom"><S>0.26</S><O>0</O></UDim>
+							<UDim name="PaddingLeft"><S>0</S><O>0</O></UDim>
+							<UDim name="PaddingRight"><S>0</S><O>0</O></UDim>
+						</Properties>
+					</Item>
+					<Item class="UIGradient" referent="RBX0000000000000000000000000000001A">
+						<Properties>
+							<string name="Name">UIGradient</string>
+							<ColorSequence name="Color">0 1 1 1 0 1 0.807843 0.831373 0.886275 0 </ColorSequence>
+							<NumberSequence name="Transparency">0 0 0 1 0 0 </NumberSequence>
+							<float name="Rotation">90</float>
+						</Properties>
+					</Item>
+				</Item>
+				<Item class="TextButton" referent="RBX0000000000000000000000000000001B">
+					<Properties>
+						<string name="Name">SettingsButton</string>
+						<int name="LayoutOrder">3</int>
+						<Vector2 name="AnchorPoint"><X>0</X><Y>0</Y></Vector2>
+						<UDim2 name="Position"><XS>0</XS><XO>0</XO><YS>0</YS><YO>0</YO></UDim2>
+						<UDim2 name="Size"><XS>1</XS><XO>0</XO><YS>0.28</YS><YO>0</YO></UDim2>
+						<token name="AutomaticSize">0</token>
+						<float name="Rotation">0</float>
+						<Color3 name="BackgroundColor3"><R>0.227451</R><G>0.247059</G><B>0.337255</B></Color3>
+						<float name="BackgroundTransparency">0</float>
+						<Color3 name="BorderColor3"><R>0.105882</R><G>0.164706</G><B>0.207843</B></Color3>
+						<int name="BorderSizePixel">0</int>
+						<bool name="Visible">true</bool>
+						<int name="ZIndex">1</int>
+						<bool name="ClipsDescendants">false</bool>
+						<string name="Text">SETTINGS</string>
+						<Font name="FontFace"><Family><url>rbxasset://fonts/families/GothamSSm.json</url></Family><Weight>900</Weight><Style>Normal</Style></Font>
+						<Color3 name="TextColor3"><R>0.886275</R><G>0.901961</G><B>0.956863</B></Color3>
+						<float name="TextSize">14</float>
+						<float name="LineHeight">1</float>
+						<bool name="TextScaled">true</bool>
+						<bool name="TextWrapped">false</bool>
+						<token name="TextXAlignment">2</token>
+						<token name="TextYAlignment">1</token>
+						<float name="TextTransparency">0</float>
+						<bool name="AutoButtonColor">true</bool>
+					</Properties>
+					<Item class="UICorner" referent="RBX0000000000000000000000000000001C">
+						<Properties>
+							<string name="Name">UICorner</string>
+							<UDim name="CornerRadius"><S>0</S><O>12</O></UDim>
+						</Properties>
+					</Item>
+					<Item class="UIPadding" referent="RBX0000000000000000000000000000001D">
+						<Properties>
+							<string name="Name">UIPadding</string>
+							<UDim name="PaddingTop"><S>0.26</S><O>0</O></UDim>
+							<UDim name="PaddingBottom"><S>0.26</S><O>0</O></UDim>
+							<UDim name="PaddingLeft"><S>0</S><O>0</O></UDim>
+							<UDim name="PaddingRight"><S>0</S><O>0</O></UDim>
+						</Properties>
+					</Item>
+					<Item class="UIGradient" referent="RBX0000000000000000000000000000001E">
+						<Properties>
+							<string name="Name">UIGradient</string>
+							<ColorSequence name="Color">0 1 1 1 0 1 0.807843 0.831373 0.886275 0 </ColorSequence>
+							<NumberSequence name="Transparency">0 0 0 1 0 0 </NumberSequence>
+							<float name="Rotation">90</float>
+						</Properties>
+					</Item>
+				</Item>
+			</Item>
+		</Item>
+		<Item class="TextLabel" referent="RBX0000000000000000000000000000001F">
+			<Properties>
+				<string name="Name">Version</string>
+				<int name="LayoutOrder">0</int>
+				<Vector2 name="AnchorPoint"><X>0</X><Y>1</Y></Vector2>
+				<UDim2 name="Position"><XS>0</XS><XO>18</XO><YS>1</YS><YO>-14</YO></UDim2>
+				<UDim2 name="Size"><XS>0</XS><XO>260</XO><YS>0</YS><YO>20</YO></UDim2>
+				<token name="AutomaticSize">0</token>
+				<float name="Rotation">0</float>
+				<Color3 name="BackgroundColor3"><R>1</R><G>1</G><B>1</B></Color3>
+				<float name="BackgroundTransparency">1</float>
+				<Color3 name="BorderColor3"><R>0.105882</R><G>0.164706</G><B>0.207843</B></Color3>
+				<int name="BorderSizePixel">0</int>
+				<bool name="Visible">true</bool>
+				<int name="ZIndex">1</int>
+				<bool name="ClipsDescendants">false</bool>
+				<string name="Text">v0.1 · made with Framecraft</string>
+				<Font name="FontFace"><Family><url>rbxasset://fonts/families/SourceSansPro.json</url></Family><Weight>400</Weight><Style>Normal</Style></Font>
+				<Color3 name="TextColor3"><R>1</R><G>1</G><B>1</B></Color3>
+				<float name="TextSize">16</float>
+				<float name="LineHeight">1</float>
+				<bool name="TextScaled">false</bool>
+				<bool name="TextWrapped">false</bool>
+				<token name="TextXAlignment">0</token>
+				<token name="TextYAlignment">1</token>
+				<float name="TextTransparency">0.3</float>
+			</Properties>
+		</Item>
+	</Item>
+</roblox>

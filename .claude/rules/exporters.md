@@ -7,7 +7,7 @@ paths:
 
 # Exporter rules
 
-The exporters turn the document into Luau for Roblox Studio and an HTML/CSS page. Both must reproduce what the editor shows.
+The exporters turn the document into Luau and a model file for Roblox Studio and an HTML/CSS page. Both must reproduce what the editor shows.
 
 ## Luau
 
@@ -22,6 +22,14 @@ The exporters turn the document into Luau for Roblox Studio and an HTML/CSS page
 - Export the base (Desktop) values and skip everything with a `web` flag (Site, pages, web-only properties). Roblox has no breakpoints.
 - UIGradient's Color, Transparency and Rotation use their Roblox names in its own schema, with colors and transparencies as keypoint sequences. Prototype project files (version 1) stored them as `GradColor`, `GradTransparency` and `GradRotation`; `src/model/project.ts` converts them on open.
 
+## Roblox model file (`src/export/rbxmx.ts`)
+
+- The XML Studio reads with Insert from File: `<roblox version="4">`, then an `<Item class referent>` per object with its `<Properties>`, children nested inside their parent's Item. Referents are `RBX` and 32 hex digits from a counter, so the file is stable.
+- Write every non-web property, defaults included, so nothing depends on Studio's defaults for a missing one. Same objects, base values and ScreenGui extras (`IgnoreGuiInset` true, `ZIndexBehavior` Sibling) as the Luau.
+- Types follow Roblox's, not the editor's: TextSize is a `float`, colors are `Color3` from 0 to 1, enums are `<token>` numbers from `ENUM_TOKENS` (Roblox's API dump), images are `<Content><url>` or `<null>`, and sequences are `time r g b 0` or `time value 0` per keypoint.
+- Fonts are written as `FontFace` (family file, weight, style), as Studio saves them; Rojo's reader can't turn a BuilderSans Font enum into one. IgnoreGuiInset, CornerRadius and Image keep their scriptable names, which the API dump marks loadable.
+- Nothing in `npm test` can open the file in Studio. When changing types or names, check the output with `tools/rbxcheck` (Rojo's rbx_xml and Roblox's reflection database; `cargo run --release --manifest-path tools/rbxcheck/Cargo.toml -- file.rbxmx`) or in Studio.
+
 ## HTML/CSS
 
 - A ScreenGui becomes `.screen` (fixed, full window). Position and Size become `calc(Scale% + Offset px)`, and AnchorPoint becomes `translate(-X%, -Y%)` before `rotate()`.
@@ -32,6 +40,7 @@ The exporters turn the document into Luau for Roblox Studio and an HTML/CSS page
 - A ScrollingFrame with AutomaticCanvasSize at the base or any breakpoint gets `data-canvas`, a `--canvas` declaration and always its canvas and content box; the script grows the canvas with `min-width` and `min-height` the way it grows a box.
 - LineHeight becomes `line-height` on the text, written only when it isn't 1 (the page's default).
 - Keep each object's Roblox name in `data-name` so people can find it in the page.
+- Every object resets `margin`, `font-size` and `font-weight` on `.g`, since HtmlTag can make it a heading or a paragraph, on a page and on the Roblox screens alike.
 
 ## Website (`src/export/site.ts`)
 
@@ -42,4 +51,4 @@ The exporters turn the document into Luau for Roblox Studio and an HTML/CSS page
 
 ## Golden files
 
-`tests/golden/` holds the exports of the untouched sample menu. They started as the prototype's exports, and `tests/unit/export/golden.test.ts` compares them byte for byte. After an intentional change, run `npm run update-golden` and explain the diff in the commit message.
+`tests/golden/` holds the exports of the untouched sample menu. They started as the prototype's exports, and `tests/unit/export/golden.test.ts` compares them byte for byte. After an intentional change, run `npm run update-golden` and explain the diff in the commit message. `sample-menu.rbxmx` was written by this app (there was no prototype version).
