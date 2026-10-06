@@ -513,6 +513,23 @@ describe('several objects at once', () => {
     expect(names()).toEqual([]);
   });
 
+  it('turns every selected text bold or italic like the last one picked, as one step', () => {
+    const face = (n: string) => {
+      const p = ed.doc.instances[id(n)]!.props as { FontWeight: string; FontStyle: string };
+      return `${p.FontWeight} ${p.FontStyle}`;
+    };
+    const before = [face('Title'), face('Subtitle')];
+    ed.selectMany([id('Title'), id('Subtitle')]);
+    ed.toggleTextStyle('italic');
+    expect(face('Title').endsWith('Italic')).toBe(true);
+    expect(face('Subtitle').endsWith('Italic')).toBe(true);
+    ed.toggleTextStyle('bold');
+    expect(face('Title').split(' ')[0]).toBe(face('Subtitle').split(' ')[0]);
+    ed.undo();
+    ed.undo();
+    expect([face('Title'), face('Subtitle')]).toEqual(before);
+  });
+
   it('deletes, duplicates, copies and pastes them all, each as one step', () => {
     ed.selectMany([id('Coins'), id('Version'), id('Amount')]);
     const count = Object.keys(ed.doc.instances).length;
