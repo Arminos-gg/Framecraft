@@ -51,23 +51,32 @@ const label = (props: Partial<PropsOf<'TextLabel'>>): Partial<PropsOf<'TextLabel
   ...props,
 });
 
+const GOTHAM = { font: 'Gotham', weight: 'Regular', style: 'Normal' } as const;
+
 describe('estimated text', () => {
   it('makes each letter half the text size wide and each line as tall as the text size', () => {
-    expect(estimateText({ text: 'Hello', font: 'Gotham', size: 20 })).toEqual({ w: 50, h: 20 });
-    expect(estimateText({ text: 'a\nbbb', font: 'Gotham', size: 20 })).toEqual({ w: 30, h: 40 });
-    expect(estimateText({ text: '', font: 'Gotham', size: 20 })).toEqual({ w: 0, h: 0 });
+    expect(estimateText({ text: 'Hello', ...GOTHAM, size: 20 })).toEqual({ w: 50, h: 20 });
+    expect(estimateText({ text: 'a\nbbb', ...GOTHAM, size: 20 })).toEqual({ w: 30, h: 40 });
+    expect(estimateText({ text: '', ...GOTHAM, size: 20 })).toEqual({ w: 0, h: 0 });
   });
 
   it('wraps at spaces, and inside words too long for the line', () => {
     // 10 letters fit in 100 px.
-    const wrap = (text: string) => estimateText({ text, font: 'Gotham', size: 20, wrap: 100 });
+    const wrap = (text: string) => estimateText({ text, ...GOTHAM, size: 20, wrap: 100 });
     expect(wrap('aaaa bbbb cccc')).toEqual({ w: 90, h: 40 });
     expect(wrap('abcdefghijklmnopqrstuvwxy')).toEqual({ w: 100, h: 60 });
   });
 
   it('makes each line LineHeight times the text size tall', () => {
-    const text = { text: 'a\nb', font: 'Gotham', size: 20 } as const;
+    const text = { text: 'a\nb', ...GOTHAM, size: 20 } as const;
     expect(estimateText({ ...text, lineHeight: 1.5 })).toEqual({ w: 10, h: 60 });
+  });
+
+  it('adds the letter spacing to each letter', () => {
+    expect(estimateText({ text: 'Hello', ...GOTHAM, size: 20, letterSpacing: 2 })).toEqual({
+      w: 60,
+      h: 20,
+    });
   });
 });
 
@@ -98,6 +107,23 @@ describe('AutomaticSize', () => {
       label({ Text: 'Hi', Size: [0, 200, 0, 30], AutomaticSize: 'X' }),
     );
     expect(s.layout().get(wide)).toMatchObject({ w: 200 });
+  });
+
+  it('counts letter spacing on a page, and not on a Roblox screen, which has none', () => {
+    const props = label({
+      Text: 'Hello',
+      Size: [0, 10, 0, 30],
+      AutomaticSize: 'X',
+      LetterSpacing: 4,
+    });
+    for (const [kind, w] of [
+      ['page', 70],
+      ['screen', 50],
+    ] as const) {
+      const s = build(kind);
+      const id = s.add(s.root, 'TextLabel', props);
+      expect(s.layout().get(id), kind).toMatchObject({ w });
+    }
   });
 
   it('grows a wrapped label on Y as its text wraps at its width', () => {

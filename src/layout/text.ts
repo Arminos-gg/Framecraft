@@ -3,15 +3,16 @@
  * same styles the Stage and the exports draw text with (see ui/viewport/text-measure.ts).
  * Where there's no browser, such as in unit tests, an estimate stands in.
  */
-import type { FontName } from '../model/fonts.ts';
+import type { TextFace } from '../model/fonts.ts';
 
-export interface TextRequest {
+export interface TextRequest extends TextFace {
   readonly text: string;
-  readonly font: FontName;
   /** TextSize in pixels. */
   readonly size: number;
   /** LineHeight: each line is this many times the text size tall; 1 when left out. */
   readonly lineHeight?: number;
+  /** Extra space after each letter in pixels, as CSS letter-spacing; 0 when left out. */
+  readonly letterSpacing?: number;
   /** Wrap at this width, as TextWrapped does; leave it out to keep each line whole. */
   readonly wrap?: number;
 }
@@ -26,11 +27,17 @@ export type TextMeasurer = (request: TextRequest) => TextSize;
 
 /**
  * An estimate for where there's no browser to measure in: every character half the text size
- * wide, and lines broken at spaces, or inside a word too long for the line.
+ * wide plus the letter spacing, and lines broken at spaces, or inside a word too long for the line.
  */
-export const estimateText: TextMeasurer = ({ text, size, wrap, lineHeight = 1 }) => {
+export const estimateText: TextMeasurer = ({
+  text,
+  size,
+  wrap,
+  lineHeight = 1,
+  letterSpacing = 0,
+}) => {
   if (!text) return { w: 0, h: 0 };
-  const advance = size / 2;
+  const advance = Math.max(1, size / 2 + letterSpacing);
   const fits = wrap === undefined ? Infinity : Math.max(1, Math.floor(wrap / advance));
   const lines: number[] = []; // characters on each line
   for (const paragraph of text.split('\n')) {
