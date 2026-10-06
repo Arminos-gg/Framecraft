@@ -33,7 +33,7 @@ function gameButton(
     Name: name,
     BackgroundColor3: color,
     Text: text,
-    Font: t.font.heavy,
+    ...t.font.heavy,
     TextScaled: true,
     TextColor3: WHITE,
     ...props,
@@ -80,7 +80,8 @@ function closeButton(
     Name: 'CloseButton',
     BackgroundColor3: t.c.bad,
     Text: 'X',
-    Font: 'GothamBlack',
+    Font: 'Gotham',
+    FontWeight: 'Heavy',
     TextScaled: true,
     TextColor3: WHITE,
     ...props,
@@ -105,7 +106,7 @@ function header(b: Builder, panelId: InstanceId, t: Theme, title: string, height
     Position: [0.05, 0, 0.22, 0],
     Size: [0.6, 0, 0.56, 0],
     Text: title,
-    Font: t.font.display,
+    ...t.font.display,
     TextScaled: true,
     TextColor3: t.c.ink,
     TextXAlignment: 'Left',
@@ -122,7 +123,7 @@ function header(b: Builder, panelId: InstanceId, t: Theme, title: string, height
 /** A label whose text fills its box, the way game UI scales with the screen. */
 const scaled = (b: Builder, parent: InstanceId, t: Theme, props: Partial<PropsOf<'TextLabel'>>) =>
   label(b, parent, {
-    Font: t.font.bold,
+    ...t.font.bold,
     TextScaled: true,
     TextColor3: t.c.ink,
     ...props,
@@ -186,7 +187,7 @@ function itemSlot(b: Builder, parent: InstanceId, t: Theme) {
     Position: [0.92, 0, 0.94, 0],
     Size: [0.5, 0, 0.24, 0],
     Text: 'x12',
-    Font: t.font.heavy,
+    ...t.font.heavy,
     TextXAlignment: 'Right',
   });
   return slot;
@@ -236,7 +237,7 @@ function hotbar(b: Builder, parent: InstanceId, t: Theme) {
       Position: [0.1, 0, 0.06, 0],
       Size: [0.3, 0, 0.26, 0],
       Text: String(i + 1),
-      Font: t.font.heavy,
+      ...t.font.heavy,
       TextTransparency: 0.3,
       TextXAlignment: 'Left',
     });
@@ -269,7 +270,7 @@ function counter(
     Position: [0.3, 0, 0.2, 0],
     Size: [0.6, 0, 0.6, 0],
     Text: amount,
-    Font: t.font.heavy,
+    ...t.font.heavy,
     TextXAlignment: 'Right',
   });
   return pill;
@@ -307,7 +308,7 @@ function bars(b: Builder, parent: InstanceId, t: Theme) {
     Name: 'Amount',
     Size: [1, 0, 1, 0],
     Text: '70 / 100',
-    Font: t.font.heavy,
+    ...t.font.heavy,
     TextColor3: WHITE,
   });
   stroke(b, amount, darker(t.c.good, 0.5), 1.5);
@@ -320,7 +321,7 @@ function bars(b: Builder, parent: InstanceId, t: Theme) {
     Position: [1, 0, 0, 0],
     Size: [0.19, 0, 1, 0],
     Text: 'Lv 12',
-    Font: t.font.heavy,
+    ...t.font.heavy,
     TextColor3: WHITE,
     TextXAlignment: 'Left',
   });
@@ -381,14 +382,14 @@ function confirmDialog(b: Builder, parent: InstanceId, t: Theme) {
     Position: [0.08, 0, 0.14, 0],
     Size: [0.84, 0, 0.18, 0],
     Text: 'Buy for 50 coins?',
-    Font: t.font.display,
+    ...t.font.display,
   });
   scaled(b, box, t, {
     Name: 'Detail',
     Position: [0.12, 0, 0.38, 0],
     Size: [0.76, 0, 0.11, 0],
     Text: 'You have 12,450 coins.',
-    Font: t.font.medium,
+    ...t.font.medium,
     TextColor3: t.c.muted,
   });
   const actions = group(b, box, {
@@ -449,7 +450,7 @@ function sideMenu(b: Builder, parent: InstanceId, t: Theme) {
       Position: [0.5, 0, 0.95, 0],
       Size: [0.9, 0, 0.24, 0],
       Text: text,
-      Font: t.font.heavy,
+      ...t.font.heavy,
       TextColor3: WHITE,
     });
     stroke(b, name, darker(color, 0.55), 2);
@@ -462,7 +463,7 @@ function gameBox(b: Builder, parent: InstanceId, t: Theme, props: Partial<PropsO
   const id = b.add(parent, 'TextBox', {
     BackgroundColor3: t.c.sunken,
     Text: '',
-    Font: t.font.bold,
+    ...t.font.bold,
     TextScaled: true,
     TextColor3: t.c.ink,
     ...props,
@@ -495,7 +496,7 @@ function codes(b: Builder, parent: InstanceId, t: Theme) {
     Position: [0.08, 0, 0.78, 0],
     Size: [0.84, 0, 0.09, 0],
     Text: 'Code redeemed: +500 coins',
-    Font: t.font.bold,
+    ...t.font.bold,
     TextColor3: t.c.good,
   });
   return id;
@@ -520,7 +521,7 @@ function rebirth(b: Builder, parent: InstanceId, t: Theme) {
     LayoutOrder: 1,
     Size: [0.28, 0, 0.7, 0],
     Text: 'x2',
-    Font: t.font.heavy,
+    ...t.font.heavy,
     TextColor3: t.c.muted,
   });
   scaled(b, row, t, {
@@ -528,7 +529,7 @@ function rebirth(b: Builder, parent: InstanceId, t: Theme) {
     LayoutOrder: 2,
     Size: [0.16, 0, 0.5, 0],
     Text: '>',
-    Font: t.font.heavy,
+    ...t.font.heavy,
     TextColor3: t.c.muted,
   });
   const next = scaled(b, row, t, {
@@ -536,7 +537,7 @@ function rebirth(b: Builder, parent: InstanceId, t: Theme) {
     LayoutOrder: 3,
     Size: [0.34, 0, 1, 0],
     Text: 'x3',
-    Font: t.font.heavy,
+    ...t.font.heavy,
     TextColor3: t.c.gold,
   });
   stroke(b, next, darker(t.c.gold, 0.5), 2);
@@ -553,7 +554,7 @@ function rebirth(b: Builder, parent: InstanceId, t: Theme) {
     LayoutOrder: 2,
     Size: [0.5, 0, 0.9, 0],
     Text: '1M coins',
-    Font: t.font.heavy,
+    ...t.font.heavy,
     TextXAlignment: 'Left',
   });
   gameButton(b, id, t, 'RebirthButton', 'REBIRTH', t.c.gold, {
@@ -581,14 +582,14 @@ function roundTimer(b: Builder, parent: InstanceId, t: Theme) {
     Position: [0.1, 0, 0.16, 0],
     Size: [0.8, 0, 0.68, 0],
     Text: '1:24',
-    Font: t.font.heavy,
+    ...t.font.heavy,
   });
   const left = scaled(b, id, t, {
     Name: 'PlayersLeft',
     Position: [0.05, 0, 0.7, 0],
     Size: [0.9, 0, 0.26, 0],
     Text: '8 players left',
-    Font: t.font.bold,
+    ...t.font.bold,
     TextColor3: t.look === 'dark' ? t.c.ink : WHITE,
   });
   stroke(b, left, BLACK, 1.5, { Transparency: 0.4 });
@@ -611,7 +612,7 @@ function questTracker(b: Builder, parent: InstanceId, t: Theme) {
     Position: [0.07, 0, 0.12, 0],
     Size: [0.6, 0, 0.17, 0],
     Text: 'QUEST',
-    Font: t.font.heavy,
+    ...t.font.heavy,
     TextColor3: t.c.gold,
     TextXAlignment: 'Left',
   });
@@ -655,7 +656,7 @@ function shopCard(b: Builder, parent: InstanceId, t: Theme) {
     Position: [0.08, 0, 0.06, 0],
     Size: [0.6, 0, 0.07, 0],
     Text: 'EPIC',
-    Font: t.font.heavy,
+    ...t.font.heavy,
     TextColor3: color,
     TextXAlignment: 'Left',
   });

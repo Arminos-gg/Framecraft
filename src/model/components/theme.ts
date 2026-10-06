@@ -5,7 +5,7 @@
  */
 import type { Builder } from '../builder.ts';
 import type { InstanceId } from '../document.ts';
-import type { FontName } from '../fonts.ts';
+import type { FontName, FontWeight } from '../fonts.ts';
 import type { Color3, UDim } from '../values.ts';
 
 export type Look = 'light' | 'dark';
@@ -123,29 +123,35 @@ const PALETTES: Record<Target, Record<Look, Palette>> = {
   },
 };
 
+/** A typeface: a font family with its weight, spread into a text object's properties. */
+export interface Face {
+  readonly Font: FontName;
+  readonly FontWeight: FontWeight;
+}
+
 export interface Fonts {
-  readonly regular: FontName;
-  readonly medium: FontName;
-  readonly bold: FontName;
-  readonly heavy: FontName;
+  readonly regular: Face;
+  readonly medium: Face;
+  readonly bold: Face;
+  readonly heavy: Face;
   /** Titles on game panels. */
-  readonly display: FontName;
+  readonly display: Face;
 }
 
 const FONT_SETS: Record<Target, Fonts> = {
   site: {
-    regular: 'BuilderSans',
-    medium: 'BuilderSansMedium',
-    bold: 'BuilderSansBold',
-    heavy: 'BuilderSansExtraBold',
-    display: 'BuilderSansExtraBold',
+    regular: { Font: 'BuilderSans', FontWeight: 'Regular' },
+    medium: { Font: 'BuilderSans', FontWeight: 'Medium' },
+    bold: { Font: 'BuilderSans', FontWeight: 'Bold' },
+    heavy: { Font: 'BuilderSans', FontWeight: 'ExtraBold' },
+    display: { Font: 'BuilderSans', FontWeight: 'ExtraBold' },
   },
   roblox: {
-    regular: 'GothamMedium',
-    medium: 'GothamMedium',
-    bold: 'GothamBold',
-    heavy: 'GothamBlack',
-    display: 'FredokaOne',
+    regular: { Font: 'Gotham', FontWeight: 'Medium' },
+    medium: { Font: 'Gotham', FontWeight: 'Medium' },
+    bold: { Font: 'Gotham', FontWeight: 'Bold' },
+    heavy: { Font: 'Gotham', FontWeight: 'Heavy' },
+    display: { Font: 'FredokaOne', FontWeight: 'Regular' },
   },
 };
 
