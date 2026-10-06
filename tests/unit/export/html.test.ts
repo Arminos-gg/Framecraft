@@ -71,11 +71,26 @@ describe('HTML export', () => {
     const { assets, id } = addAsset({}, PNG);
     s.edit((d) => applyCommand(d, setPreview(img, id)).doc);
     const html = exportHtml(s.doc, { assets });
-    expect(html).toContain(
-      `<img class="img" src="${PNG}" alt="" style="object-fit:contain;opacity:1">`,
-    );
+    expect(html).toMatch(new RegExp(`<img class="img (e\\d+i)" src="${PNG}" alt="">`));
+    const cls = /<img class="img (e\d+i)"/.exec(html)![1]!;
+    expect(html).toContain(`.${cls}{object-fit:contain;}`);
+    expect(html).not.toContain('fc-tint');
     // Without the library the picture can't be found, so the placeholder shows.
     expect(exportHtml(s.doc)).toContain('<div class="ph">rbxassetid://42</div>');
+  });
+
+  it('tints a picture by ImageColor3 with one color filter per color', () => {
+    const s = scene();
+    const { assets, id } = addAsset({}, PNG);
+    const a = s.add(s.screen, 'ImageLabel', { ImageColor3: [255, 0, 51], ImageTransparency: 0.25 });
+    const b = s.add(s.screen, 'ImageButton', { ImageColor3: [255, 0, 51] });
+    s.edit((d) => applyCommand(applyCommand(d, setPreview(a, id)).doc, setPreview(b, id)).doc);
+    const html = exportHtml(s.doc, { assets });
+    expect(html.match(/<filter /g)).toHaveLength(1);
+    expect(html).toContain(
+      '<filter id="fc-tint-ff0033" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0 0 0 0 0 0 0 0 0.2 0 0 0 0 0 1 0"/></filter>',
+    );
+    expect(html).toMatch(/\.e\d+i\{object-fit:fill;opacity:0\.75;filter:url\(#fc-tint-ff0033\);\}/);
   });
 
   it('adds the fitting script only when something needs the real box', () => {

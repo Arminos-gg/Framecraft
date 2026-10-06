@@ -191,6 +191,22 @@ describe('links, tags and pictures', () => {
     expect(html).toMatch(/<nav class="g e\d+" data-name="Nav">/);
   });
 
+  it('tints pictures per breakpoint, with a filter for every color used', () => {
+    const { assets, id } = addAsset({}, PNG);
+    const img = createInstance('ImageLabel', { Name: 'Icon' }, 'img') as AnyInstance;
+    const doc = edit(base, insert(byName(base, 'Plans').id, single(img)), setPreview('img', id), {
+      type: 'setProps',
+      id: 'img',
+      props: { ImageColor3: [0, 0, 0] },
+      breakpoint: bp(base, 'Phone'),
+    });
+    const pricing = text(exportSite(doc, assets), 'pricing/index.html');
+    expect(pricing).toContain('<filter id="fc-tint-000000"');
+    expect(pricing).toMatch(
+      /@media \(max-width: 809px\) \{[^@]*\.e\d+i\{filter:url\(#fc-tint-000000\);\}/,
+    );
+  });
+
   it('writes pictures as files, with alt text, the favicon and a social image', () => {
     const { assets, id } = addAsset({}, PNG);
     const img = createInstance(
@@ -214,7 +230,9 @@ describe('links, tags and pictures', () => {
       Uint8Array.from(atob('iVBORw0KGgo='), (c) => c.charCodeAt(0)),
     );
     const pricing = text(files, 'pricing/index.html');
-    expect(pricing).toContain(`<img class="img" src="../images/${id}.png" alt="A bag of beans"`);
+    expect(pricing).toMatch(
+      new RegExp(`<img class="img e\\d+i" src="\\.\\./images/${id}\\.png" alt="A bag of beans">`),
+    );
     expect(pricing).toContain(`<link rel="icon" href="../images/${id}.png">`);
     expect(pricing).toContain(
       `<meta property="og:image" content="https://northwind.example/images/${id}.png">`,
