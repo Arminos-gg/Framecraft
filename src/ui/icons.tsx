@@ -48,6 +48,8 @@ const PATHS = {
   reset: '<path d="M4 10a6 6 0 1 0 2-4.5"/><path d="M4 3.5V7h3.5"/>',
   upload: '<path d="M10 13V3.5M6.5 7 10 3.5 13.5 7"/><path d="M4 13v4h12v-4"/>',
   download: '<path d="M10 3v9.5M6.5 9 10 12.5 13.5 9"/><path d="M4 14.5V17h12v-2.5"/>',
+  shapes:
+    '<circle cx="6.5" cy="6.5" r="3.5"/><rect x="10.5" y="10.5" width="7" height="7" rx="1"/><path d="M6.5 11 10 17.5H3z"/><path d="M14 2.5 17.5 8h-7z"/>',
   link: '<path d="M8.5 11.5a3.5 3.5 0 0 0 5 0l2.5-2.5a3.5 3.5 0 0 0-5-5L10 5"/><path d="M11.5 8.5a3.5 3.5 0 0 0-5 0L4 11a3.5 3.5 0 0 0 5 5l1-1"/>',
   DataModel: '<circle cx="10" cy="10" r="7"/>',
   StarterGui:

@@ -11,10 +11,14 @@ import {
   fontCss,
   gradientCss,
   isGui,
+  isTinted,
   maskCss,
   OBJECT_FIT,
   strokesText,
   textRing,
+  tintId,
+  tintKey,
+  tintMatrix,
   type Gui,
 } from '../../export/html.ts';
 import type { Scene } from '../../editor/editor.ts';
@@ -92,6 +96,7 @@ export const Stage = memo(function Stage({ doc, scene, assets, preview }: StageP
             : rgb(BackgroundColor3),
         }}
       >
+        <TintDefs ctx={ctx} />
         {guiChildren(doc, page.id).map((c) => (
           <GuiView key={c.id} inst={c} origin={origin} ctx={ctx} />
         ))}
@@ -100,6 +105,7 @@ export const Stage = memo(function Stage({ doc, scene, assets, preview }: StageP
   }
   return (
     <div ref={ref} className="screen" data-fonts={fontsLoaded}>
+      <TintDefs ctx={ctx} />
       {scene.roots.map((id, i) => {
         const sg = getInstance(doc, id);
         if (sg?.className !== 'ScreenGui') return null;
@@ -228,6 +234,27 @@ function GuiView({ inst, origin, ctx }: { inst: Gui; origin: Rect; ctx: Ctx }) {
   );
 }
 
+/** The color filters for every tinted picture (see `tintDefs` in the HTML export). */
+function TintDefs({ ctx }: { ctx: Ctx }) {
+  const keys = new Set<string>();
+  for (const inst of Object.values(ctx.doc.instances)) {
+    if ((inst.className !== 'ImageLabel' && inst.className !== 'ImageButton') || !inst.preview)
+      continue;
+    const c = ctx.props(inst).ImageColor3;
+    if (isTinted(c)) keys.add(tintKey(c));
+  }
+  if (!keys.size) return null;
+  return (
+    <svg width="0" height="0" aria-hidden="true" style={{ position: 'absolute' }}>
+      {[...keys].map((k) => (
+        <filter key={k} id={tintId(k)} colorInterpolationFilters="sRGB">
+          <feColorMatrix type="matrix" values={tintMatrix(k)} />
+        </filter>
+      ))}
+    </svg>
+  );
+}
+
 function ImageView({ inst, ctx }: { inst: Instance<'ImageLabel' | 'ImageButton'>; ctx: Ctx }) {
   const p = ctx.props(inst as AnyInstance) as Instance<'ImageLabel'>['props'];
   const src = inst.preview ? ctx.assets[inst.preview] : undefined;
@@ -240,6 +267,7 @@ function ImageView({ inst, ctx }: { inst: Instance<'ImageLabel' | 'ImageButton'>
         style={{
           objectFit: OBJECT_FIT[p.ScaleType],
           opacity: roundTo(1 - p.ImageTransparency, 3),
+          filter: isTinted(p.ImageColor3) ? `url(#${tintId(tintKey(p.ImageColor3))})` : undefined,
         }}
       />
     );
