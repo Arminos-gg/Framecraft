@@ -205,8 +205,10 @@ function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
       s: () => saveProjectFile(editor),
       o: () => void openProjectFile(editor),
       e: openExport,
+      b: () => editor.toggleTextStyle('bold'),
+      i: () => editor.toggleTextStyle('italic'),
     }[k];
-    if (action && !(preview && 'dcxv'.includes(k))) {
+    if (action && !(preview && 'dcxvbi'.includes(k))) {
       e.preventDefault();
       action();
     }

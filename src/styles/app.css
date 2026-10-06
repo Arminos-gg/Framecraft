@@ -1065,6 +1065,53 @@ svg {
   grid-template-columns: minmax(0, 1fr) 24px;
   gap: 4px;
 }
+/* font fields: a button that opens the font menu, and a weight picker with a Bold toggle */
+.fontbtn {
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  padding-right: 24px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.wfld {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  gap: 4px;
+}
+.boldbtn {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  background: var(--field);
+  font: 700 13px/1 var(--font-ui);
+  color: var(--muted);
+}
+.boldbtn:hover {
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.boldbtn.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.fontpop .poplist {
+  max-height: min(380px, calc(100vh - 140px));
+  overflow-y: auto;
+}
+.fontpop .mi {
+  height: 32px;
+}
+.fontpop .fname {
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fontpop .mi > svg {
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+  margin-left: 2px;
+}
 .ap {
   width: 24px;
   height: 24px;
@@ -2449,8 +2496,13 @@ button.bpdot.on:hover {
   .filter > svg {
     top: 9px;
   }
-  .vec {
+  .vec,
+  .wfld {
     grid-template-columns: minmax(0, 1fr) 32px;
+  }
+  .boldbtn {
+    width: 32px;
+    height: 32px;
   }
   .ap {
     width: 32px;
