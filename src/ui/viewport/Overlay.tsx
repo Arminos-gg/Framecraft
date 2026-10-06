@@ -1,6 +1,7 @@
 /**
  * Drawn over the device, in viewport pixels: the hover outline, the selection with its resize
- * handles and AnchorPoint dot, snapping guides, and the readout while dragging.
+ * handles and AnchorPoint dot, snapping guides, and the readout while dragging. Over a device
+ * that isn't being edited (`passive`, side by side) only the outlines show.
  */
 import type { EditorState, Scene } from '../../editor/editor.ts';
 import { HANDLES } from '../../editor/geometry.ts';
@@ -13,10 +14,12 @@ export function Overlay({
   state,
   scene,
   zoom,
+  passive = false,
 }: {
   state: EditorState;
   scene: Scene;
   zoom: number;
+  passive?: boolean;
 }) {
   if (state.preview) return null;
   const { doc } = state;
@@ -50,7 +53,7 @@ export function Overlay({
     inst && isGui(inst)
       ? resolveProps(doc, inst as Instance<'Frame'>, scene.breakpoint)
       : undefined;
-  const dragging = state.gesture !== null && state.gesture.id === sel;
+  const dragging = !passive && state.gesture !== null && state.gesture.id === sel;
   const q = sel === null ? undefined : screenQuad(doc, scene.layout, sel);
 
   return (
@@ -61,7 +64,8 @@ export function Overlay({
         </div>
       )}
       {hover && <div className="hoverbox" style={hover} />}
-      {box && selStyle && props && (
+      {passive && selStyle && <div className="selbox passive" style={selStyle} />}
+      {!passive && box && selStyle && props && (
         <div className={box.listItem ? 'selbox locked' : 'selbox'} style={selStyle}>
           {HANDLES.map((h) => (
             <div
@@ -104,17 +108,18 @@ export function Overlay({
           </span>
         </div>
       )}
-      {state.gesture?.guides.map((g, i) => (
-        <div
-          key={i}
-          className={`guide ${g.axis}`}
-          style={
-            g.axis === 'v'
-              ? { left: g.at * z, top: g.from * z, height: (g.to - g.from) * z }
-              : { top: g.at * z, left: g.from * z, width: (g.to - g.from) * z }
-          }
-        />
-      ))}
+      {!passive &&
+        state.gesture?.guides.map((g, i) => (
+          <div
+            key={i}
+            className={`guide ${g.axis}`}
+            style={
+              g.axis === 'v'
+                ? { left: g.at * z, top: g.from * z, height: (g.to - g.from) * z }
+                : { top: g.at * z, left: g.from * z, width: (g.to - g.from) * z }
+            }
+          />
+        ))}
     </>
   );
 }

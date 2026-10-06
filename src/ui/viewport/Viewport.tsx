@@ -1,8 +1,10 @@
 /**
  * The viewport: the device (a Roblox screen or a page of the site) drawn at a zoom, with the
- * selection on top. Pointer gestures go to the editor in device pixels.
+ * selection on top, or every device next to each other. Pointer gestures go to the editor in
+ * the pixels of the device they started on, which becomes the one being edited.
  */
 import {
+  Fragment,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -11,7 +13,14 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from 'react';
-import { pagesOf, sceneOf, ZOOM_MAX, ZOOM_MIN, type View } from '../../editor/editor.ts';
+import {
+  pagesOf,
+  sceneOf,
+  sideBySideScenes,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  type View,
+} from '../../editor/editor.ts';
 import type { Handle, Point } from '../../editor/geometry.ts';
 import { isGui, type Backdrop } from '../../export/html.ts';
 import { getInstance, isAncestor } from '../../model/document.ts';
@@ -25,6 +34,9 @@ import { useDocFonts } from './useDocFonts.ts';
 
 /** Space around the device when it's fitted to the viewport. */
 const PAD = 40;
+/** Side by side: the space between devices, and above them for their names. */
+const GAP = 40;
+const LABEL = 26;
 
 const BACKDROPS: { id: Backdrop; label: string }[] = [
   { id: 'grid', label: 'Grid' },
@@ -34,6 +46,10 @@ const BACKDROPS: { id: Backdrop; label: string }[] = [
 ];
 
 const viewKey = (v: View) => (v.kind === 'page' ? 'page:' + v.pageId : 'screens');
+
+/** The device drawn under a DOM element, if any. */
+const frameAt = (target: EventTarget | null) =>
+  target instanceof Element ? target.closest<HTMLElement>('.device[data-device]') : null;
 
 /** The object drawn under a DOM element, if any. */
 function guiIdAt(target: EventTarget | null): string | null {
@@ -65,30 +81,45 @@ export function Viewport() {
   }, []);
 
   const { device } = scene;
+  const scenes = state.sideBySide ? sideBySideScenes(state) : [scene];
+  const gaps = GAP * (scenes.length - 1);
+  const label = state.sideBySide ? LABEL : 0;
   const fit =
     frame.w > 0
       ? Math.min(
           2,
           Math.max(
             0.05,
-            Math.min((frame.w - PAD * 2) / device.width, (frame.h - PAD * 2) / device.height),
+            Math.min(
+              (frame.w - PAD * 2 - gaps) / scenes.reduce((w, s) => w + s.device.width, 0),
+              (frame.h - PAD * 2 - label) / Math.max(...scenes.map((s) => s.device.height)),
+            ),
           ),
         )
       : 1;
   const z = state.zoom ?? fit;
-  const W = scene.width * z;
-  const H = scene.height * z;
+  const W = scenes.reduce((w, s) => w + s.width * z, 0) + gaps;
+  const H = Math.max(...scenes.map((s) => s.height * z)) + label;
   const innerW = Math.max(frame.w, W + PAD * 2);
   const innerH = Math.max(frame.h, H + PAD * 2);
-  const left = Math.round((innerW - W) / 2);
-  const top = Math.round((innerH - H) / 2);
+  const top = Math.round((innerH - H) / 2) + label;
+  // The devices from left to right, top-aligned; the rulers and the grid follow the edited one.
+  const frames = scenes.map((s, i) => ({
+    scene: s,
+    left: Math.round(
+      (innerW - W) / 2 + scenes.slice(0, i).reduce((w, p) => w + p.width * z + GAP, 0),
+    ),
+  }));
+  const left = frames.find((f) => f.scene === scene)?.left ?? frames[0]!.left;
   // The measuring grid, in and around the device, lines up with the rulers.
   const steps = rulerSteps(z);
 
-  const toDevice = (clientX: number, clientY: number): Point => {
-    const r = deviceRef.current!.getBoundingClientRect();
+  const toDevice = (clientX: number, clientY: number, el: Element = deviceRef.current!): Point => {
+    const r = el.getBoundingClientRect();
     return { x: (clientX - r.left) / z, y: (clientY - r.top) / z };
   };
+  /** The device a drag started on; it keeps the drag's pixels even if the pointer leaves it. */
+  const dragFrame = useRef<HTMLElement | null>(null);
 
   // Zooming keeps the point under the cursor (or the viewport's center) where it was.
   const anchor = useRef<{ at: Point; cx: number; cy: number } | null>(null);
@@ -142,14 +173,21 @@ export function Viewport() {
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || state.preview) return;
     const target = e.target as Element;
-    const p = toDevice(e.clientX, e.clientY);
+    if (target.closest('.device-name')) return;
     const handle = target.closest<HTMLElement>('.handle');
     if (handle && state.selection) {
       e.preventDefault();
+      dragFrame.current = deviceRef.current;
+      const p = toDevice(e.clientX, e.clientY);
       editor.startDrag('resize', state.selection, p, { handle: handle.dataset.h as Handle });
       e.currentTarget.setPointerCapture(e.pointerId);
       return;
     }
+    // Side by side, a press on another device makes it the one being edited.
+    const el = frameAt(target);
+    if (el && el.dataset.device !== device.id) editor.setDevice(el.dataset.device!);
+    dragFrame.current = el ?? deviceRef.current;
+    const p = toDevice(e.clientX, e.clientY, dragFrame.current!);
     const id = guiIdAt(target);
     if (!id) {
       editor.select(null);
@@ -169,12 +207,15 @@ export function Viewport() {
   };
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
     if (!deviceRef.current) return;
-    const p = toDevice(e.clientX, e.clientY);
-    setMouse(p);
     if (editor.dragging) {
+      const p = toDevice(e.clientX, e.clientY, dragFrame.current ?? deviceRef.current);
+      setMouse(p);
       editor.dragTo(p, { zoom: z, shift: e.shiftKey, alt: e.altKey });
       return;
     }
+    // The rulers measure the device being edited, so the mouse readout does too.
+    const el = frameAt(e.target);
+    setMouse(el && el !== deviceRef.current ? null : toDevice(e.clientX, e.clientY));
     if (!state.preview) editor.setHover(guiIdAt(e.target));
   };
   const onPointerUp = () => editor.endDrag();
@@ -241,6 +282,17 @@ export function Viewport() {
             ))}
           </select>
         )}
+        <button
+          type="button"
+          className="toggle"
+          aria-pressed={state.sideBySide}
+          aria-label="Side by side"
+          title="Show every device next to each other"
+          onClick={() => editor.setSideBySide(!state.sideBySide)}
+        >
+          <Icon name="devices" />
+          <span>Side by side</span>
+        </button>
         {breakpoint?.className === 'Breakpoint' && (
           <span
             className="bpchip"
@@ -272,7 +324,11 @@ export function Viewport() {
           </button>
           <button
             type="button"
-            title="Fit the device in the viewport"
+            title={
+              state.sideBySide
+                ? 'Fit the devices in the viewport'
+                : 'Fit the device in the viewport'
+            }
             onClick={() => editor.setZoom(null)}
           >
             Fit
@@ -314,30 +370,50 @@ export function Viewport() {
               } as CSSProperties
             }
           >
-            <div
-              ref={deviceRef}
-              className={
-                scene.view.kind === 'screens' ? `device backdrop-${state.backdrop}` : 'device'
-              }
-              data-testid="screen"
-              style={
-                {
-                  left,
-                  top,
-                  width: scene.width,
-                  height: scene.height,
-                  transform: `scale(${z})`,
-                  '--zoom': z,
-                  '--grid-minor': `${steps.minor}px`,
-                  '--grid-major': `${steps.major}px`,
-                } as CSSProperties
-              }
-            >
-              <Stage doc={doc} scene={scene} assets={state.assets} preview={state.preview} />
-            </div>
-            <div className="overlay" style={{ left, top }}>
-              <Overlay state={state} scene={scene} zoom={z} />
-            </div>
+            {frames.map(({ scene: s, left: x }) => {
+              const editing = s === scene;
+              return (
+                <Fragment key={s.device.id}>
+                  {state.sideBySide && (
+                    <button
+                      type="button"
+                      className={editing ? 'device-name editing' : 'device-name'}
+                      aria-pressed={editing}
+                      title={`${s.device.label}: ${editing ? 'your edits go here' : 'click to edit this device'}`}
+                      style={{ left: x, top: top - LABEL }}
+                      onClick={() => editor.setDevice(s.device.id)}
+                    >
+                      {s.device.label.split(' · ')[0]}
+                    </button>
+                  )}
+                  <div
+                    ref={editing ? deviceRef : undefined}
+                    className={
+                      s.view.kind === 'screens' ? `device backdrop-${state.backdrop}` : 'device'
+                    }
+                    data-testid={editing ? 'screen' : undefined}
+                    data-device={s.device.id}
+                    style={
+                      {
+                        left: x,
+                        top,
+                        width: s.width,
+                        height: s.height,
+                        transform: `scale(${z})`,
+                        '--zoom': z,
+                        '--grid-minor': `${steps.minor}px`,
+                        '--grid-major': `${steps.major}px`,
+                      } as CSSProperties
+                    }
+                  >
+                    <Stage doc={doc} scene={s} assets={state.assets} preview={state.preview} />
+                  </div>
+                  <div className="overlay" style={{ left: x, top }}>
+                    <Overlay state={state} scene={s} zoom={z} passive={!editing} />
+                  </div>
+                </Fragment>
+              );
+            })}
           </div>
         </div>
       </div>

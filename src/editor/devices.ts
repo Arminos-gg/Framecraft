@@ -21,6 +21,9 @@ export const SCREEN_DEVICES: readonly Device[] = [
   { id: 'phoneP', label: 'Phone portrait · 390×844', width: 390, height: 844 },
 ];
 
+/** The Roblox screens' devices shown side by side, with the one being edited if it isn't here. */
+export const SIDE_BY_SIDE_SCREENS: readonly string[] = ['laptop', 'tablet', 'phoneP'];
+
 /** Desktop shows a page's base values. */
 export const DESKTOP: Device = {
   id: 'desktop',
