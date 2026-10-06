@@ -40,7 +40,13 @@ import { History } from '../model/history.ts';
 import type { Project } from '../model/project.ts';
 import { roundTo } from '../export/format.ts';
 import type { UDim2 } from '../model/values.ts';
-import { DESKTOP, pageDevices, SCREEN_DEVICES, type Device } from './devices.ts';
+import {
+  DESKTOP,
+  pageDevices,
+  SCREEN_DEVICES,
+  SIDE_BY_SIDE_SCREENS,
+  type Device,
+} from './devices.ts';
 import { hasModifier, insertParent, newSubtree } from './insert.ts';
 import {
   moveRect,
@@ -106,6 +112,8 @@ export interface EditorState {
   readonly pageDevice: string;
   /** Viewport zoom; null fits the screen to the viewport. */
   readonly zoom: number | null;
+  /** Show every device next to each other; the edits go to `screenDevice` or `pageDevice`. */
+  readonly sideBySide: boolean;
   /** Try the UI: buttons react, text boxes take input, links go to their page. */
   readonly preview: boolean;
   readonly unit: UnitMode;
@@ -180,17 +188,48 @@ const rectOf = (scene: Scene) => ({ x: 0, y: 0, w: scene.device.width, h: scene.
 const sameView = (a: View, b: View) =>
   a.kind === b.kind && (a.kind === 'screens' || a.pageId === (b as typeof a).pageId);
 
-let sceneCache: { key: readonly unknown[]; scene: Scene } | null = null;
+/** The last scene of each view and device, so the viewport can draw several devices at once. */
+const sceneCache = new Map<string, { key: readonly unknown[]; scene: Scene }>();
 
 /** Lays out what the viewport shows. Cached, so calling it on every render is cheap. */
 export function sceneOf(
   state: Pick<EditorState, 'doc' | 'view' | 'screenDevice' | 'pageDevice'>,
 ): Scene {
   const key = [state.doc, state.view, state.screenDevice, state.pageDevice, textVersion()];
-  if (sceneCache && sceneCache.key.every((k, i) => k === key[i])) return sceneCache.scene;
+  const slot =
+    state.view.kind === 'page' ? 'page:' + state.pageDevice : 'screens:' + state.screenDevice;
+  const hit = sceneCache.get(slot);
+  if (hit && hit.key.every((k, i) => k === key[i])) return hit.scene;
   const scene = buildScene(state);
-  sceneCache = { key, scene };
+  if (sceneCache.size >= 16) sceneCache.clear();
+  sceneCache.set(slot, { key, scene });
   return scene;
+}
+
+/**
+ * The scenes drawn side by side, from the widest device down: every device of a page, or
+ * three of the Roblox screens' devices plus the one being edited. The one being edited is
+ * `sceneOf(state)` itself.
+ */
+export function sideBySideScenes(
+  state: Pick<EditorState, 'doc' | 'view' | 'screenDevice' | 'pageDevice'>,
+): Scene[] {
+  const active = sceneOf(state);
+  const ids =
+    active.view.kind === 'page'
+      ? active.devices.map((d) => d.id)
+      : SCREEN_DEVICES.filter(
+          (d) => SIDE_BY_SIDE_SCREENS.includes(d.id) || d.id === active.device.id,
+        ).map((d) => d.id);
+  return ids.map((id) =>
+    id === active.device.id
+      ? active
+      : sceneOf(
+          active.view.kind === 'page'
+            ? { ...state, pageDevice: id }
+            : { ...state, screenDevice: id },
+        ),
+  );
 }
 
 /** Lays out a view of any document, uncached; the template previews use it. */
@@ -274,6 +313,7 @@ export class Editor {
       screenDevice: SCREEN_DEVICES[0]!.id,
       pageDevice: DESKTOP.id,
       zoom: null,
+      sideBySide: false,
       preview: false,
       unit: 'auto',
       snap: true,
@@ -414,10 +454,21 @@ export class Editor {
     this.#update({ view, hover: null, selection: keep ? sel : null, zoom: null });
   }
 
-  /** Picks the device for the current view, and fits it to the viewport. */
+  /**
+   * Picks the device for the current view, and fits it to the viewport. Side by side, every
+   * device stays where it is and this one takes the edits.
+   */
   setDevice(id: string) {
     const patch = this.scene.view.kind === 'page' ? { pageDevice: id } : { screenDevice: id };
-    this.#update({ ...patch, zoom: null });
+    if (this.#state.sideBySide) this.#update(patch);
+    else this.#update({ ...patch, zoom: null });
+  }
+
+  /** Shows every device next to each other, or only the one being edited. */
+  setSideBySide(sideBySide: boolean) {
+    if (sideBySide === this.#state.sideBySide) return;
+    this.endDrag();
+    this.#update({ sideBySide, hover: null, zoom: null });
   }
 
   setZoom(zoom: number | null) {

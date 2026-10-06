@@ -10,6 +10,8 @@ const PATHS = {
   tree: '<rect x="3" y="3" width="5" height="4" rx="1"/><rect x="10" y="9" width="7" height="3.5" rx="1"/><rect x="10" y="14" width="7" height="3.5" rx="1"/><path d="M5.5 7v8.75H10M5.5 10.75H10"/>',
   sliders:
     '<path d="M3 6h14M3 14h14"/><circle cx="8" cy="6" r="2.2" fill="currentColor"/><circle cx="13" cy="14" r="2.2" fill="currentColor"/>',
+  devices:
+    '<rect x="2.5" y="4" width="10.5" height="8" rx="1.2"/><path d="M5.5 15.5h4.5M7.75 12v3.5"/><rect x="13" y="7.5" width="4.5" height="8.5" rx="1"/>',
   play: '<path d="M6.5 4.5v11l9-5.5z" fill="currentColor" stroke="none"/>',
   stop: '<rect x="5" y="5" width="10" height="10" rx="1.5" fill="currentColor" stroke="none"/>',
   export: '<path d="M10 3v9M6.5 6.5 10 3l3.5 3.5"/><path d="M4 11v5.5h12V11"/>',

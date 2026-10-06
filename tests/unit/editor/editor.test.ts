@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { Editor, LIST_PLACES, sceneOf } from '../../../src/editor/editor.ts';
+import { Editor, LIST_PLACES, sceneOf, sideBySideScenes } from '../../../src/editor/editor.ts';
 import { breakpointsOf, type AnyInstance, type InstanceId } from '../../../src/model/document.ts';
 import { blankSiteDoc, sampleProject } from '../../../src/model/sample.ts';
 
@@ -60,6 +60,34 @@ describe('views', () => {
     ed.setDevice(phone());
     expect(ed.scene.breakpoint).toBe(phone());
     expect([ed.scene.width, ed.scene.device.height]).toEqual([390, 844]);
+  });
+  it('lays out every device side by side, and edits the one picked', () => {
+    ed.setZoom(0.5);
+    ed.setSideBySide(true);
+    expect(ed.state.zoom).toBeNull();
+    const scenes = sideBySideScenes(ed.state);
+    expect(scenes.map((s) => s.device.width)).toEqual([1366, 810, 390]);
+    expect(scenes[0]).toBe(ed.scene);
+    expect(scenes[2]!.breakpoint).toBe(phone());
+    // Picking a device side by side keeps the zoom, so nothing moves.
+    ed.setZoom(0.5);
+    ed.setDevice(phone());
+    expect(ed.state.zoom).toBe(0.5);
+    expect(ed.scene.breakpoint).toBe(phone());
+    expect(sideBySideScenes(ed.state)[2]).toBe(ed.scene);
+    ed.setView({ kind: 'screens' });
+    expect(sideBySideScenes(ed.state).map((s) => s.device.id)).toEqual([
+      'laptop',
+      'tablet',
+      'phoneP',
+    ]);
+    ed.setDevice('hd');
+    expect(sideBySideScenes(ed.state).map((s) => s.device.id)).toEqual([
+      'laptop',
+      'hd',
+      'tablet',
+      'phoneP',
+    ]);
   });
 });
 

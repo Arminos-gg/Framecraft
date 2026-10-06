@@ -333,6 +333,47 @@ test.describe('website pages', () => {
     expect(await boxOf(page, headline)).toEqual(desktopBox);
   });
 
+  test('shows every device side by side and edits the one dragged on', async ({ page }) => {
+    const headline = await idOf(page, 'Headline');
+    const phone = await idOf(page, 'Phone');
+    await page.getByRole('button', { name: 'Side by side' }).click();
+    const devices = page.locator('.device[data-device]');
+    await expect(devices).toHaveCount(3);
+    const inDevice = (device: string) =>
+      page.locator(`.device[data-device="${device}"] .gui[data-id="${headline}"]`);
+    const desktopBox = await inDevice('desktop').boundingBox();
+    // Every device fits in the viewport at once.
+    const canvas = (await page.locator('.canvas').boundingBox())!;
+    for (const d of await devices.all()) {
+      const b = (await d.boundingBox())!;
+      expect(b.x).toBeGreaterThanOrEqual(canvas.x);
+      expect(b.x + b.width).toBeLessThanOrEqual(canvas.x + canvas.width);
+    }
+
+    // A drag on the phone edits Phone, and the zoom stays.
+    const z = await zoomOf(page);
+    await drag(page, center((await inDevice(phone).boundingBox())!), 0, 30 * z);
+    await expect(page.getByText('Editing Phone')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Phone', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(await zoomOf(page)).toBeCloseTo(z, 5);
+    const overrides = await page.evaluate(
+      ([id, bp]) =>
+        window.framecraft!.doc.instances[id!]!.overrides?.[bp!] as Record<string, unknown>,
+      [headline, phone],
+    );
+    expect((overrides!.Position as number[])[2]).toBeCloseTo(0.42 + 30 / 784, 2);
+    expect(await propsOf(page, headline)).toMatchObject({ Position: [0.5, 0, 0.42, 0] });
+    expect(await inDevice('desktop').boundingBox()).toEqual(desktopBox);
+    // The other devices outline the selection too.
+    await expect(page.locator('.overlay .selbox.passive')).toHaveCount(2);
+
+    await page.getByRole('button', { name: 'Side by side' }).click();
+    await expect(devices).toHaveCount(1);
+  });
+
   test('preview follows links between pages', async ({ page }) => {
     const show = page.getByLabel('Show');
     const pricing = await idOf(page, 'Pricing');
