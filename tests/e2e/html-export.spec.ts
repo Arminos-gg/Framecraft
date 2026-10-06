@@ -2,19 +2,23 @@ import { expect, test } from '@playwright/test';
 import { SCREEN_DEVICES } from '../../src/editor/devices.ts';
 import { exportHtml } from '../../src/export/html.ts';
 import { layoutScreenGuis } from '../../src/layout/layout.ts';
+import type * as LayoutModule from '../../src/layout/layout.ts';
 import { classDef, type ClassName, type PropsOf } from '../../src/model/classes.ts';
 import { applyCommand, insert } from '../../src/model/commands.ts';
 import {
   childrenOf,
   createInstance,
+  emptyProject,
   serviceOf,
   single,
   type AnyInstance,
   type Doc,
   type InstanceId,
 } from '../../src/model/document.ts';
+import { COMPONENTS, componentSubtree, fitsTarget } from '../../src/model/components/index.ts';
 import { sampleDoc } from '../../src/model/sample.ts';
 import { TEMPLATES } from '../../src/model/templates/index.ts';
+import type * as MeasureModule from '../../src/ui/viewport/text-measure.ts';
 import { exportOrder } from './export-order.ts';
 
 /**
@@ -118,20 +122,46 @@ for (const device of SCREEN_DEVICES) {
 
 // The Roblox templates repeat names (every slot has an Icon), so their boxes match in the
 // order the export writes them.
-for (const t of TEMPLATES.filter((t) => t.kind === 'roblox')) {
-  const doc = t.build();
+function checkScreens(name: string, doc: Doc) {
   const html = exportHtml(doc);
   const starterGui = serviceOf(doc, 'StarterGui').id;
   const order = childrenOf(doc, starterGui).flatMap((sg) => exportOrder(doc, sg.id));
   for (const device of SCREEN_DEVICES) {
-    test(`the ${t.name} template matches the layout engine on ${device.label}`, async ({
-      page,
-    }) => {
+    test(`${name} matches the layout engine on ${device.label}`, async ({ page }) => {
       const size = { width: device.width, height: device.height };
       await page.setViewportSize(size);
       await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-      await page.setContent(html);
-      const layout = layoutScreenGuis(doc, starterGui, size);
+      await page.route('**/__export/screens.html', (r) =>
+        r.fulfill({ contentType: 'text/html', body: html }),
+      );
+      await page.goto('/__export/screens.html');
+      await page.evaluate(() => document.fonts.ready);
+      // The engine runs in the page and measures text there, as in the editor, since the
+      // components grow boxes to fit their text.
+      const boxes: [
+        InstanceId,
+        { x: number; y: number; w: number; h: number; rotation: number },
+      ][] = await page.evaluate(
+        async ({ doc, starterGui, size }) => {
+          const layoutPath = '/src/layout/layout.ts';
+          const measurePath = '/src/ui/viewport/text-measure.ts';
+          const L = (await import(layoutPath)) as typeof LayoutModule;
+          const M = (await import(measurePath)) as typeof MeasureModule;
+          const layout = L.layoutScreenGuis(
+            doc,
+            starterGui,
+            size,
+            undefined,
+            M.domTextMeasurer().measure,
+          );
+          return [...layout].map(([id, b]) => [
+            id,
+            { x: b.x, y: b.y, w: b.w, h: b.h, rotation: b.rotation },
+          ]);
+        },
+        { doc, starterGui, size },
+      );
+      const layout = new Map(boxes);
       const actual = await page.$$eval('.g', (els) =>
         els.map((el) => {
           const r = el.getBoundingClientRect();
@@ -165,3 +195,26 @@ for (const t of TEMPLATES.filter((t) => t.kind === 'roblox')) {
     });
   }
 }
+
+for (const t of TEMPLATES.filter((t) => t.kind === 'roblox'))
+  checkScreens(`the ${t.name} template`, t.build());
+
+/** Every component for Roblox, each in a ScreenGui of its own, as the Components drawer adds it. */
+function componentsScreens(): Doc {
+  let doc = emptyProject();
+  const starterGui = serviceOf(doc, 'StarterGui').id;
+  COMPONENTS.filter((def) => fitsTarget(def, 'roblox')).forEach((def, i) => {
+    const sg = createInstance('ScreenGui', { Name: `${def.name} layer` }) as AnyInstance;
+    doc = applyCommand(doc, insert(starterGui, single(sg))).doc;
+    const look = i % 2 ? 'light' : 'dark';
+    const copy = componentSubtree(
+      doc,
+      def,
+      { look, corners: 'rounded', target: 'roblox' },
+      'other',
+    );
+    doc = applyCommand(doc, insert(sg.id, copy)).doc;
+  });
+  return doc;
+}
+checkScreens('every Roblox component', componentsScreens());

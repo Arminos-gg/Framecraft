@@ -695,7 +695,7 @@ ${COMMENT_OPEN} Built with Framecraft (prototype). Every object keeps its Roblox
   body { background: ${backdrop}; overflow: hidden; }
   /* A ScreenGui covers the window. Position and Size are {Scale, Offset} pairs: calc(Scale% + Offset px). */
   .screen { position: fixed; inset: 0; }
-  .g { position: absolute; box-sizing: border-box; }
+  .g { position: absolute; box-sizing: border-box; margin: 0; font-size: inherit; font-weight: inherit; }
   .c, .t { position: absolute; }
   .t { display: flex; pointer-events: none; }
   .t > * { line-height: 1; }

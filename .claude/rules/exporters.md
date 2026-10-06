@@ -41,6 +41,7 @@ The exporters turn the document into Luau and a model file for Roblox Studio and
 - ImageColor3 multiplies a picture's colors, as in Roblox: a tinted picture's rule gets `filter: url(#fc-tint-rrggbb)`, and the page defines each color's filter once in a hidden SVG (`tintDefs`). Picture styles (object-fit, opacity, filter) are rules, not inline styles, so breakpoints can change them.
 - LineHeight becomes `line-height` on the text, written only when it isn't 1 (the page's default).
 - Keep each object's Roblox name in `data-name` so people can find it in the page.
+- Every object resets `margin`, `font-size` and `font-weight` on `.g`, since HtmlTag can make it a heading or a paragraph, on a page and on the Roblox screens alike.
 
 ## Website (`src/export/site.ts`)
 

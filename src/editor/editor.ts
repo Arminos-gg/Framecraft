@@ -52,6 +52,11 @@ import {
 import { hasModifier, insertParent, newSubtree } from './insert.ts';
 import { finishShape, shapeById, shapeClass, shapePicture, shapeProps } from './shapes.ts';
 import {
+  componentSubtree,
+  type ComponentDef,
+  type ComponentOptions,
+} from '../model/components/index.ts';
+import {
   moveRect,
   positionFor,
   resizeRect,
@@ -144,6 +149,8 @@ export interface EditorState {
   /** The Explorer row whose name is being edited. */
   readonly renaming: InstanceId | null;
   readonly saveStatus: SaveStatus;
+  /** The Components drawer is open. */
+  readonly components: boolean;
 }
 
 export const LIST_PLACES = 'A UIListLayout places this object. Change LayoutOrder to reorder it.';
@@ -340,6 +347,7 @@ export class Editor {
       expanded: initialExpanded(doc),
       renaming: null,
       saveStatus: 'idle',
+      components: false,
     };
     this.history.subscribe(() => this.#onDocChange());
   }
@@ -499,6 +507,9 @@ export class Editor {
   }
   setSnap(snap: boolean) {
     this.#update({ snap });
+  }
+  setComponentsOpen(components: boolean) {
+    if (components !== this.#state.components) this.#update({ components });
   }
   setBackdrop(backdrop: Backdrop) {
     this.#update({ backdrop });
@@ -853,6 +864,89 @@ export class Editor {
     if (!this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds))) return null;
     this.select(subtree.rootId);
     return subtree.rootId;
+  }
+
+  /**
+   * Where a component lands: a block in the selection or its nearest ancestor that can hold
+   * it, a website section in that object's page, and otherwise what the viewport shows.
+   * Undefined when the Roblox screens have no ScreenGui yet.
+   */
+  #componentParent(def: ComponentDef, parentId: InstanceId | null): AnyInstance | undefined {
+    const doc = this.doc;
+    const scene = this.scene;
+    let parent = insertParent(doc, 'Frame', parentId);
+    if (def.place === 'section') {
+      const view = parent ? viewOf(doc, parent.id) : scene.view;
+      if (view?.kind === 'page') parent = getInstance(doc, view.pageId);
+    }
+    return (
+      parent ??
+      getInstance(doc, scene.view.kind === 'page' ? scene.view.pageId : (scene.roots[0] ?? ''))
+    );
+  }
+
+  /** The name of the object a component would land in now, for the Add button. */
+  componentParentName(def: ComponentDef): string {
+    return this.#componentParent(def, this.#state.selection)?.props.Name ?? 'a new ScreenGui';
+  }
+
+  /**
+   * Adds a copy of a pre-made component and selects it. A block lands inside the selection, or
+   * its nearest ancestor that can hold it, like Insert; a website section goes into the page.
+   * Straight on a page, a block gets a section of its own. Returns the new component's id.
+   */
+  addComponent(
+    def: ComponentDef,
+    options: ComponentOptions,
+    parentId: InstanceId | null = this.#state.selection,
+  ): InstanceId | null {
+    const doc = this.doc;
+    const scene = this.scene;
+    let parent = this.#componentParent(def, parentId);
+    const cmds: Command[] = [];
+    if (!parent) {
+      // Roblox screens with no ScreenGui yet: make one to hold the component.
+      const starterGui = serviceOf(doc, 'StarterGui');
+      const layer = newSubtree(doc, 'ScreenGui', starterGui, rectOf(scene));
+      cmds.push(insert(starterGui.id, layer));
+      parent = layer.instances[layer.rootId]!;
+    }
+    const onPage = parent.className === 'Page';
+    const copy = componentSubtree(doc, def, options, onPage ? 'page' : 'other');
+    const outer = copy.instances[copy.rootId]!;
+    const siblings = childrenOf(doc, parent.id).filter(isGui);
+    let place: Record<string, unknown> = {};
+    if (childOfClass(doc, parent.id, 'UIListLayout')) {
+      // Last in the list.
+      const last = Math.max(0, ...siblings.map((c) => resolveProps(doc, c).LayoutOrder));
+      place = { LayoutOrder: last + 1 };
+    } else if (def.place === 'block') {
+      const nudge = (12 * siblings.length) % 96;
+      place = { AnchorPoint: [0.5, 0.5], Position: [0.5, nudge, 0.5, nudge] };
+    }
+    const subtree: Subtree = {
+      ...copy,
+      instances: {
+        ...copy.instances,
+        [outer.id]: { ...outer, props: { ...outer.props, ...place } } as AnyInstance,
+      },
+    };
+    cmds.push(insert(parent.id, subtree));
+    if (!this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds))) return null;
+    // On a page, a block's section holds it; select the component itself.
+    const rootId =
+      onPage && def.place !== 'section'
+        ? (outer.children.find((id) => {
+            const c = copy.instances[id]!;
+            return isGui(c);
+          }) ?? outer.id)
+        : outer.id;
+    this.select(rootId);
+    this.toast(`${def.name} added to ${parent.props.Name}`, {
+      label: 'Undo',
+      run: () => this.undo(),
+    });
+    return rootId;
   }
 
   /** Reparents or reorders: `index` is the place among the new parent's other children. */
