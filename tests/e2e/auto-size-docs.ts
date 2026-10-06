@@ -10,7 +10,8 @@ import {
   type Doc,
   type InstanceId,
 } from '../../src/model/document.ts';
-import { blankDoc, blankSiteDoc, pageSubtree } from '../../src/model/sample.ts';
+import { pageSubtree } from '../../src/model/builder.ts';
+import { blankDoc, blankSiteDoc } from '../../src/model/sample.ts';
 
 /** Documents full of objects with AutomaticSize, for the export checks in auto-size.spec.ts. */
 

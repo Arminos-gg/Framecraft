@@ -193,7 +193,8 @@ export function sceneOf(
   return scene;
 }
 
-function buildScene(
+/** Lays out a view of any document, uncached; the template previews use it. */
+export function buildScene(
   state: Pick<EditorState, 'doc' | 'view' | 'screenDevice' | 'pageDevice'>,
 ): Scene {
   const { doc, view } = state;
