@@ -30,6 +30,12 @@ export function notesFor(
       notes.Behavior =
         'Export turns IgnoreGuiInset on, so Roblox’s top bar doesn’t push the layout down.';
       break;
+    case 'ScrollingFrame':
+      notes.Scrolling =
+        values.AutomaticCanvasSize !== 'None'
+          ? 'AutomaticCanvasSize is on, so the scrolling area grows to fit the children, and CanvasSize is the smallest it gets.'
+          : 'CanvasSize is the area you can scroll through. AutomaticCanvasSize can grow it to fit the children.';
+      break;
     case 'UIStroke':
       notes.Stroke = 'On text objects, Contextual outlines the letters. Border outlines the box.';
       break;

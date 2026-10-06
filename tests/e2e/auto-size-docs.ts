@@ -209,6 +209,28 @@ export function screenDoc(): Doc {
       LayoutOrder: i,
     });
 
+  // A scrolling list whose canvas grows to fit its items, which grow with their text.
+  const scroller = b.add(sg, 'ScrollingFrame', {
+    Name: 'Scroller',
+    Position: [0.38, 0, 0.62, 0],
+    Size: [0.25, 0, 0, 160],
+    CanvasSize: [0, 0, 0, 0],
+    AutomaticCanvasSize: 'Y',
+  });
+  pad(b, scroller, 8);
+  b.add(scroller, 'UIListLayout', { Padding: [0, 8] });
+  for (const [i, words] of [PARAGRAPH, 'Short.', PARAGRAPH, PARAGRAPH].entries())
+    b.add(scroller, 'TextLabel', {
+      ...text,
+      Name: `Row ${i + 1}`,
+      Text: words,
+      TextWrapped: true,
+      LineHeight: 1.3,
+      Size: [1, 0, 0, 24],
+      AutomaticSize: 'Y',
+      LayoutOrder: i,
+    });
+
   b.add(sg, 'TextBox', {
     ...text,
     Name: 'Search',
@@ -252,6 +274,7 @@ export function siteDoc(): Doc {
     Name: 'Lead',
     Text: PARAGRAPH,
     TextSize: 20,
+    LineHeight: 1.5,
     TextWrapped: true,
     TextColor3: [200, 205, 220],
     Size: [0.5, 0, 0, 0],
@@ -314,6 +337,16 @@ export function siteDoc(): Doc {
         type: 'setProps',
         id: note,
         props: { AutomaticSize: 'Y' },
+        breakpoint: phone,
+      }).doc,
+  );
+  const lead = Object.values(b.doc.instances).find((i) => i.props.Name === 'Lead')!.id;
+  b.edit(
+    (d) =>
+      applyCommand(d, {
+        type: 'setProps',
+        id: lead,
+        props: { LineHeight: 1 },
         breakpoint: phone,
       }).doc,
   );

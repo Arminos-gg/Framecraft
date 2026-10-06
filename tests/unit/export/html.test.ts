@@ -142,4 +142,26 @@ describe('HTML export', () => {
     );
     expect(html).toContain('overflow:auto;');
   });
+
+  it('marks a ScrollingFrame with AutomaticCanvasSize for the fitting script', () => {
+    const s = scene();
+    s.add(s.screen, 'ScrollingFrame', { AutomaticCanvasSize: 'Y' });
+    s.add(s.screen, 'ScrollingFrame', { Name: 'Fixed' });
+    const html = exportHtml(s.doc);
+    expect(html).toContain('<div class="g e1" data-canvas data-name="ScrollingFrame">');
+    expect(html).toMatch(/\.e1\{[^}]*--canvas:y;/);
+    // Its canvas and content box are written even without children.
+    expect(html).toMatch(/<div class="e1v">\s*<div class="c e1c">/);
+    expect(html).toContain('function canvas(el)');
+    expect(html).not.toMatch(/data-canvas[^>]*data-name="Fixed"/);
+  });
+
+  it('writes LineHeight when it isn’t 1', () => {
+    const s = scene();
+    s.add(s.screen, 'TextLabel', { LineHeight: 1.5 });
+    s.add(s.screen, 'TextLabel');
+    const html = exportHtml(s.doc);
+    expect(html).toMatch(/\.e1t > \*\{[^}]*line-height:1\.5;/);
+    expect(html).not.toMatch(/\.e2t > \*\{[^}]*line-height/);
+  });
 });

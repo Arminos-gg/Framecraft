@@ -124,6 +124,7 @@ const RESET: Record<string, string> = {
   'box-shadow': 'none',
   overflow: 'visible',
   'font-style': 'normal',
+  'line-height': '1',
   'text-shadow': 'none',
   order: '0',
 };

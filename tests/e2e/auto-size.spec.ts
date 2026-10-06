@@ -26,6 +26,8 @@ interface Found {
   w: number;
   h: number;
   shown: boolean;
+  /** How far it scrolls: a ScrollingFrame's canvas height. */
+  scroll: number;
 }
 
 /** Serves `html` from the dev server, so the page can import the app's modules. */
@@ -77,7 +79,14 @@ async function exportedBoxes(tab: Page): Promise<Record<string, Found>> {
         const r = el.getBoundingClientRect();
         return [
           (el as HTMLElement).dataset.name!,
-          { x: r.x, y: r.y, w: r.width, h: r.height, shown: el.getClientRects().length > 0 },
+          {
+            x: r.x,
+            y: r.y,
+            w: r.width,
+            h: r.height,
+            shown: el.getClientRects().length > 0,
+            scroll: el.scrollHeight,
+          },
         ];
       }),
     ),
@@ -88,7 +97,10 @@ async function exportedBoxes(tab: Page): Promise<Record<string, Found>> {
 function compare(
   doc: Doc,
   root: InstanceId,
-  expected: Record<string, { x: number; y: number; w: number; h: number; visible: boolean }>,
+  expected: Record<
+    string,
+    { x: number; y: number; w: number; h: number; visible: boolean; canvas: number }
+  >,
   actual: Record<string, Found>,
 ) {
   const shown = (id: InstanceId): boolean => {
@@ -107,6 +119,9 @@ function compare(
     if (!a!.shown) continue;
     for (const k of ['x', 'y', 'w', 'h'] as const)
       expect(Math.abs(a![k] - e[k]), `${name}.${k}: ${a![k]} vs ${e[k]}`).toBeLessThan(0.1);
+    // scrollHeight is in whole pixels.
+    if (inst.className === 'ScrollingFrame')
+      expect(Math.abs(a!.scroll - e.canvas), `${name} canvas`).toBeLessThan(1);
     // Sized in Offset only, so a box bigger than its Size grew.
     const [xs, xo, ys, yo] = (inst.props as unknown as { Size: UDim2 }).Size;
     if ((!xs && e.w > xo + 1) || (!ys && e.h > yo + 1)) grew++;

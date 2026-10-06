@@ -114,6 +114,20 @@ describe('Luau export', () => {
     parses(code);
   });
 
+  it('writes LineHeight and AutomaticCanvasSize when they aren’t the defaults', () => {
+    const s = scene();
+    s.add(s.screen, 'TextLabel', { Name: 'Story', LineHeight: 1.25 });
+    s.add(s.screen, 'TextLabel', { Name: 'Plain' });
+    s.add(s.screen, 'ScrollingFrame', { Name: 'List', AutomaticCanvasSize: 'Y' });
+    s.add(s.screen, 'ScrollingFrame', { Name: 'Fixed' });
+    const code = s.luau();
+    expect(code).toContain('story.LineHeight = 1.25');
+    expect(code).not.toContain('plain.LineHeight');
+    expect(code).toContain('list.AutomaticCanvasSize = Enum.AutomaticSize.Y');
+    expect(code).not.toContain('fixed.AutomaticCanvasSize');
+    parses(code);
+  });
+
   it('uses the base values, not a breakpoint’s', () => {
     const doc = site();
     const sg = createInstance('ScreenGui', { Name: 'Hud' }, 'hud') as AnyInstance;

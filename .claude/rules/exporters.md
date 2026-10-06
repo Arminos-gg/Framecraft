@@ -13,11 +13,11 @@ The exporters turn the document into Luau for Roblox Studio and an HTML/CSS page
 
 - Emit `Instance.new`, then properties, then children, and set each object's `Parent` last, after its own children are parented. Parent the ScreenGui to StarterGui (command bar version) or to the player's PlayerGui (LocalScript version) at the very end.
 - Always emit `Size`, `BackgroundColor3`, `BorderSizePixel`, and for text objects `Font`, `Text`, `TextColor3` and `TextSize`. Their `Instance.new` defaults differ from what users expect.
-- Only omit a property when its Roblox default is certain: Position 0, AnchorPoint 0, Rotation 0, BackgroundTransparency 0, ZIndex 1, LayoutOrder 0, Visible true, ClipsDescendants false, TextScaled false, TextWrapped false, TextXAlignment and TextYAlignment Center, TextTransparency 0, AutoButtonColor true, ImageColor3 white, ImageTransparency 0, ScaleType Stretch, ApplyStrokeMode Contextual. Check any new omission in Studio first.
+- Only omit a property when its Roblox default is certain: Position 0, AnchorPoint 0, Rotation 0, BackgroundTransparency 0, ZIndex 1, LayoutOrder 0, Visible true, ClipsDescendants false, TextScaled false, TextWrapped false, LineHeight 1, TextXAlignment and TextYAlignment Center, TextTransparency 0, AutoButtonColor true, ImageColor3 white, ImageTransparency 0, ScaleType Stretch, ApplyStrokeMode Contextual. Check any new omission in Studio first.
 - ScreenGuis always get `IgnoreGuiInset = true` and `ZIndexBehavior = Enum.ZIndexBehavior.Sibling`.
 - Use `UDim2.fromScale` when both offsets are 0, `UDim2.fromOffset` when both scales are 0, otherwise `UDim2.new`.
 - Variable names come from the object's Name in camelCase, de-duplicated with a number. Modifiers that keep their default name are named after their parent (`panelCorner`, `playButtonGradient`).
-- Write `AutomaticSize` only when it isn't None.
+- Write `AutomaticSize` and a ScrollingFrame's `AutomaticCanvasSize` only when they aren't None.
 - Escape strings with `luaStr()`. The output must parse: `npm test` runs it through luaparse.
 - Export the base (Desktop) values and skip everything with a `web` flag (Site, pages, web-only properties). Roblox has no breakpoints.
 - UIGradient's Color, Transparency and Rotation use their Roblox names in its own schema, with colors and transparencies as keypoint sequences. Prototype project files (version 1) stored them as `GradColor`, `GradTransparency` and `GradRotation`; `src/model/project.ts` converts them on open.
@@ -29,6 +29,8 @@ The exporters turn the document into Luau for Roblox Studio and an HTML/CSS page
 - UIListLayout becomes flexbox on the content box, and its children switch to `position: relative`.
 - Scale-based UICorner radii, UIAspectRatioConstraint, AutomaticSize and TextScaled need the element's real size, so they are set by the small inline script at the end of the page. Keep that script dependency-free.
 - An object with AutomaticSize at the base or any breakpoint gets `data-auto`, a `--auto` declaration (`none`, `x`, `y` or `xy`, which media queries change) and always a content box, where the script reads its padding. The script grows it with `min-width` and `min-height` exactly as the layout engine does, and lengthens a page marked `data-grow`. `tests/e2e/auto-size.spec.ts` compares it with the engine measuring text in the same page.
+- A ScrollingFrame with AutomaticCanvasSize at the base or any breakpoint gets `data-canvas`, a `--canvas` declaration and always its canvas and content box; the script grows the canvas with `min-width` and `min-height` the way it grows a box.
+- LineHeight becomes `line-height` on the text, written only when it isn't 1 (the page's default).
 - Keep each object's Roblox name in `data-name` so people can find it in the page.
 
 ## Website (`src/export/site.ts`)

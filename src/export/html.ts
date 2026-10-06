@@ -6,7 +6,7 @@
  * writer for pages, once per breakpoint. See .claude/rules/exporters.md.
  */
 import type { Assets } from '../model/assets.ts';
-import { automaticSizeOf, classDef } from '../model/classes.ts';
+import { automaticSizeOf, classDef, type AutomaticSize } from '../model/classes.ts';
 import {
   breakpointsOf,
   childOfClass,
@@ -124,6 +124,10 @@ export function calcV(scale: number, offset: number): string {
   return `calc(var(--vh) * ${s} + ${o}px)`;
 }
 
+/** A ScrollingFrame's AutomaticCanvasSize, or None for any other object. */
+const canvasSizeOf = (props: object): AutomaticSize =>
+  'AutomaticCanvasSize' in props ? (props.AutomaticCanvasSize as AutomaticSize) : 'None';
+
 export type Gui = Extract<AnyInstance, { props: { Size: unknown; Visible: boolean } }>;
 export const isGui = (inst: AnyInstance): inst is Gui => classDef(inst.className).kind === 'gui';
 
@@ -145,7 +149,8 @@ export const COMMENT_OPEN = '<' + '!--';
 
 export const FIT_SCRIPT = `
 ${SCRIPT_OPEN}
-  // Sizes that need the real box: aspect ratios, AutomaticSize, rounded corners in Scale, and TextScaled
+  // Sizes that need the real box: aspect ratios, AutomaticSize, AutomaticCanvasSize, rounded
+  // corners in Scale, and TextScaled
   (function () {
     function px(v) { return parseFloat(v) || 0; }
     // The exact laid-out size; offsetWidth rounds to whole pixels.
@@ -173,6 +178,17 @@ ${SCRIPT_OPEN}
       var axes = getComputedStyle(el).getPropertyValue('--auto');
       if (/x/.test(axes)) { walk(c); st.minWidth = need(el, c, 0) + 'px'; }
       if (/y/.test(axes)) { walk(c); st.minHeight = need(el, c, 1) + 'px'; }
+      walk(c);
+    }
+    // AutomaticCanvasSize: a ScrollingFrame's canvas grows the same way to fit its children.
+    function canvas(el) {
+      var v = el.firstElementChild, c = v && v.firstElementChild;
+      if (!c) return;
+      var st = v.style;
+      st.minWidth = st.minHeight = '';
+      var axes = getComputedStyle(el).getPropertyValue('--canvas');
+      if (/x/.test(axes)) { walk(c); st.minWidth = need(v, c, 0) + 'px'; }
+      if (/y/.test(axes)) { walk(c); st.minHeight = need(v, c, 1) + 'px'; }
       walk(c);
     }
     function need(el, c, y) {
@@ -225,7 +241,9 @@ ${SCRIPT_OPEN}
     function walk(node) {
       for (var k = node && node.firstElementChild; k; k = k.nextElementSibling) {
         if (k.hasAttribute('data-ar')) aspect(k);
-        if (k.hasAttribute('data-auto')) grow(k); else walk(k);
+        if (k.hasAttribute('data-auto')) grow(k);
+        else if (k.hasAttribute('data-canvas')) canvas(k);
+        else walk(k);
       }
     }
     // A page is as long as what's on it, and boxes that grew push it longer.
@@ -315,10 +333,23 @@ export class HtmlWriter {
    * gets `data-auto` and says which way it grows in `--auto`, which media queries can change.
    */
   grows(inst: AnyInstance): boolean {
-    const ids = [undefined, ...breakpointsOf(this.doc).map((b) => b.id)];
-    return ids.some(
-      (bp) => automaticSizeOf(resolveProps(this.doc, inst as Instance, bp)) !== 'None',
+    return this.atAnyBreakpoint(inst, (p) => automaticSizeOf(p) !== 'None');
+  }
+
+  /**
+   * Whether a ScrollingFrame has AutomaticCanvasSize at the base or at any breakpoint. Its
+   * element gets `data-canvas` and says which way the canvas grows in `--canvas`.
+   */
+  growsCanvas(inst: AnyInstance): boolean {
+    return (
+      inst.className === 'ScrollingFrame' &&
+      this.atAnyBreakpoint(inst, (p) => canvasSizeOf(p) !== 'None')
     );
+  }
+
+  atAnyBreakpoint(inst: AnyInstance, test: (props: object) => boolean): boolean {
+    const ids = [undefined, ...breakpointsOf(this.doc).map((b) => b.id)];
+    return ids.some((bp) => test(resolveProps(this.doc, inst as Instance, bp)));
   }
 
   /** Insets of a content box: a UIPadding becomes insets, never CSS padding. */
@@ -402,6 +433,11 @@ export class HtmlWriter {
     if (grows) {
       r.push(['--auto', automaticSizeOf(p).toLowerCase()]);
       attrs.push('data-auto');
+      this.needsScript = true;
+    }
+    if (this.growsCanvas(inst)) {
+      r.push(['--canvas', canvasSizeOf(p).toLowerCase()]);
+      attrs.push('data-canvas');
       this.needsScript = true;
     }
     if (p.ZIndex !== 1) r.push(['z-index', String(p.ZIndex)]);
@@ -535,6 +571,7 @@ export class HtmlWriter {
       // Roblox breaks a word too long for the line.
       if (tp.TextWrapped) ts.push(['overflow-wrap', 'anywhere']);
       if (!inst.props.TextScaled) ts.push(['font-size', `${tp.TextSize}px`]);
+      if (tp.LineHeight !== 1) ts.push(['line-height', fmtNum(tp.LineHeight)]);
       if (textStrokes.length)
         ts.push([
           'text-shadow',
@@ -556,7 +593,7 @@ export class HtmlWriter {
       inner += `\n${ind}  <${box} class="t ${tc}"${inst.props.TextScaled && !input ? ' data-fit' : ''}>${body}</${box}>`;
     }
     // A box that grows always has a content box: the script reads its padding there.
-    if (this.sortedChildren(inst.id).length || this.grows(inst)) {
+    if (this.sortedChildren(inst.id).length || this.grows(inst) || this.growsCanvas(inst)) {
       const list = childOfClass(doc, inst.id, 'UIListLayout');
       const cc = cls + 'c';
       const scroll = inst.className === 'ScrollingFrame';

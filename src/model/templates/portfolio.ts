@@ -5,7 +5,7 @@
 import { Builder, pageSubtree } from '../builder.ts';
 import { newId, type Doc, type InstanceId } from '../document.ts';
 import { colorSequence, type Color3 } from '../values.ts';
-import { column, corner, group, label, sizeAt } from './kit.ts';
+import { column, corner, group, label, padX, sizeAt } from './kit.ts';
 
 const PAPER: Color3 = [246, 244, 239];
 const SAND: Color3 = [238, 234, 226];
@@ -95,11 +95,14 @@ function addIntro(b: Builder, page: InstanceId) {
     HtmlTag: 'header',
     LayoutOrder: 2,
     BackgroundTransparency: 1,
+    AutomaticSize: 'Y',
   });
-  sizeAt(b, intro, { base: [1, 0, 0, 440], Tablet: [1, 0, 0, 410], Phone: [1, 0, 0, 344] });
-  const pad = b.add(intro, 'UIPadding', { PaddingTop: [0, 104] });
-  b.change(pad, 'Phone', { PaddingTop: [0, 40] });
+  sizeAt(b, intro, { base: [1, 0, 0, 440], Tablet: [1, 0, 0, 410], Phone: [1, 0, 0, 348] });
+  const pad = b.add(intro, 'UIPadding', { PaddingTop: [0, 104], PaddingBottom: [0, 80] });
+  b.change(pad, 'Tablet', { PaddingBottom: [0, 74] });
+  b.change(pad, 'Phone', { PaddingTop: [0, 40], PaddingBottom: [0, 40] });
   const content = column(b, intro, 1120);
+  b.set(content, { AutomaticSize: 'Y' });
   b.add(content, 'UIListLayout', { Padding: [0, 24] });
   label(b, content, {
     Name: 'Kicker',
@@ -118,7 +121,9 @@ function addIntro(b: Builder, page: InstanceId) {
     Text: 'I design calm, useful products for people who are short on time.',
     Font: 'Merriweather',
     TextSize: 52,
+    LineHeight: 1.2,
     TextWrapped: true,
+    AutomaticSize: 'Y',
     TextColor3: INK,
     TextXAlignment: 'Left',
     TextYAlignment: 'Top',
@@ -133,12 +138,14 @@ function addIntro(b: Builder, page: InstanceId) {
     Text: 'Currently leading design at Northwind. Before that, eight years of apps, brands and the odd board game.',
     Font: 'SourceSans',
     TextSize: 20,
+    LineHeight: 1.4,
     TextWrapped: true,
+    AutomaticSize: 'Y',
     TextColor3: BODY,
     TextXAlignment: 'Left',
     TextYAlignment: 'Top',
   });
-  sizeAt(b, sub, { base: [0, 620, 0, 56], Phone: [1, 0, 0, 72] });
+  sizeAt(b, sub, { base: [0, 620, 0, 56], Phone: [1, 0, 0, 76] });
   b.change(sub, 'Phone', { TextSize: 18 });
 }
 
@@ -318,11 +325,13 @@ function addAbout(b: Builder, page: InstanceId) {
     HtmlTag: 'section',
     LayoutOrder: 4,
     BackgroundColor3: SAND,
+    AutomaticSize: 'Y',
   });
   sizeAt(b, about, { base: [1, 0, 0, 640], Tablet: [1, 0, 0, 600], Phone: [1, 0, 0, 808] });
   const pad = b.add(about, 'UIPadding', { PaddingTop: [0, 96], PaddingBottom: [0, 96] });
   b.change(pad, 'Phone', { PaddingTop: [0, 64], PaddingBottom: [0, 64] });
   const content = column(b, about, 1120);
+  b.set(content, { AutomaticSize: 'Y' });
   const cols = b.add(content, 'UIListLayout', { FillDirection: 'Horizontal', Padding: [0, 64] });
   b.change(cols, 'Tablet', { Padding: [0, 40] });
   b.change(cols, 'Phone', { FillDirection: 'Vertical', Padding: [0, 32] });
@@ -348,7 +357,7 @@ function addAbout(b: Builder, page: InstanceId) {
     TextTransparency: 0.15,
   });
 
-  const text = group(b, content, { Name: 'Text', LayoutOrder: 2 });
+  const text = group(b, content, { Name: 'Text', LayoutOrder: 2, AutomaticSize: 'Y' });
   sizeAt(b, text, {
     base: [1, -464, 1, 0],
     Tablet: [0.58, -40, 1, 0],
@@ -367,46 +376,47 @@ function addAbout(b: Builder, page: InstanceId) {
     TextColor3: INK,
     TextXAlignment: 'Left',
   });
-  const paragraph = (name: string, order: number, body: string, h: [number, number, number]) => {
-    const id = label(b, text, {
+  // Paragraphs are as tall as their text.
+  const paragraph = (name: string, order: number, body: string) =>
+    label(b, text, {
       Name: name,
       HtmlTag: 'p',
       LayoutOrder: order,
+      Size: [1, 0, 0, 0],
+      AutomaticSize: 'Y',
       Text: body,
       Font: 'SourceSans',
       TextSize: 19,
+      LineHeight: 1.4,
       TextWrapped: true,
       TextColor3: BODY,
       TextXAlignment: 'Left',
       TextYAlignment: 'Top',
     });
-    sizeAt(b, id, { base: [1, 0, 0, h[0]], Tablet: [1, 0, 0, h[1]], Phone: [1, 0, 0, h[2]] });
-  };
   paragraph(
     'Story',
     2,
     "I've spent eight years turning messy problems into products people enjoy using. I work best close to engineers, with real data and short feedback loops.",
-    [48, 84, 88],
   );
   paragraph(
     'Outside',
     3,
     'Outside work I teach an interaction design course and make slightly wonky pottery.',
-    [48, 48, 48],
   );
-  const clients = label(b, text, {
+  label(b, text, {
     Name: 'Clients',
     LayoutOrder: 4,
-    Size: [1, 0, 0, 44],
+    Size: [1, 0, 0, 0],
+    AutomaticSize: 'Y',
     Text: 'Clients include Northwind, Tidewater Bank, Fern Health and Kiln.',
     Font: 'SourceSansSemibold',
     TextSize: 16,
+    LineHeight: 1.4,
     TextWrapped: true,
     TextColor3: MUTED,
     TextXAlignment: 'Left',
     TextYAlignment: 'Top',
   });
-  b.change(clients, 'Phone', { Size: [1, 0, 0, 48] });
 }
 
 function addContact(b: Builder, page: InstanceId) {
@@ -415,11 +425,13 @@ function addContact(b: Builder, page: InstanceId) {
     HtmlTag: 'section',
     LayoutOrder: 5,
     BackgroundColor3: INK,
+    AutomaticSize: 'Y',
   });
   sizeAt(b, contact, { base: [1, 0, 0, 340], Phone: [1, 0, 0, 330] });
-  const pad = b.add(contact, 'UIPadding', { PaddingTop: [0, 96] });
-  b.change(pad, 'Phone', { PaddingTop: [0, 64] });
+  const pad = b.add(contact, 'UIPadding', { PaddingTop: [0, 96], PaddingBottom: [0, 64] });
+  b.change(pad, 'Phone', { PaddingTop: [0, 64], PaddingBottom: [0, 70] });
   const content = column(b, contact, 1120);
+  b.set(content, { AutomaticSize: 'Y' });
   b.add(content, 'UIListLayout', { Padding: [0, 24] });
   label(b, content, {
     Name: 'Kicker',
@@ -438,7 +450,9 @@ function addContact(b: Builder, page: InstanceId) {
     Text: "Have a project in mind? Let's talk.",
     Font: 'Merriweather',
     TextSize: 44,
+    LineHeight: 1.2,
     TextWrapped: true,
+    AutomaticSize: 'Y',
     TextColor3: PAPER,
     TextXAlignment: 'Left',
     TextYAlignment: 'Top',
@@ -450,6 +464,7 @@ function addContact(b: Builder, page: InstanceId) {
     Name: 'EmailButton',
     LayoutOrder: 3,
     Size: [0, 168, 0, 52],
+    AutomaticSize: 'X',
     BackgroundColor3: ACCENT,
     Text: 'Email me',
     Font: 'SourceSansSemibold',
@@ -458,6 +473,7 @@ function addContact(b: Builder, page: InstanceId) {
     Link: { kind: 'url', url: 'mailto:hello@example.com' },
   });
   corner(b, email, [0.5, 0]);
+  padX(b, email, 24);
 }
 
 function addFooter(b: Builder, page: InstanceId) {

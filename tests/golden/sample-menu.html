@@ -91,7 +91,8 @@
     </div>
   </div>
 <script>
-  // Sizes that need the real box: aspect ratios, AutomaticSize, rounded corners in Scale, and TextScaled
+  // Sizes that need the real box: aspect ratios, AutomaticSize, AutomaticCanvasSize, rounded
+  // corners in Scale, and TextScaled
   (function () {
     function px(v) { return parseFloat(v) || 0; }
     // The exact laid-out size; offsetWidth rounds to whole pixels.
@@ -119,6 +120,17 @@
       var axes = getComputedStyle(el).getPropertyValue('--auto');
       if (/x/.test(axes)) { walk(c); st.minWidth = need(el, c, 0) + 'px'; }
       if (/y/.test(axes)) { walk(c); st.minHeight = need(el, c, 1) + 'px'; }
+      walk(c);
+    }
+    // AutomaticCanvasSize: a ScrollingFrame's canvas grows the same way to fit its children.
+    function canvas(el) {
+      var v = el.firstElementChild, c = v && v.firstElementChild;
+      if (!c) return;
+      var st = v.style;
+      st.minWidth = st.minHeight = '';
+      var axes = getComputedStyle(el).getPropertyValue('--canvas');
+      if (/x/.test(axes)) { walk(c); st.minWidth = need(v, c, 0) + 'px'; }
+      if (/y/.test(axes)) { walk(c); st.minHeight = need(v, c, 1) + 'px'; }
       walk(c);
     }
     function need(el, c, y) {
@@ -171,7 +183,9 @@
     function walk(node) {
       for (var k = node && node.firstElementChild; k; k = k.nextElementSibling) {
         if (k.hasAttribute('data-ar')) aspect(k);
-        if (k.hasAttribute('data-auto')) grow(k); else walk(k);
+        if (k.hasAttribute('data-auto')) grow(k);
+        else if (k.hasAttribute('data-canvas')) canvas(k);
+        else walk(k);
       }
     }
     // A page is as long as what's on it, and boxes that grew push it longer.

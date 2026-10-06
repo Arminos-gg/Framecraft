@@ -32,6 +32,10 @@ export const padAll = (b: Builder, id: InstanceId, pad: UDim) =>
     PaddingRight: pad,
   });
 
+/** Room on the left and right, so text that grows the box keeps clear of its edges. */
+export const padX = (b: Builder, id: InstanceId, pad: number) =>
+  b.add(id, 'UIPadding', { PaddingLeft: [0, pad], PaddingRight: [0, pad] });
+
 export const square = (b: Builder, id: InstanceId) =>
   b.add(id, 'UIAspectRatioConstraint', { AspectRatio: 1 });
 

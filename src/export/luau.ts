@@ -181,6 +181,7 @@ function luauProps(inst: AnyInstance): [string, string | number][] {
     if (def.input && t.PlaceholderText) add('PlaceholderText', luaStr(t.PlaceholderText));
     add('TextColor3', luaColor(t.TextColor3));
     add('TextSize', t.TextSize);
+    if (t.LineHeight !== 1) add('LineHeight', luaNum(t.LineHeight));
     if (t.TextScaled) add('TextScaled', 'true');
     if (t.TextWrapped) add('TextWrapped', 'true');
     if (t.TextXAlignment !== 'Center')
@@ -200,6 +201,8 @@ function luauProps(inst: AnyInstance): [string, string | number][] {
     add('AutoButtonColor', 'false');
   if (inst.className === 'ScrollingFrame') {
     add('CanvasSize', luaUDim2(inst.props.CanvasSize));
+    const canvas = inst.props.AutomaticCanvasSize;
+    if (canvas !== 'None') add('AutomaticCanvasSize', 'Enum.AutomaticSize.' + canvas);
     add('ScrollBarThickness', inst.props.ScrollBarThickness);
   }
   return out;
