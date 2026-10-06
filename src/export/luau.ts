@@ -247,6 +247,8 @@ function luauBlock(
     if (inst.props.Name !== inst.className) lines.push(`${v}.Name = ${luaStr(inst.props.Name)}`);
     for (const [k, val] of luauProps(inst)) lines.push(`${v}.${k} = ${val}`);
     for (const c of inst.children) {
+      // Web-only modifiers, such as UIHover, have no Roblox counterpart.
+      if (classDef(requireInstance(doc, c).className).web) continue;
       const cv = emit(c, v);
       lines.push(`${cv}.Parent = ${v}`);
     }

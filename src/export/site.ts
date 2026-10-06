@@ -20,12 +20,14 @@ import {
 import type { AssetId, Link } from '../model/values.ts';
 import { calcU, esc, rgb, rgba, roundTo } from './format.ts';
 import {
+  APPEAR_EXPORT,
   calcV,
   COMMENT_OPEN,
   FIT_SCRIPT,
   googleFontsHref,
   HtmlWriter,
   isGui,
+  PIN_Z,
   ruleText,
   type Decl,
   type Rule,
@@ -122,6 +124,8 @@ const RESET: Record<string, string> = {
   'mask-image': 'none',
   'border-radius': '0',
   'box-shadow': 'none',
+  'backdrop-filter': 'none',
+  '-webkit-backdrop-filter': 'none',
   overflow: 'visible',
   'font-style': 'normal',
   'line-height': '1',
@@ -165,7 +169,8 @@ const STATIC_CSS = `  html, body { margin: 0; }
         background: repeating-linear-gradient(45deg, #ddd 0 6px, #eee 6px 12px); }
   [data-btn] { cursor: pointer; }
   [data-btn]:hover { filter: brightness(0.9); }
-  [data-btn]:active { filter: brightness(0.75); }`;
+  [data-btn]:active { filter: brightness(0.75); }
+  .pin > * { pointer-events: auto; }`;
 
 /** The page's own rules and its elements, with the values the writer's breakpoint gives. */
 function writePage(w: HtmlWriter, page: Page): string {
@@ -204,7 +209,18 @@ function writePage(w: HtmlWriter, page: Page): string {
     ['min-height', bottoms.length ? `max(var(--vh), ${bottoms.join(', ')})` : 'var(--vh)'],
     ...(list ? w.listCss(list, true) : []),
   ]);
-  return w.emitChildren(page.id, !!list, 1, { onPage: true, phrasing: false, linked: false });
+  const body = w.emitChildren(page.id, !!list, 1, { onPage: true, phrasing: false, linked: false });
+  // Pinned objects sit in a layer fixed to the window, inset like the page's content.
+  if (w.hasPinned)
+    w.rule('.pin', [
+      ['position', 'fixed'],
+      ['left', pad ? calcU(...pad.PaddingLeft) : '0px'],
+      ['right', pad ? calcU(...pad.PaddingRight) : '0px'],
+      ['top', pad ? calcVh(...pad.PaddingTop) : '0px'],
+      ['z-index', String(PIN_Z)],
+      ['pointer-events', 'none'],
+    ]);
+  return body;
 }
 
 /** Every link that points at a section, as the id its target object gets on its page. */
@@ -326,7 +342,7 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
 ${head.join('\n')}
 ${COMMENT_OPEN} Built with Framecraft. Every object keeps its Roblox name in data-name. -->
 <style>
-${STATIC_CSS}
+${STATIC_CSS}${base.needsAppear ? '\n' + APPEAR_EXPORT.css : ''}
   ${[...base.rules.map(ruleText), ...media].join('\n  ')}
 </style>
 </head>
@@ -334,7 +350,7 @@ ${STATIC_CSS}
   <main class="page" data-name="${esc(pp.Name)}">
     <div class="c pc"${grows ? ' data-grow' : ''}>${body}
     </div>
-  </main>${base.needsScript ? FIT_SCRIPT : ''}
+  </main>${base.needsScript ? FIT_SCRIPT : ''}${base.needsAppear ? APPEAR_EXPORT.script : ''}
 </body>
 </html>
 `;
