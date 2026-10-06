@@ -473,3 +473,178 @@ describe('pictures and projects', () => {
     expect(ed.doc).toBe(old);
   });
 });
+
+describe('several objects at once', () => {
+  const names = () => ed.state.selected.map((s) => ed.doc.instances[s]!.props.Name);
+
+  it('adds and takes out objects, and the last one picked is the one Properties shows', () => {
+    ed.select(id('Coins'));
+    ed.toggleSelected(id('Version'));
+    expect(names()).toEqual(['Coins', 'Version']);
+    expect(ed.state.selection).toBe(id('Version'));
+    ed.toggleSelected(id('Version'));
+    expect(names()).toEqual(['Coins']);
+    expect(ed.state.selection).toBe(id('Coins'));
+    ed.select(id('Panel'));
+    expect(names()).toEqual(['Panel']);
+  });
+
+  it('selects everything beside the selection, or on the screens shown', () => {
+    ed.select(id('Coins'));
+    ed.selectAll();
+    expect(names()).toEqual(['Coins', 'Panel', 'Version']);
+    expect(ed.state.selection).toBe(id('Coins'));
+    ed.select(id('Title'));
+    ed.selectAll();
+    expect(names()).toEqual(['Title', 'Subtitle', 'Buttons']);
+  });
+
+  it('selects the objects inside a box, but not their children too', () => {
+    ed.select(null);
+    ed.setView({ kind: 'screens' });
+    const coins = ed.scene.layout.get(id('Coins'))!;
+    ed.selectInRect({ x: coins.x - 2, y: coins.y - 2, w: coins.w + 4, h: coins.h + 4 });
+    expect(names()).toEqual(['Coins']);
+    const version = ed.scene.layout.get(id('Version'))!;
+    const r = { x: version.x - 2, y: version.y - 2, w: version.w + 4, h: version.h + 4 };
+    ed.selectInRect(r, ed.state.selected);
+    expect(names()).toEqual(['Coins', 'Version']);
+    ed.selectInRect({ x: 0, y: 0, w: 1, h: 1 });
+    expect(names()).toEqual([]);
+  });
+
+  it('deletes, duplicates, copies and pastes them all, each as one step', () => {
+    ed.selectMany([id('Coins'), id('Version'), id('Amount')]);
+    const count = Object.keys(ed.doc.instances).length;
+    ed.duplicateSelection();
+    // Amount is inside Coins, so it comes along with it rather than twice.
+    expect(names()).toEqual(['Coins', 'Version']);
+    expect(Object.keys(ed.doc.instances).length).toBe(count + 9);
+    const menu = ed.doc.instances[id('MainMenu')]!.children.map(
+      (c) => ed.doc.instances[c]!.props.Name,
+    );
+    expect(menu).toEqual(['Coins', 'Coins', 'Panel', 'Version', 'Version']);
+    ed.undo();
+    expect(Object.keys(ed.doc.instances).length).toBe(count);
+
+    ed.selectMany([id('Coins'), id('Version')]);
+    ed.copySelection();
+    ed.select(id('Panel'));
+    ed.paste();
+    expect(ed.state.selected.map((s) => ed.doc.instances[s]!.parent)).toEqual([
+      id('Panel'),
+      id('Panel'),
+    ]);
+    ed.undo();
+
+    ed.selectMany([id('Coins'), id('Version')]);
+    ed.deleteSelection();
+    expect(ed.state.toast?.text).toBe('Deleted 2 objects');
+    expect(Object.keys(ed.doc.instances).length).toBe(count - 9);
+    ed.undo();
+    expect(Object.keys(ed.doc.instances).length).toBe(count);
+  });
+
+  it('moves them all with the one dragged, and nudges them together', () => {
+    ed.selectMany([id('Version'), id('Coins')]);
+    const coins = props('Coins').Position;
+    const version = props('Version').Position as number[];
+    dragBy('Coins', -30, 20, { alt: true });
+    expect(props('Coins').Position).toEqual([1, -50, 0, 40]);
+    expect(props('Version').Position).toEqual([
+      version[0],
+      version[1]! - 30,
+      version[2],
+      version[3]! + 20,
+    ]);
+    ed.undo();
+    expect(props('Coins').Position).toEqual(coins);
+    expect(props('Version').Position).toEqual(version);
+    ed.nudge(1, 0);
+    expect(props('Coins').Position).toEqual([1, -19, 0, 20]);
+    expect((props('Version').Position as number[])[1]).toBe(version[1]! + 1);
+  });
+
+  it('edits a property of all of them as one step', () => {
+    ed.selectMany([id('Coins'), id('Version'), id('Amount')]);
+    ed.setSelectedProp('BackgroundTransparency', 0.5);
+    for (const n of ['Coins', 'Version', 'Amount'])
+      expect(props(n).BackgroundTransparency).toBe(0.5);
+    // Only the text objects have TextSize.
+    ed.setSelectedProp('TextSize', 30);
+    expect(props('Amount').TextSize).toBe(30);
+    expect(props('Coins').TextSize).toBeUndefined();
+    ed.undo();
+    ed.undo();
+    expect(props('Version').BackgroundTransparency).toBe(1);
+  });
+
+  it('moves several rows into another parent in Explorer order', () => {
+    ed.moveManyTo([id('Version'), id('Coins')], id('Panel'), 0);
+    const panel = ed.doc.instances[id('Panel')]!.children.map(
+      (c) => ed.doc.instances[c]!.props.Name,
+    );
+    expect(panel.slice(0, 2)).toEqual(['Coins', 'Version']);
+    ed.undo();
+    // Reordering inside one parent: both go after Panel, keeping their order.
+    ed.moveManyTo([id('Coins'), id('Panel')], id('MainMenu'), 1);
+    const menu = ed.doc.instances[id('MainMenu')]!.children.map(
+      (c) => ed.doc.instances[c]!.props.Name,
+    );
+    expect(menu).toEqual(['Version', 'Coins', 'Panel']);
+  });
+});
+
+describe('folders', () => {
+  it('groups objects into a Folder where the first one was, and ungroups them again', () => {
+    ed.selectMany([id('Version'), id('Coins')]);
+    const coins = { ...ed.scene.layout.get(id('Coins'))! };
+    ed.groupSelection();
+    const folder = ed.doc.instances[ed.state.selection!]!;
+    expect(folder.className).toBe('Folder');
+    const menu = ed.doc.instances[id('MainMenu')]!.children;
+    expect(menu.indexOf(folder.id)).toBe(0);
+    expect(folder.children).toEqual([id('Coins'), id('Version')]);
+    // A Folder draws nothing: what's in it stays where it was.
+    expect(ed.scene.layout.get(id('Coins'))).toMatchObject({ x: coins.x, y: coins.y });
+    expect(ed.state.expanded.has(folder.id)).toBe(true);
+
+    ed.ungroupSelection();
+    expect(ed.doc.instances[folder.id]).toBeUndefined();
+    expect(
+      ed.doc.instances[id('MainMenu')]!.children.map((c) => ed.doc.instances[c]!.props.Name),
+    ).toEqual(['Coins', 'Version', 'Panel']);
+    expect(ed.state.selected).toEqual([id('Coins'), id('Version')]);
+  });
+
+  it('only groups objects that share a parent', () => {
+    ed.selectMany([id('Coins'), id('Title')]);
+    const before = ed.doc;
+    ed.groupSelection();
+    expect(ed.doc).toBe(before);
+    expect(ed.state.toast?.text).toBe('Pick objects that sit in the same parent to group them.');
+  });
+
+  it('inserts into a Folder, and renames, copies and deletes it like any object', () => {
+    ed.select(id('MainMenu'));
+    const folder = ed.insert('Folder')!;
+    expect(ed.doc.instances[folder]!.parent).toBe(id('MainMenu'));
+    const frame = ed.insert('Frame', folder)!;
+    expect(ed.doc.instances[frame]!.parent).toBe(folder);
+    expect(ed.canRename(folder)).toBe(true);
+    ed.select(folder);
+    ed.duplicateSelection();
+    expect(ed.doc.instances[ed.state.selection!]!.children).toHaveLength(1);
+    ed.deleteSelection();
+    expect(ed.state.selection).toBe(id('MainMenu'));
+  });
+
+  it('keeps a page section in a Folder as wide as the window', () => {
+    ed.select(id('Home'));
+    const folder = ed.insert('Folder')!;
+    const frame = ed.insert('Frame', folder)!;
+    expect((ed.doc.instances[frame]!.props as Record<string, unknown>).Size).toEqual([
+      1, 0, 0, 320,
+    ]);
+  });
+});

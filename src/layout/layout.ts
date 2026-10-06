@@ -16,6 +16,7 @@
  */
 import { automaticSizeOf, classDef } from '../model/classes.ts';
 import {
+  folderObjects,
   getInstance,
   resolveProps,
   type AnyInstance,
@@ -83,6 +84,11 @@ class Engine {
   /** The objects that draw, without modifiers. */
   guiChildren(id: InstanceId): GuiInstance[] {
     return this.children(id).filter(isGui);
+  }
+
+  /** The objects in the instance's Folders, which draw as if they sat in the instance. */
+  folderChildren(id: InstanceId): GuiInstance[] {
+    return folderObjects(this.doc, id).filter(isGui);
   }
 
   modifier<C extends 'UIPadding' | 'UIListLayout' | 'UIAspectRatioConstraint'>(
@@ -158,7 +164,8 @@ class Engine {
     const pad = this.paddingOf(inst.id, { w, h });
     const padding = x ? pad.left + pad.right : pad.top + pad.bottom;
     const content = this.padded(inst.id, { x: 0, y: 0, w, h });
-    const shown = this.guiChildren(inst.id).filter((c) => this.props(c).Visible);
+    const visible = (c: GuiInstance) => this.props(c).Visible;
+    const shown = this.guiChildren(inst.id).filter(visible);
     const list = this.modifier(inst.id, 'UIListLayout');
     let length = 0;
     if (list) {
@@ -169,16 +176,18 @@ class Engine {
         const gap = udimPx(lp.Padding, vertical ? content.h : content.w);
         length = sizes.reduce((sum, s) => sum + s, gap * Math.max(0, sizes.length - 1));
       } else length = Math.max(0, ...sizes);
-    } else
-      for (const c of shown) {
-        const cp = this.props(c);
-        const s = this.boxSize(c, content);
-        const size = x ? s.w : s.h;
-        const start = x
-          ? udimPx([cp.Position[0], cp.Position[1]], content.w)
-          : udimPx([cp.Position[2], cp.Position[3]], content.h);
-        length = Math.max(length, start - cp.AnchorPoint[x ? 0 : 1] * size + size);
-      }
+    }
+    // Objects in Folders are placed by their own Position, even beside a UIListLayout.
+    const free = [...(list ? [] : shown), ...this.folderChildren(inst.id).filter(visible)];
+    for (const c of free) {
+      const cp = this.props(c);
+      const s = this.boxSize(c, content);
+      const size = x ? s.w : s.h;
+      const start = x
+        ? udimPx([cp.Position[0], cp.Position[1]], content.w)
+        : udimPx([cp.Position[2], cp.Position[3]], content.h);
+      length = Math.max(length, start - cp.AnchorPoint[x ? 0 : 1] * size + size);
+    }
     return length + padding;
   }
 
@@ -274,8 +283,11 @@ class Engine {
     const list = this.modifier(parentId, 'UIListLayout');
     if (list) this.layoutList(list, items, area);
     else for (const c of items) this.placeFree(c, area);
+    const loose = this.folderChildren(parentId);
+    for (const c of loose) this.placeFree(c, area);
+    this.placeFolders(parentId, area);
 
-    for (const c of items) {
+    for (const c of [...items, ...loose]) {
       const box = this.boxes.get(c.id)!;
       let base: Rect = box;
       let canvas: Rect | undefined;
@@ -286,6 +298,19 @@ class Engine {
       const content = this.padded(c.id, rect(base));
       this.boxes.set(c.id, canvas ? { ...box, canvas, content } : { ...box, content });
       this.layoutChildren(c.id, content);
+    }
+  }
+
+  /**
+   * A Folder draws nothing; its box is the area its objects are placed in, which is its
+   * parent's, so inserting into it and its objects' Scale work as in the parent.
+   */
+  placeFolders(parentId: InstanceId, area: Rect) {
+    for (const f of this.children(parentId)) {
+      if (classDef(f.className).kind !== 'folder') continue;
+      const box = { ...rect(area), area, rotation: 0, visible: true, listItem: false };
+      this.boxes.set(f.id, { ...box, content: area });
+      this.placeFolders(f.id, area);
     }
   }
 
@@ -307,7 +332,7 @@ class Engine {
     this.layoutChildren(page.id, content);
     const bottomPadding = area.y + area.h - (content.y + content.h);
     let bottom = area.h;
-    for (const c of this.guiChildren(page.id)) {
+    for (const c of [...this.guiChildren(page.id), ...this.folderChildren(page.id)]) {
       const b = this.boxes.get(c.id)!;
       if (b.visible) bottom = Math.max(bottom, b.y + b.h + bottomPadding);
     }
@@ -405,7 +430,7 @@ function rotatingAncestors(doc: Doc, layout: Layout, id: InstanceId): Box[] {
   while (p !== null) {
     const inst = getInstance(doc, p);
     const box = layout.get(p);
-    if (!inst || !box || classDef(inst.className).kind !== 'gui') break;
+    if (!inst || !box || !['gui', 'folder'].includes(classDef(inst.className).kind)) break;
     out.push(box);
     p = inst.parent;
   }

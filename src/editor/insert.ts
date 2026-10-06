@@ -17,6 +17,7 @@ import {
   childOfClass,
   childrenOf,
   createInstance,
+  drawnParent,
   getInstance,
   newId,
   single,
@@ -50,6 +51,7 @@ export const CLASS_HINTS: Partial<Record<ClassName, string>> = {
   ImageLabel: 'Shows an image',
   ImageButton: 'Clickable image',
   ScrollingFrame: 'Scrolls its content',
+  Folder: 'Groups objects; they stay where they are',
   UICorner: 'Rounds the corners',
   UIStroke: 'Adds an outline',
   UIGradient: 'Tints with a gradient',
@@ -68,7 +70,7 @@ export function insertableInto(doc: Doc, parentId: InstanceId) {
   const parent = getInstance(doc, parentId);
   if (!parent) return { objects: [], modifiers: [] };
   const fits = (c: ClassName) => canParent(c, parent.className);
-  const objects = (['ScreenGui', 'Page', ...OBJECT_CLASSES] as ClassName[]).filter(fits);
+  const objects = (['ScreenGui', 'Page', ...OBJECT_CLASSES, 'Folder'] as ClassName[]).filter(fits);
   const modifiers = (MODIFIER_CLASSES as readonly ClassName[]).filter(fits);
   return { objects, modifiers };
 }
@@ -129,8 +131,8 @@ export function newSubtree(
     return single(createInstance(className, {}, makeId()) as AnyInstance);
 
   const defaults = defaultProps(className) as unknown as { Size: UDim2 };
-  // Straight in a page, an object is a section: as wide as the window.
-  const onPage = parent.className === 'Page';
+  // Straight in a page (or in a Folder there), an object is a section: as wide as the window.
+  const onPage = drawnParent(doc, parent.id)?.className === 'Page';
   const size: UDim2 = onPage
     ? [1, 0, 0, className === 'Frame' || className === 'ScrollingFrame' ? 320 : defaults.Size[3]]
     : defaults.Size;

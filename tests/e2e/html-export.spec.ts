@@ -77,6 +77,11 @@ function testDoc(): Doc {
     CanvasSize: [0, 0, 2, 0],
   });
   add(scroll, 'Frame', { Name: 'Deep', Position: [0, 10, 0.6, 0], Size: [1, -20, 0.2, 0] });
+  // Objects in Folders draw in the Folder's parent, placed freely even beside a list.
+  const loose = add(sg, 'Folder', { Name: 'Loose' });
+  add(loose, 'Frame', { Name: 'InFolder', Position: [0.5, 0, 0, 12], Size: [0.1, 0, 0, 24] });
+  const tags = add(row, 'Folder', { Name: 'RowTags' });
+  add(tags, 'Frame', { Name: 'RowTag', Position: [1, -30, 0, 4], Size: [0, 26, 0.3, 0] });
   return doc;
 }
 

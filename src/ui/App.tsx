@@ -202,11 +202,13 @@ function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
       c: () => editor.copySelection(),
       x: () => editor.copySelection(true),
       v: () => editor.paste(),
+      a: () => editor.selectAll(),
+      g: () => (e.shiftKey ? editor.ungroupSelection() : editor.groupSelection()),
       s: () => saveProjectFile(editor),
       o: () => void openProjectFile(editor),
       e: openExport,
     }[k];
-    if (action && !(preview && 'dcxv'.includes(k))) {
+    if (action && !(preview && 'dcxvag'.includes(k))) {
       e.preventDefault();
       action();
     }

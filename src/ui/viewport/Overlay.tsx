@@ -1,13 +1,21 @@
 /**
  * Drawn over the device, in viewport pixels: the hover outline, the selection with its resize
- * handles and AnchorPoint dot (a selected page is outlined along the device's edge), snapping guides, and the readout while dragging. Over a device
- * that isn't being edited (`passive`, side by side) only the outlines show.
+ * handles and AnchorPoint dot (a selected page is outlined along the device's edge), snapping
+ * guides, and the readout while dragging. Several selected objects are outlined without
+ * handles, and a selected Folder outlines the objects in it. Over a device that isn't being
+ * edited (`passive`, side by side) only the outlines show.
  */
 import type { EditorState, Scene } from '../../editor/editor.ts';
 import { HANDLES } from '../../editor/geometry.ts';
 import { isGui } from '../../export/html.ts';
 import { screenQuad } from '../../layout/layout.ts';
-import { getInstance, resolveProps, type Instance, type InstanceId } from '../../model/document.ts';
+import {
+  drawnChildren,
+  getInstance,
+  resolveProps,
+  type Instance,
+  type InstanceId,
+} from '../../model/document.ts';
 import { UDim2Text } from '../properties/fields.tsx';
 
 export function Overlay({
@@ -54,8 +62,15 @@ export function Overlay({
         : shown(state.hover)
           ? outline(state.hover)
           : undefined;
-  const pageSelected = pageId !== null && state.selection === pageId;
-  const sel = shown(state.selection) ? state.selection : null;
+  const pageSelected = pageId !== null && state.selected.includes(pageId);
+  const many = state.selected.length > 1;
+  // Every selected object but the one with handles, and what's in selected Folders.
+  const outlined = state.selected.flatMap((id) => {
+    if (getInstance(doc, id)?.className === 'Folder')
+      return drawnChildren(doc, id).map((c) => c.id);
+    return many || passive ? [id] : [];
+  });
+  const sel = !many && shown(state.selection) ? state.selection : null;
   const box = sel === null ? undefined : scene.layout.get(sel);
   const selStyle = sel === null ? undefined : outline(sel);
   const inst = sel === null ? undefined : getInstance(doc, sel);
@@ -77,7 +92,14 @@ export function Overlay({
       {pageSelected && (
         <div className={passive ? 'selbox passive' : 'selbox'} data-page="" style={pageBox} />
       )}
-      {passive && selStyle && <div className="selbox passive" style={selStyle} />}
+      {outlined.filter(shown).map((id) => (
+        <div
+          key={id}
+          className={passive ? 'selbox passive' : 'selbox'}
+          data-many=""
+          style={outline(id)}
+        />
+      ))}
       {!passive && box && selStyle && props && (
         <div className={box.listItem ? 'selbox locked' : 'selbox'} style={selStyle}>
           {HANDLES.map((h) => (
