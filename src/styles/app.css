@@ -1956,7 +1956,7 @@ button.bpdot.on:hover {
   text-transform: uppercase;
   color: var(--faint);
 }
-.cat {
+.ccat {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1968,15 +1968,15 @@ button.bpdot.on:hover {
   color: var(--fg);
   white-space: nowrap;
 }
-.cat:hover {
+.ccat:hover {
   background: var(--hover);
 }
-.cat.on {
+.ccat.on {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
 }
-.cat span:last-child {
+.ccat span:last-child {
   color: var(--faint);
   font-size: 11.5px;
   font-weight: 400;

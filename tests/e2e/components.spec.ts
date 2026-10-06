@@ -137,9 +137,11 @@ test('adds a Roblox piece in the look picked', async ({ page }) => {
       parent: f.doc.instances[sel.parent!]!.className,
       slot: (
         f.doc.instances[sel.children.find((id) => f.doc.instances[id]!.props.Name === 'Slot1')!]!
-          .props as { BackgroundColor3: number[] }
+          .props as unknown as { BackgroundColor3: number[] }
       ).BackgroundColor3,
-      sharp: corners.every((c) => (c.props as { CornerRadius: number[] }).CornerRadius[1]! <= 2),
+      sharp: corners.every(
+        (c) => (c.props as unknown as { CornerRadius: number[] }).CornerRadius[1]! <= 2,
+      ),
     };
   });
   expect(added.name).toBe('Hotbar');

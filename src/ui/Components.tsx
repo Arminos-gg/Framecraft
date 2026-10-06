@@ -357,7 +357,7 @@ export function ComponentsDrawer() {
           <nav className="cats" aria-label="Categories">
             <button
               type="button"
-              className={category === 'All' ? 'cat on' : 'cat'}
+              className={category === 'All' ? 'ccat on' : 'ccat'}
               aria-pressed={category === 'All'}
               onClick={() => setCategory('All')}
             >
@@ -371,7 +371,7 @@ export function ComponentsDrawer() {
                   <button
                     key={c.name}
                     type="button"
-                    className={category === c.name ? 'cat on' : 'cat'}
+                    className={category === c.name ? 'ccat on' : 'ccat'}
                     aria-pressed={category === c.name}
                     onClick={() => setCategory(c.name)}
                   >
