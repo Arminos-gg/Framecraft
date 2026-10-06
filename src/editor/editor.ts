@@ -8,7 +8,7 @@
  * On a page shown at Tablet or Phone, edits change that breakpoint's values.
  */
 import { slug } from '../export/site.ts';
-import { isGui, type Backdrop } from '../export/html.ts';
+import { isGui, isTinted, type Backdrop } from '../export/html.ts';
 import {
   ancestorAngle,
   layoutContainer,
@@ -28,9 +28,11 @@ import {
   extractSubtree,
   getInstance,
   ModelError,
+  newId,
   reIdSubtree,
   resolveProps,
   serviceOf,
+  single,
   subtreeIds,
   type AnyInstance,
   type Doc,
@@ -49,6 +51,7 @@ import {
   type Device,
 } from './devices.ts';
 import { hasModifier, insertParent, newSubtree } from './insert.ts';
+import { finishShape, shapeById, shapeClass, shapePicture, shapeProps } from './shapes.ts';
 import {
   moveRect,
   positionFor,
@@ -89,6 +92,17 @@ export interface Gesture {
   readonly id: InstanceId;
   readonly kind: 'move' | 'resize';
   readonly guides: readonly Guide[];
+}
+
+/** A picture to place: a data URL, with its size in pixels for a new object. */
+export interface Picture {
+  readonly dataUrl: string;
+  readonly width: number;
+  readonly height: number;
+  /** A one-color SVG made white, so ImageColor3 colors it (it starts black). */
+  readonly recolor?: boolean;
+  /** The new object's Name, such as the file's name. */
+  readonly name?: string;
 }
 
 export interface Toast {
@@ -760,6 +774,55 @@ export class Editor {
    * into what the viewport shows. A modifier goes on `parentId` itself.
    */
   insert(className: ClassName, parentId: InstanceId | null = this.#state.selection) {
+    return this.#insertNew(className, parentId);
+  }
+
+  /**
+   * Inserts a shape from the Shapes menu, where an object would go. Picture shapes add their
+   * white SVG to the image library.
+   */
+  insertShape(shapeId: string, parentId: InstanceId | null = this.#state.selection) {
+    const shape = shapeById(shapeId);
+    if (!shape) return null;
+    const picture = shapePicture(shape);
+    if (picture !== undefined && this.#addPicture(picture) === null) return null;
+    return this.#insertNew(shapeClass(shape), parentId, shapeProps(shape), (root) =>
+      finishShape(shape, root, newId),
+    );
+  }
+
+  /**
+   * Inserts an ImageLabel showing a picture, as big as the picture up to 400 px a side: a
+   * pasted or dropped SVG or image.
+   */
+  insertPicture(pic: Picture, parentId: InstanceId | null = this.#state.selection) {
+    const preview = this.#addPicture(pic.dataUrl);
+    if (preview === null) return null;
+    const fit = Math.min(1, 400 / Math.max(pic.width, pic.height, 1));
+    const w = Math.max(1, Math.round(pic.width * fit));
+    const h = Math.max(1, Math.round(pic.height * fit));
+    const props: Record<string, unknown> = {
+      Size: [0, w, 0, h],
+      BackgroundTransparency: 1,
+    };
+    const name = pic.name?.trim();
+    if (name) props.Name = name;
+    if (pic.recolor) props.ImageColor3 = [0, 0, 0];
+    return this.#insertNew('ImageLabel', parentId, props, (root) => single({ ...root, preview }));
+  }
+
+  /**
+   * Inserts a new object, layer, page or modifier and selects it. An object goes into
+   * `parentId` (the selection by default) or its nearest ancestor that can hold it, or else
+   * into what the viewport shows. A modifier goes on `parentId` itself. `start` and `finish`
+   * shape the new object: properties it starts with, and what goes with it.
+   */
+  #insertNew(
+    className: ClassName,
+    parentId: InstanceId | null,
+    start?: Readonly<Record<string, unknown>>,
+    finish?: (root: AnyInstance) => Subtree,
+  ) {
     const doc = this.doc;
     const scene = this.scene;
     const kind = classDef(className).kind;
@@ -800,7 +863,8 @@ export class Editor {
     let area = box?.content ?? rectOf(scene);
     // On a long page, center in the first screen rather than halfway down.
     if (parent.className === 'Page') area = { ...area, h: Math.min(area.h, scene.device.height) };
-    const subtree = newSubtree(this.doc, className, parent, area);
+    let subtree = newSubtree(this.doc, className, parent, area, newId, start);
+    if (finish) subtree = finish(subtree.instances[subtree.rootId]!);
     cmds.push(insert(parent.id, subtree));
     if (!this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds))) return null;
     this.select(subtree.rootId);
@@ -869,11 +933,26 @@ export class Editor {
     }
   }
 
-  /** Shows a picture in an ImageLabel or ImageButton, or removes it with null. The export keeps the Image id. */
-  setImagePreview(id: InstanceId, dataUrl: string | null) {
-    const asset = dataUrl === null ? null : this.#addPicture(dataUrl);
-    if (dataUrl !== null && asset === null) return;
-    this.#execute(setPreview(id, asset));
+  /**
+   * Shows a picture in an ImageLabel or ImageButton, or removes it with null. The export keeps
+   * the Image id. A one-color SVG comes in white, so an ImageColor3 still at white turns
+   * black to keep it looking as it did.
+   */
+  setImagePreview(id: InstanceId, picture: string | Pick<Picture, 'dataUrl' | 'recolor'> | null) {
+    const pic: Pick<Picture, 'dataUrl' | 'recolor'> | null =
+      typeof picture === 'string' ? { dataUrl: picture } : picture;
+    const asset = pic === null ? null : this.#addPicture(pic.dataUrl);
+    if (pic !== null && asset === null) return;
+    const inst = getInstance(this.doc, id);
+    const recolor =
+      pic?.recolor &&
+      (inst?.className === 'ImageLabel' || inst?.className === 'ImageButton') &&
+      !isTinted(inst.props.ImageColor3);
+    this.#execute(
+      recolor
+        ? batch(setPreview(id, asset), edit(id, { ImageColor3: [0, 0, 0] }, undefined))
+        : setPreview(id, asset),
+    );
   }
 
   /** Sets a picture property such as a page's SocialImage, or clears it with null. */

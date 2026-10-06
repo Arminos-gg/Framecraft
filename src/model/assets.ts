@@ -17,6 +17,16 @@ export const isImageDataUrl = (s: unknown): s is string =>
 export const isAssetId = (s: unknown): s is AssetId =>
   typeof s === 'string' && ASSET_ID_PATTERN.test(s);
 
+/** An SVG's markup as a data URL, as uploads come in. */
+export function svgDataUrl(svg: string): string {
+  let bin = '';
+  for (const b of new TextEncoder().encode(svg)) bin += String.fromCharCode(b);
+  return 'data:image/svg+xml;base64,' + btoa(bin);
+}
+
+/** Whether a picture is an SVG, which Roblox can't load. */
+export const isSvgDataUrl = (dataUrl: string): boolean => dataUrl.startsWith('data:image/svg+xml');
+
 /** cyrb53: a fast 53-bit string hash, plenty for telling a project's images apart. */
 function hash53(s: string): number {
   let h1 = 0xdeadbeef;
