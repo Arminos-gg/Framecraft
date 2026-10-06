@@ -170,6 +170,7 @@ describe('website markers', () => {
       'SocialImage',
       'NotFound',
       'BackgroundColor3',
+      'BackgroundTransparency',
     ]);
     expect(webProps('TextButton')).toEqual(['Link', 'HtmlTag']);
     expect(webProps('ImageLabel')).toEqual(['AltText', 'Link', 'HtmlTag']);

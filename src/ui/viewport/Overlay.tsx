@@ -1,6 +1,6 @@
 /**
  * Drawn over the device, in viewport pixels: the hover outline, the selection with its resize
- * handles and AnchorPoint dot, snapping guides, and the readout while dragging. Over a device
+ * handles and AnchorPoint dot (a selected page is outlined along the device's edge), snapping guides, and the readout while dragging. Over a device
  * that isn't being edited (`passive`, side by side) only the outlines show.
  */
 import type { EditorState, Scene } from '../../editor/editor.ts';
@@ -43,8 +43,18 @@ export function Overlay({
     return !!inst && isGui(inst) && !!scene.layout.get(id)?.visible;
   };
 
+  // The page itself is outlined along the device's edge.
+  const pageId = scene.view.kind === 'page' ? scene.view.pageId : null;
+  const pageBox = { left: 0, top: 0, width: scene.width * z, height: scene.height * z };
   const hover =
-    state.hover !== state.selection && shown(state.hover) ? outline(state.hover) : undefined;
+    state.hover === state.selection
+      ? undefined
+      : state.hover !== null && state.hover === pageId
+        ? pageBox
+        : shown(state.hover)
+          ? outline(state.hover)
+          : undefined;
+  const pageSelected = pageId !== null && state.selection === pageId;
   const sel = shown(state.selection) ? state.selection : null;
   const box = sel === null ? undefined : scene.layout.get(sel);
   const selStyle = sel === null ? undefined : outline(sel);
@@ -64,6 +74,9 @@ export function Overlay({
         </div>
       )}
       {hover && <div className="hoverbox" style={hover} />}
+      {pageSelected && (
+        <div className={passive ? 'selbox passive' : 'selbox'} data-page="" style={pageBox} />
+      )}
       {passive && selStyle && <div className="selbox passive" style={selStyle} />}
       {!passive && box && selStyle && props && (
         <div className={box.listItem ? 'selbox locked' : 'selbox'} style={selStyle}>

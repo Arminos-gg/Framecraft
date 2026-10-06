@@ -77,13 +77,18 @@ export const Stage = memo(function Stage({ doc, scene, assets, preview }: StageP
   if (scene.view.kind === 'page') {
     const page = getInstance(doc, scene.view.pageId);
     if (page?.className !== 'Page') return null;
-    const background = ctx.props(page).BackgroundColor3;
+    const { BackgroundColor3, BackgroundTransparency } = ctx.props(page);
+    // A see-through page shows the editor's measuring grid behind it.
     return (
       <div
         ref={ref}
         className="screen"
         data-fonts={fontsLoaded}
-        style={{ background: rgb(background) }}
+        style={{
+          background: BackgroundTransparency
+            ? rgba(BackgroundColor3, BackgroundTransparency)
+            : rgb(BackgroundColor3),
+        }}
       >
         {guiChildren(doc, page.id).map((c) => (
           <GuiView key={c.id} inst={c} origin={origin} ctx={ctx} />

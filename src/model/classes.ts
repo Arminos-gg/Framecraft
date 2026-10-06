@@ -238,6 +238,7 @@ export const CLASSES = {
       SocialImage: spec('asset', 'Web', '', WEB),
       NotFound: spec('bool', 'Web', false, WEB),
       BackgroundColor3: spec('color', 'Appearance', [255, 255, 255], { ...OV, ...WEB }),
+      BackgroundTransparency: spec('alpha', 'Appearance', 0, { ...OV, ...WEB }),
     },
   },
   Frame: {
