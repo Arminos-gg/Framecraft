@@ -3,8 +3,10 @@ import { Editor, type SaveStatus } from '../editor/editor.ts';
 import { sampleProject } from '../model/sample.ts';
 import { EditorContext, useEditor, useEditorState } from './editor-context.ts';
 import { ExportDialog, type ExportKind } from './ExportDialog.tsx';
+import { ComponentsDrawer } from './Components.tsx';
 import { Explorer } from './Explorer.tsx';
 import { Icon, Mark } from './icons.tsx';
+import { hasPictures, picturesIn } from './pictures.ts';
 import { openProjectFile, saveProjectFile } from './project-actions.ts';
 import { ProjectMenu } from './ProjectMenu.tsx';
 import { Properties } from './properties/Properties.tsx';
@@ -40,13 +42,21 @@ function Shell() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => handleKey(editor, e, openExport);
+    const onPaste = (e: ClipboardEvent) => handlePaste(editor, e);
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    document.addEventListener('paste', onPaste);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('paste', onPaste);
+    };
   }, [editor, openExport]);
 
   const { preview, saveStatus, toast } = state;
+  const drawer = state.components && !preview;
   return (
-    <div className={preview ? 'app preview' : 'app'}>
+    <div
+      className={['app', preview && 'preview', drawer && 'with-drawer'].filter(Boolean).join(' ')}
+    >
       <header className="topbar">
         <span className="brand">
           <Mark />
@@ -125,6 +135,7 @@ function Shell() {
 
       <Ribbon />
       <Explorer open={sheet === 'explorer'} onClose={() => setSheet(null)} />
+      {drawer && <ComponentsDrawer />}
       <Viewport />
       <Properties open={sheet === 'props'} onClose={() => setSheet(null)} />
       {menu && (
@@ -178,17 +189,58 @@ function SaveStatusText({ status }: { status: SaveStatus }) {
   );
 }
 
-/** Editor shortcuts. Keys typed into a field, or used by a menu or dialog, belong to it. */
-function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
-  if (e.defaultPrevented) return;
-  const t = e.target as HTMLElement | null;
-  const typing =
+/**
+ * Copies the selected object. The system clipboard gets its name, so a picture copied
+ * earlier doesn't paste in its place.
+ */
+function copy(editor: Editor, cut: boolean) {
+  const sel = editor.state.selection;
+  const name = sel === null ? undefined : editor.state.doc.instances[sel]?.props.Name;
+  editor.copySelection(cut);
+  if (name) navigator.clipboard?.writeText(name).catch(() => {});
+}
+
+/** Whether a key or paste belongs to a field, menu or dialog rather than the editor. */
+function isTyping(t: HTMLElement | null) {
+  return (
     !!t &&
     (t.tagName === 'INPUT' ||
       t.tagName === 'TEXTAREA' ||
       t.tagName === 'SELECT' ||
-      t.isContentEditable);
-  if (t?.closest?.('dialog, [role="dialog"], [role="menu"]')) return;
+      t.isContentEditable)
+  );
+}
+const inDialog = (t: HTMLElement | null) =>
+  !!t?.closest?.('dialog, [role="dialog"], [role="menu"]');
+
+/** Set by Ctrl+V until its paste event arrives; without one, the editor's own paste runs. */
+let pasteFallback: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * A paste: pictures (an image, an SVG file or SVG code from an icon site) become new
+ * ImageLabels; anything else pastes the object copied in the editor.
+ */
+function handlePaste(editor: Editor, e: ClipboardEvent) {
+  clearTimeout(pasteFallback);
+  pasteFallback = undefined;
+  const t = e.target as HTMLElement | null;
+  if (isTyping(t) || inDialog(t) || editor.state.preview) return;
+  e.preventDefault();
+  const data = e.clipboardData;
+  if (!data || !hasPictures(data)) return editor.paste();
+  picturesIn(data).then(
+    (pics) => pics.forEach((pic) => editor.insertPicture(pic)),
+    (err: unknown) =>
+      editor.toast(err instanceof Error ? err.message : 'That picture couldn’t be pasted.'),
+  );
+}
+
+/** Editor shortcuts. Keys typed into a field, or used by a menu or dialog, belong to it. */
+function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
+  if (e.defaultPrevented) return;
+  const t = e.target as HTMLElement | null;
+  const typing = isTyping(t);
+  if (inDialog(t)) return;
   const mod = e.ctrlKey || e.metaKey;
   const k = e.key.toLowerCase();
   // Saving, opening and exporting work from inside a field too.
@@ -199,16 +251,21 @@ function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
       z: () => (e.shiftKey ? editor.redo() : editor.undo()),
       y: () => editor.redo(),
       d: () => editor.duplicateSelection(),
-      c: () => editor.copySelection(),
-      x: () => editor.copySelection(true),
-      v: () => editor.paste(),
+      c: () => copy(editor, false),
+      x: () => copy(editor, true),
       s: () => saveProjectFile(editor),
       o: () => void openProjectFile(editor),
       e: openExport,
+      b: () => editor.toggleTextStyle('bold'),
+      i: () => editor.toggleTextStyle('italic'),
     }[k];
-    if (action && !(preview && 'dcxv'.includes(k))) {
+    if (action && !(preview && 'dcxvbi'.includes(k))) {
       e.preventDefault();
       action();
+    } else if (k === 'v' && !preview) {
+      // The paste event that follows reads the clipboard, which may hold a picture.
+      clearTimeout(pasteFallback);
+      pasteFallback = setTimeout(() => editor.paste(), 50);
     }
     return;
   }

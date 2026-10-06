@@ -96,7 +96,27 @@ describe('the sample site', () => {
       '<meta name="description" content="Small-batch coffee, roasted every week.">',
     );
     expect(home).not.toContain('canonical');
-    expect(home).toContain('family=Montserrat:wght@500;700');
+    expect(home).toContain('family=Fraunces:wght@600;700&family=Inter:wght@500;600');
+  });
+
+  it('writes the font, weight and letter spacing, with a media query when it changes', () => {
+    let doc = site();
+    const headline = byName(doc, 'Headline').id;
+    doc = edit(doc, set(headline, { FontStyle: 'Italic', LetterSpacing: -1.5 }), {
+      type: 'setProps',
+      id: headline,
+      props: { LetterSpacing: 0.5 },
+      breakpoint: bp(doc, 'Phone'),
+    });
+    const html = text(exportSite(doc, {}), 'index.html');
+    expect(html).toContain('family=Fraunces:ital,wght@0,700;1,600&family=Inter');
+    expect(html).toContain(
+      'font-family:"Fraunces", Georgia, serif;font-weight:600;font-style:italic;',
+    );
+    expect(html).toContain('letter-spacing:-1.5px;');
+    const phone = html.indexOf('@media (max-width: 809px)');
+    expect(phone).toBeGreaterThan(0);
+    expect(html.indexOf('letter-spacing:0.5px;')).toBeGreaterThan(phone);
   });
 
   it('writes each breakpoint’s changes as a media query, widest first', () => {
@@ -191,6 +211,22 @@ describe('links, tags and pictures', () => {
     expect(html).toMatch(/<nav class="g e\d+" data-name="Nav">/);
   });
 
+  it('tints pictures per breakpoint, with a filter for every color used', () => {
+    const { assets, id } = addAsset({}, PNG);
+    const img = createInstance('ImageLabel', { Name: 'Icon' }, 'img') as AnyInstance;
+    const doc = edit(base, insert(byName(base, 'Plans').id, single(img)), setPreview('img', id), {
+      type: 'setProps',
+      id: 'img',
+      props: { ImageColor3: [0, 0, 0] },
+      breakpoint: bp(base, 'Phone'),
+    });
+    const pricing = text(exportSite(doc, assets), 'pricing/index.html');
+    expect(pricing).toContain('<filter id="fc-tint-000000"');
+    expect(pricing).toMatch(
+      /@media \(max-width: 809px\) \{[^@]*\.e\d+i\{filter:url\(#fc-tint-000000\);\}/,
+    );
+  });
+
   it('writes pictures as files, with alt text, the favicon and a social image', () => {
     const { assets, id } = addAsset({}, PNG);
     const img = createInstance(
@@ -214,7 +250,9 @@ describe('links, tags and pictures', () => {
       Uint8Array.from(atob('iVBORw0KGgo='), (c) => c.charCodeAt(0)),
     );
     const pricing = text(files, 'pricing/index.html');
-    expect(pricing).toContain(`<img class="img" src="../images/${id}.png" alt="A bag of beans"`);
+    expect(pricing).toMatch(
+      new RegExp(`<img class="img e\\d+i" src="\\.\\./images/${id}\\.png" alt="A bag of beans">`),
+    );
     expect(pricing).toContain(`<link rel="icon" href="../images/${id}.png">`);
     expect(pricing).toContain(
       `<meta property="og:image" content="https://northwind.example/images/${id}.png">`,

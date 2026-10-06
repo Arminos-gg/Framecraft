@@ -24,11 +24,11 @@ import {
   calcV,
   COMMENT_OPEN,
   FIT_SCRIPT,
-  googleFontsHref,
   HtmlWriter,
   isGui,
   PIN_Z,
   ruleText,
+  tintDefs,
   type Decl,
   type Rule,
   type WriterLinks,
@@ -131,6 +131,9 @@ const RESET: Record<string, string> = {
   'line-height': '1',
   'text-shadow': 'none',
   order: '0',
+  'object-fit': 'fill',
+  opacity: '1',
+  filter: 'none',
 };
 
 /** The declarations that change from `before` to `after`, in the order `after` lists them. */
@@ -296,7 +299,7 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
       anchor: (id) => anchors.get(id),
     };
 
-    const base = new HtmlWriter(doc, undefined, links);
+    const base = new HtmlWriter(doc, undefined, links, true);
     const body = writePage(base, page);
     // Free-placed boxes that grow push the page longer; the script works out how much.
     const grows =
@@ -304,9 +307,11 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
       childrenOf(doc, page.id).some((c) => isGui(c) && base.grows(c));
     let previous: readonly Rule[] = base.rules;
     const media: string[] = [];
+    const tints = new Set(base.tints);
     for (const bp of breakpoints) {
-      const w = new HtmlWriter(doc, bp.id, links);
+      const w = new HtmlWriter(doc, bp.id, links, true);
       writePage(w, page);
+      for (const t of w.tints) tints.add(t);
       const before = new Map(previous.map((r) => [r.sel, r.decls]));
       const changed = w.rules
         .map((r) => ({ sel: r.sel, decls: changedDecls(before.get(r.sel) ?? [], r.decls) }))
@@ -331,7 +336,7 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
     if (social) head.push(`<meta property="og:image" content="${esc(`${baseUrl}/${social}`)}">`);
     const favicon = sp.Favicon ? imagePath(sp.Favicon) : undefined;
     if (favicon) head.push(`<link rel="icon" href="${esc(up + favicon)}">`);
-    const fontsHref = googleFontsHref([...base.fontsUsed]);
+    const fontsHref = base.fontsHref();
     if (fontsHref) head.push(`<link rel="stylesheet" href="${fontsHref}">`);
 
     const html = `<!doctype html>
@@ -346,7 +351,7 @@ ${STATIC_CSS}${base.needsAppear ? '\n' + APPEAR_EXPORT.css : ''}
   ${[...base.rules.map(ruleText), ...media].join('\n  ')}
 </style>
 </head>
-<body>
+<body>${tintDefs(tints, '  ')}
   <main class="page" data-name="${esc(pp.Name)}">
     <div class="c pc"${grows ? ' data-grow' : ''}>${body}
     </div>

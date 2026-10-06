@@ -55,16 +55,19 @@ describe('class registry', () => {
       'ClipsDescendants',
       'Text',
       'Font',
+      'FontWeight',
+      'FontStyle',
       'TextColor3',
       'TextSize',
       'LineHeight',
+      'LetterSpacing',
       'TextScaled',
       'TextWrapped',
       'TextXAlignment',
       'TextYAlignment',
       'TextTransparency',
       'AutoButtonColor',
-      // Web-only properties come last.
+      // Web-only properties come last, apart from LetterSpacing, which sits with the text.
       'Link',
       'HtmlTag',
       'Pinned',
@@ -177,6 +180,7 @@ describe('website markers', () => {
       'BackgroundTransparency',
     ]);
     expect(webProps('TextButton')).toEqual([
+      'LetterSpacing',
       'Link',
       'HtmlTag',
       'Pinned',

@@ -22,9 +22,10 @@ export function notesFor(
   if (transform.length) notes.Transform = transform.join(' ');
   if (values.TextScaled === true)
     notes.Text = 'TextScaled is on, so the text grows to fill the box and TextSize is ignored.';
-  if (def.image && !onSite)
-    notes.Image =
-      'The picture shows here and in the HTML export. Roblox can’t use it, so add the image’s asset id for Studio.';
+  if (def.image)
+    notes.Image = onSite
+      ? 'Takes PNG, JPG, SVG and more. ImageColor3 tints the picture: white leaves it as it is, and a white picture takes the color exactly.'
+      : 'The picture shows here and in the HTML export. Roblox can’t use it, so add the image’s asset id for Studio. ImageColor3 tints it, as in Roblox.';
   switch (inst.className) {
     case 'ScreenGui':
       notes.Behavior =

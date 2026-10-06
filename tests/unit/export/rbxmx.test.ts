@@ -20,7 +20,12 @@ import {
   type Doc,
   type InstanceId,
 } from '../../../src/model/document.ts';
-import { FONT_NAMES } from '../../../src/model/fonts.ts';
+import {
+  FONT_NAMES,
+  type FontName,
+  type FontStyle,
+  type FontWeight,
+} from '../../../src/model/fonts.ts';
 import { blankDoc } from '../../../src/model/sample.ts';
 import { TEMPLATES } from '../../../src/model/templates/index.ts';
 import { colorSequence, numberSequence } from '../../../src/model/values.ts';
@@ -63,11 +68,12 @@ function expectWellFormed(xml: string) {
 
 describe('Roblox model file values', () => {
   it('has a Roblox number for every option of every enum it writes', () => {
+    const FONT_FACE = new Set(['Font', 'FontWeight', 'FontStyle']);
     for (const className of Object.keys(CLASSES) as ClassName[]) {
       if ((CLASSES[className] as { web?: boolean }).web) continue;
       for (const prop of propNames(className) as string[]) {
         const spec = propSpec(className, prop)!;
-        if (spec.type !== 'enum' || spec.web || prop === 'Font') continue;
+        if (spec.type !== 'enum' || spec.web || FONT_FACE.has(prop)) continue;
         for (const option of spec.options!)
           expect(ENUM_TOKENS[prop]?.[option], `${className}.${prop} ${option}`).toBeTypeOf(
             'number',
@@ -77,12 +83,17 @@ describe('Roblox model file values', () => {
   });
 
   it('writes every font as the FontFace Studio gives it', () => {
-    for (const font of FONT_NAMES) expect(fontFace(font)).toMatch(/families\/\w+\.json/);
-    expect(fontFace('GothamBlack')).toBe(
+    const face = (font: FontName, weight: FontWeight = 'Regular', style: FontStyle = 'Normal') =>
+      fontFace({ font, weight, style });
+    for (const font of FONT_NAMES) expect(face(font)).toMatch(/families\/\w+\.json/);
+    expect(face('Gotham', 'Heavy')).toBe(
       '<Font name="FontFace"><Family><url>rbxasset://fonts/families/GothamSSm.json</url></Family><Weight>900</Weight><Style>Normal</Style></Font>',
     );
-    expect(fontFace('SourceSansItalic')).toContain('<Style>Italic</Style>');
-    expect(fontFace('Arcade')).toContain('PressStart2P.json');
+    expect(face('SourceSans', 'Regular', 'Italic')).toContain('<Style>Italic</Style>');
+    expect(face('Arcade')).toContain('PressStart2P.json');
+    // Roblox has Montserrat; Inter isn't in Roblox, so BuilderSans stands in.
+    expect(face('Montserrat', 'SemiBold')).toContain('Montserrat.json</url></Family><Weight>600');
+    expect(face('Inter', 'Bold')).toContain('BuilderSans.json</url></Family><Weight>700');
   });
 
   it('escapes text and drops characters XML can’t hold', () => {
@@ -104,7 +115,8 @@ describe('Roblox model file export', () => {
     for (const c of ['ScreenGui', ...OBJECT_CLASSES, ...roblox] as ClassName[]) {
       const props = propsOf(xml, c);
       for (const prop of propNames(c) as string[]) {
-        if (propSpec(c, prop)!.web) {
+        // FontWeight and FontStyle go into the FontFace that Font writes.
+        if (propSpec(c, prop)!.web || prop === 'FontWeight' || prop === 'FontStyle') {
           expect(props).not.toContain(`name="${prop}"`);
           continue;
         }
