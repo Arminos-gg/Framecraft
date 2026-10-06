@@ -2,7 +2,7 @@
  * New from a template: the starter websites and Roblox screens, each with a live preview of
  * its first screen. Picking one replaces the open project; the message after it can undo that.
  */
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { DESKTOP } from '../editor/devices.ts';
 import { buildScene, pagesOf, SCREENS } from '../editor/editor.ts';
 import type { Backdrop } from '../export/html.ts';
@@ -12,6 +12,7 @@ import { TEMPLATES, type Template } from '../model/templates/index.ts';
 import { useEditor, useEditorState } from './editor-context.ts';
 import { Icon } from './icons.tsx';
 import { newFromTemplate } from './project-actions.ts';
+import { rulerSteps } from './viewport/rulers.ts';
 import { Stage } from './viewport/Stage.tsx';
 import { useDocFonts } from './viewport/useDocFonts.ts';
 
@@ -106,14 +107,21 @@ function Preview({ doc, backdrop }: { doc: Doc; backdrop: Backdrop }) {
     });
   }, [doc]);
   const screens = scene.view.kind === 'screens';
+  const zoom = THUMB_WIDTH / scene.width;
+  const steps = rulerSteps(zoom);
   return (
     <span
       className={screens ? `device backdrop-${backdrop}` : 'device'}
-      style={{
-        width: scene.width,
-        height: scene.device.height,
-        transform: `scale(${THUMB_WIDTH / scene.width})`,
-      }}
+      style={
+        {
+          width: scene.width,
+          height: scene.device.height,
+          transform: `scale(${zoom})`,
+          '--zoom': zoom,
+          '--grid-minor': `${steps.minor}px`,
+          '--grid-major': `${steps.major}px`,
+        } as CSSProperties
+      }
     >
       <Stage doc={doc} scene={scene} assets={NO_ASSETS} preview={false} />
     </span>

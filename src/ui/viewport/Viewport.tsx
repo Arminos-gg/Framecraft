@@ -7,6 +7,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type MouseEvent,
   type PointerEvent,
 } from 'react';
@@ -17,6 +18,8 @@ import { getInstance, isAncestor } from '../../model/document.ts';
 import { useEditor, useEditorState } from '../editor-context.ts';
 import { Icon } from '../icons.tsx';
 import { Overlay } from './Overlay.tsx';
+import { rulerSteps } from './rulers.ts';
+import { Rulers } from './Rulers.tsx';
 import { Stage } from './Stage.tsx';
 import { useDocFonts } from './useDocFonts.ts';
 
@@ -24,6 +27,7 @@ import { useDocFonts } from './useDocFonts.ts';
 const PAD = 40;
 
 const BACKDROPS: { id: Backdrop; label: string }[] = [
+  { id: 'grid', label: 'Grid' },
   { id: 'game', label: 'Game scene' },
   { id: 'night', label: 'Night scene' },
   { id: 'checker', label: 'Checker' },
@@ -78,6 +82,8 @@ export function Viewport() {
   const innerH = Math.max(frame.h, H + PAD * 2);
   const left = Math.round((innerW - W) / 2);
   const top = Math.round((innerH - H) / 2);
+  // The measuring grid, in and around the device, lines up with the rulers.
+  const steps = rulerSteps(z);
 
   const toDevice = (clientX: number, clientY: number): Point => {
     const r = deviceRef.current!.getBoundingClientRect();
@@ -185,6 +191,9 @@ export function Viewport() {
   };
 
   const pages = pagesOf(doc);
+  const selected = state.selection === null ? undefined : getInstance(doc, state.selection);
+  const selBox =
+    !state.preview && selected && isGui(selected) ? scene.layout.get(selected.id) : undefined;
   const breakpoint =
     scene.breakpoint === undefined ? undefined : getInstance(doc, scene.breakpoint);
 
@@ -270,35 +279,65 @@ export function Viewport() {
           </button>
         </div>
       </div>
-      <div
-        className={state.preview ? 'canvas preview' : 'canvas'}
-        ref={canvasRef}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onPointerLeave={onPointerLeave}
-        onClick={onClick}
-      >
-        <div className="canvas-inner" style={{ width: innerW, height: innerH }}>
+      <div className="canvasbox">
+        <Rulers
+          canvas={canvasRef}
+          origin={{ x: left, y: top }}
+          frame={frame}
+          zoom={z}
+          steps={steps}
+          device={{ w: scene.width, h: scene.height }}
+          selection={selBox}
+          mouse={mouse}
+          middleY={scene.view.kind === 'screens'}
+        />
+        <div
+          className={state.preview ? 'canvas preview' : 'canvas'}
+          ref={canvasRef}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onPointerLeave={onPointerLeave}
+          onClick={onClick}
+        >
           <div
-            ref={deviceRef}
-            className={
-              scene.view.kind === 'screens' ? `device backdrop-${state.backdrop}` : 'device'
+            className="canvas-inner"
+            style={
+              {
+                width: innerW,
+                height: innerH,
+                '--grid-x': `${left}px`,
+                '--grid-y': `${top}px`,
+                '--grid-minor': `${steps.minor * z}px`,
+                '--grid-major': `${steps.major * z}px`,
+              } as CSSProperties
             }
-            data-testid="screen"
-            style={{
-              left,
-              top,
-              width: scene.width,
-              height: scene.height,
-              transform: `scale(${z})`,
-            }}
           >
-            <Stage doc={doc} scene={scene} assets={state.assets} preview={state.preview} />
-          </div>
-          <div className="overlay" style={{ left, top }}>
-            <Overlay state={state} scene={scene} zoom={z} />
+            <div
+              ref={deviceRef}
+              className={
+                scene.view.kind === 'screens' ? `device backdrop-${state.backdrop}` : 'device'
+              }
+              data-testid="screen"
+              style={
+                {
+                  left,
+                  top,
+                  width: scene.width,
+                  height: scene.height,
+                  transform: `scale(${z})`,
+                  '--zoom': z,
+                  '--grid-minor': `${steps.minor}px`,
+                  '--grid-major': `${steps.major}px`,
+                } as CSSProperties
+              }
+            >
+              <Stage doc={doc} scene={scene} assets={state.assets} preview={state.preview} />
+            </div>
+            <div className="overlay" style={{ left, top }}>
+              <Overlay state={state} scene={scene} zoom={z} />
+            </div>
           </div>
         </div>
       </div>
