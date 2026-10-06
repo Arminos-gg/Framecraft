@@ -1,4 +1,4 @@
-/** The Project menu: start over, open and save project files, and pick the theme. */
+/** The Project menu: start over or from a template, open and save project files, and pick the theme. */
 import { useEffect, useRef, type KeyboardEvent } from 'react';
 import { useEditor } from './editor-context.ts';
 import { Icon } from './icons.tsx';
@@ -12,7 +12,16 @@ const THEMES: readonly (readonly [Theme, string])[] = [
   ['dark', 'Dark'],
 ];
 
-export function ProjectMenu({ anchor, onClose }: { anchor: HTMLElement; onClose: () => void }) {
+export function ProjectMenu({
+  anchor,
+  onClose,
+  onTemplates,
+}: {
+  anchor: HTMLElement;
+  onClose: () => void;
+  /** Opens the template picker. */
+  onTemplates: () => void;
+}) {
   const editor = useEditor();
   const theme = useTheme();
   const list = useRef<HTMLDivElement>(null);
@@ -59,6 +68,7 @@ export function ProjectMenu({ anchor, onClose }: { anchor: HTMLElement; onClose:
       <div role="menu" aria-label="Project" ref={list} onKeyDown={onKeyDown}>
         {item('New website', () => newProject(editor, 'site'))}
         {item('New Roblox UI', () => newProject(editor, 'roblox'))}
+        {item('New from a template…', onTemplates)}
         {item('Open the sample project', () => openSample(editor))}
         <hr />
         {item('Open project file…', () => void openProjectFile(editor), `${mod}O`)}

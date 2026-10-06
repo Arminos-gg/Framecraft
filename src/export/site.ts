@@ -278,6 +278,10 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
 
     const base = new HtmlWriter(doc, undefined, links);
     const body = writePage(base, page);
+    // Free-placed boxes that grow push the page longer; the script works out how much.
+    const grows =
+      !childOfClass(doc, page.id, 'UIListLayout') &&
+      childrenOf(doc, page.id).some((c) => isGui(c) && base.grows(c));
     let previous: readonly Rule[] = base.rules;
     const media: string[] = [];
     for (const bp of breakpoints) {
@@ -324,7 +328,7 @@ ${STATIC_CSS}
 </head>
 <body>
   <main class="page" data-name="${esc(pp.Name)}">
-    <div class="c pc">${body}
+    <div class="c pc"${grows ? ' data-grow' : ''}>${body}
     </div>
   </main>${base.needsScript ? FIT_SCRIPT : ''}
 </body>

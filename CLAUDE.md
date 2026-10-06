@@ -17,7 +17,8 @@ Current stage: a Vite + TypeScript app at the repo root that works end to end (v
 
 - `src/`: the app (Vite, strict TypeScript, React). `main.tsx` restores the autosave and mounts `ui/App.tsx`; `styles/tokens.css` holds the design tokens from the editor design, `styles/app.css` the editor styles
 - `src/model/`: value types, class registry with per-class property schemas, immutable document, commands, undo history, image library, project files (opens the prototype's version 1 files too) and the samples. The root is a DataModel holding StarterGui (Roblox screens), Site (web pages) and the Breakpoints
-- `src/layout/`: the layout engine, pure functions from a document, window size and breakpoint to boxes in pixels (Roblox's AbsolutePosition and AbsoluteSize). Pages are window-wide and grow to fit their content
+- `src/model/templates/`: the starter templates (three websites, four Roblox screens) behind "New from a template", built in code with `Builder` (`src/model/builder.ts`), as the samples are
+- `src/layout/`: the layout engine, pure functions from a document, window size and breakpoint to boxes in pixels (Roblox's AbsolutePosition and AbsoluteSize). Pages are window-wide and grow to fit their content. AutomaticSize needs text sizes from `text.ts`: the browser measures them in the app (`src/ui/viewport/text-measure.ts`), an estimate stands in for Node tests
 - `src/export/`: the exporters as pure functions: Luau and an HTML page for the Roblox screens, and the website (`site.ts`: an HTML file per page, pictures, breakpoints as media queries; `zip.ts` packs it for download). The project file is `serializeProject` in `src/model/project.ts`
 - `src/editor/`: editor state outside React (`editor.ts`): the undo history, selection, view (the Roblox screens or one page), device, zoom and preview, plus every panel action (insert, rename, reparent, property edits per breakpoint, unit conversion, opening projects) as commands. `geometry.ts` is the pure editing math (UDim2 from pixels, smart snapping, resizing), `insert.ts` where and how new objects land, `text-values.ts` Studio shorthand parsing, `autosave.ts` the browser-storage autosave
 - `src/ui/viewport/`: the canvas: `Stage` draws the user's UI from the layout, `Overlay` the selection, handles and guides. Dev builds expose the running editor as `window.framecraft`, which the e2e tests use
@@ -34,6 +35,7 @@ These are facts about Roblox, not style preferences. Breaking them makes exports
 - Layout, per axis: `AbsSize = ParentSize * Scale + Offset` and `AbsPos = ParentPos + ParentSize * Scale + Offset - AnchorPoint * AbsSize`. A UIPadding shrinks the parent area first.
 - Under a UIListLayout, children ignore Position, AnchorPoint and Rotation. Invisible children take no space. Order is LayoutOrder, or Name when SortOrder is Name.
 - Modifiers (UICorner, UIStroke, UIGradient, UIPadding, UIListLayout, UIAspectRatioConstraint) are child objects, not properties.
+- AutomaticSize grows an object to fit its text and children, UIPadding included, and Size becomes its minimum. Wrapped text wraps at the object's width.
 - UICorner Scale is measured on the shorter side, so 0.5 makes a pill. A UIStroke on a text object outlines the letters unless ApplyStrokeMode is Border.
 - By default children draw above their parent and ZIndex orders siblings (ZIndexBehavior Sibling).
 - Studio shorthand in UDim2 fields: `0.25,40,0.1,20` is a full UDim2; a single number of 1 or less means Scale, a larger one means Offset. The editor's length fields take it too.

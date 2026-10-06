@@ -7,8 +7,13 @@
  * AbsPos = ParentPos + ParentSize * Scale + Offset - AnchorPoint * AbsSize.
  * A UIPadding shrinks the parent's area first. Under a UIListLayout, children ignore
  * Position, AnchorPoint and Rotation, and invisible children take no space.
+ *
+ * AutomaticSize grows an object to fit its text and its children, padding included; Size is
+ * then the smallest it gets. The content is measured with the object at its Size, so Scale in
+ * its children and padding is a share of that; then the children are placed in the grown box.
+ * Text sizes come from a text measurer (see text.ts).
  */
-import { classDef } from '../model/classes.ts';
+import { automaticSizeOf, classDef } from '../model/classes.ts';
 import {
   getInstance,
   resolveProps,
@@ -18,6 +23,7 @@ import {
   type InstanceId,
 } from '../model/document.ts';
 import type { UDim, UDim2 } from '../model/values.ts';
+import { measureText, type TextMeasurer } from './text.ts';
 
 export interface Rect {
   readonly x: number;
@@ -57,9 +63,11 @@ class Engine {
   readonly boxes = new Map<InstanceId, Box>();
   readonly doc: Doc;
   readonly breakpoint: InstanceId | undefined;
-  constructor(doc: Doc, breakpoint: InstanceId | undefined) {
+  readonly measure: TextMeasurer;
+  constructor(doc: Doc, breakpoint: InstanceId | undefined, measure: TextMeasurer) {
     this.doc = doc;
     this.breakpoint = breakpoint;
+    this.measure = measure;
   }
 
   props<C extends AnyInstance>(inst: C): C['props'] {
@@ -96,15 +104,84 @@ class Engine {
     return { w: Math.max(0, w), h: Math.max(0, h) };
   }
 
+  /**
+   * The size an object takes in `area`: its Size (and aspect ratio), grown by AutomaticSize
+   * to fit its content. Width grows first, so wrapped text then knows how wide it may be.
+   */
+  boxSize(inst: GuiInstance, area: Rect): { w: number; h: number } {
+    const p = this.props(inst);
+    const size = this.sizeOf(inst, p.Size, area);
+    const auto = automaticSizeOf(p);
+    if (auto === 'None') return size;
+    let { w, h } = size;
+    if (auto !== 'Y') w = Math.max(w, this.contentLength(inst, w, h, area, 'x'));
+    if (auto !== 'X') h = Math.max(h, this.contentLength(inst, w, h, area, 'y'));
+    return { w, h };
+  }
+
+  /**
+   * How long an object of `w` × `h` must be on one axis to hold its children and its text,
+   * padding included. Children are measured in the box at that size. Text that wraps grows
+   * the width only up to the width of the parent's area, then wraps.
+   */
+  contentLength(inst: GuiInstance, w: number, h: number, area: Rect, axis: 'x' | 'y'): number {
+    const x = axis === 'x';
+    const pad = this.paddingOf(inst.id, { w, h });
+    const padding = x ? pad.left + pad.right : pad.top + pad.bottom;
+    const content = this.padded(inst.id, { x: 0, y: 0, w, h });
+    const shown = this.guiChildren(inst.id).filter((c) => this.props(c).Visible);
+    const list = this.modifier(inst.id, 'UIListLayout');
+    let length = 0;
+    if (list) {
+      const lp = this.props(list);
+      const vertical = lp.FillDirection === 'Vertical';
+      const sizes = shown.map((c) => this.boxSize(c, content)).map((s) => (x ? s.w : s.h));
+      if (x !== vertical) {
+        const gap = udimPx(lp.Padding, vertical ? content.h : content.w);
+        length = sizes.reduce((sum, s) => sum + s, gap * Math.max(0, sizes.length - 1));
+      } else length = Math.max(0, ...sizes);
+    } else
+      for (const c of shown) {
+        const cp = this.props(c);
+        const s = this.boxSize(c, content);
+        const size = x ? s.w : s.h;
+        const start = x
+          ? udimPx([cp.Position[0], cp.Position[1]], content.w)
+          : udimPx([cp.Position[2], cp.Position[3]], content.h);
+        length = Math.max(length, start - cp.AnchorPoint[x ? 0 : 1] * size + size);
+      }
+    const need = length + padding;
+
+    if (!classDef(inst.className).text) return need;
+    const t = this.props(inst) as TextProps;
+    if (t.TextScaled) return need;
+    // An empty TextBox shows its placeholder.
+    const request = { text: t.Text || (t.PlaceholderText ?? ''), font: t.Font, size: t.TextSize };
+    if (x) {
+      const width = this.measure(request).w + padding;
+      return Math.max(need, t.TextWrapped ? Math.min(width, area.w) : width);
+    }
+    const wrap = t.TextWrapped ? { wrap: content.w } : {};
+    return Math.max(need, this.measure({ ...request, ...wrap }).h + padding);
+  }
+
+  /** The instance's UIPadding in pixels for a box of this size; zeros without one. */
+  paddingOf(id: InstanceId, box: { w: number; h: number }) {
+    const padding = this.modifier(id, 'UIPadding');
+    if (!padding) return { left: 0, right: 0, top: 0, bottom: 0 };
+    const p = this.props(padding);
+    return {
+      left: udimPx(p.PaddingLeft, box.w),
+      right: udimPx(p.PaddingRight, box.w),
+      top: udimPx(p.PaddingTop, box.h),
+      bottom: udimPx(p.PaddingBottom, box.h),
+    };
+  }
+
   /** The rect inside `box` after the instance's UIPadding, if it has one. */
   padded(id: InstanceId, box: Rect): Rect {
-    const padding = this.modifier(id, 'UIPadding');
-    if (!padding) return box;
-    const p = this.props(padding);
-    const left = udimPx(p.PaddingLeft, box.w);
-    const right = udimPx(p.PaddingRight, box.w);
-    const top = udimPx(p.PaddingTop, box.h);
-    const bottom = udimPx(p.PaddingBottom, box.h);
+    if (!this.modifier(id, 'UIPadding')) return box;
+    const { left, right, top, bottom } = this.paddingOf(id, box);
     return {
       x: box.x + left,
       y: box.y + top,
@@ -116,7 +193,7 @@ class Engine {
   /** Places a child by its own Position, Size and AnchorPoint. */
   placeFree(inst: GuiInstance, area: Rect, listItem = false) {
     const p = this.props(inst);
-    const { w, h } = this.sizeOf(inst, p.Size, area);
+    const { w, h } = this.boxSize(inst, area);
     const x = area.x + udimPx([p.Position[0], p.Position[1]], area.w) - p.AnchorPoint[0] * w;
     const y = area.y + udimPx([p.Position[2], p.Position[3]], area.h) - p.AnchorPoint[1] * h;
     const box = { x, y, w, h, area, listItem };
@@ -135,7 +212,7 @@ class Engine {
     else order.sort((a, b) => a.props.LayoutOrder - b.props.LayoutOrder || a.i - b.i);
 
     const gap = udimPx(p.Padding, vertical ? area.h : area.w);
-    const sizes = order.map(({ c, props }) => this.sizeOf(c, props.Size, area));
+    const sizes = order.map(({ c }) => this.boxSize(c, area));
     const mainLength = vertical ? area.h : area.w;
     const crossLength = vertical ? area.w : area.h;
     const total =
@@ -214,6 +291,7 @@ class Engine {
 }
 
 type GuiInstance = Extract<AnyInstance, { props: { Size: UDim2; Visible: boolean } }>;
+type TextProps = Instance<'TextLabel'>['props'] & { readonly PlaceholderText?: string };
 const isGui = (inst: AnyInstance): inst is GuiInstance => classDef(inst.className).kind === 'gui';
 
 const alignOffset = (align: string, free: number) =>
@@ -230,8 +308,9 @@ export function layoutContainer(
   id: InstanceId,
   viewport: Viewport,
   breakpoint?: InstanceId,
+  measure: TextMeasurer = measureText,
 ): Layout {
-  const engine = new Engine(doc, breakpoint);
+  const engine = new Engine(doc, breakpoint, measure);
   const inst = getInstance(doc, id);
   if (inst?.className === 'ScreenGui') engine.layoutScreenGui(inst, viewport);
   else if (inst?.className === 'Page') engine.layoutPage(inst, viewport);
@@ -245,8 +324,9 @@ export function layoutScreenGuis(
   starterGuiId: InstanceId,
   viewport: Viewport,
   breakpoint?: InstanceId,
+  measure: TextMeasurer = measureText,
 ): Layout {
-  const engine = new Engine(doc, breakpoint);
+  const engine = new Engine(doc, breakpoint, measure);
   for (const c of engine.children(starterGuiId))
     if (c.className === 'ScreenGui') engine.layoutScreenGui(c, viewport);
   return engine.boxes;

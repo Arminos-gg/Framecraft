@@ -7,6 +7,7 @@ import './styles/tokens.css';
 import './styles/app.css';
 import { App } from './ui/App.tsx';
 import { applyTheme } from './ui/theme.ts';
+import { measureTextInBrowser } from './ui/viewport/text-measure.ts';
 
 declare global {
   interface Window {
@@ -28,6 +29,8 @@ const editor = saved
   : new Editor(sampleProject());
 if (saved) editor.setSaveStatus('saved');
 startAutosave(editor, storage);
+// AutomaticSize measures text with the browser's fonts, and again once web fonts load.
+measureTextInBrowser(() => editor.refreshLayout());
 if (import.meta.env.DEV) window.framecraft = editor;
 
 createRoot(root).render(

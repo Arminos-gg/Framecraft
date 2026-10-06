@@ -6,8 +6,9 @@
  * writer for pages, once per breakpoint. See .claude/rules/exporters.md.
  */
 import type { Assets } from '../model/assets.ts';
-import { classDef } from '../model/classes.ts';
+import { automaticSizeOf, classDef } from '../model/classes.ts';
 import {
+  breakpointsOf,
   childOfClass,
   childrenOf,
   resolveProps,
@@ -143,21 +144,102 @@ export const COMMENT_OPEN = '<' + '!--';
 
 export const FIT_SCRIPT = `
 ${SCRIPT_OPEN}
-  // Sizes that need the real box: rounded corners in Scale, aspect ratios, and TextScaled
+  // Sizes that need the real box: aspect ratios, AutomaticSize, rounded corners in Scale, and TextScaled
   (function () {
+    function px(v) { return parseFloat(v) || 0; }
     // The exact laid-out size; offsetWidth rounds to whole pixels.
     function size(el) {
       var s = getComputedStyle(el);
-      return [parseFloat(s.width) || 0, parseFloat(s.height) || 0];
+      return [px(s.width), px(s.height)];
+    }
+    // Where a box starts: left or top, moved by its AnchorPoint's translate.
+    function start(s, y) {
+      var m = /matrix\\(([^)]*)\\)/.exec(s.transform);
+      return px(y ? s.top : s.left) + (m ? px(m[1].split(',')[y ? 5 : 4]) : 0);
+    }
+    function aspect(el) {
+      var st = el.style;
+      st.width = st.height = st.minWidth = st.minHeight = '';
+      var r = +el.dataset.ar, wh = size(el), w = wh[0], h = wh[1];
+      if (h > 0 && w / h > r) w = h * r; else h = w / r;
+      st.width = w + 'px'; st.height = h + 'px';
+    }
+    // AutomaticSize: the box grows to fit its text and children, and Size is the smallest it
+    // gets. As in the editor, content is measured with the box at its Size, width first.
+    function grow(el) {
+      var st = el.style, c = el.querySelector(':scope > .c');
+      st.minWidth = st.minHeight = '';
+      var axes = getComputedStyle(el).getPropertyValue('--auto');
+      if (/x/.test(axes)) { walk(c); st.minWidth = need(el, c, 0) + 'px'; }
+      if (/y/.test(axes)) { walk(c); st.minHeight = need(el, c, 1) + 'px'; }
+      walk(c);
+    }
+    function need(el, c, y) {
+      var cs = getComputedStyle(c), n = 0, items = 0;
+      var pad = y ? px(cs.top) + px(cs.bottom) : px(cs.left) + px(cs.right);
+      var list = cs.display === 'flex', along = list && (cs.flexDirection === 'column') === !!y;
+      for (var k = c.firstElementChild; k; k = k.nextElementSibling) {
+        var ks = getComputedStyle(k);
+        if (!k.classList.contains('g') || ks.display === 'none') continue;
+        var len = px(y ? ks.height : ks.width);
+        if (along) { n += len; items++; }
+        else n = Math.max(n, (list ? 0 : start(ks, y)) + len);
+      }
+      if (items > 1) n += (items - 1) * px(y ? cs.rowGap : cs.columnGap);
+      n += pad;
+      var t = el.querySelector(':scope > .t');
+      if (t && t.firstElementChild && !t.hasAttribute('data-fit')) {
+        var tn = text(t.firstElementChild, y) + pad;
+        // Wrapped text grows the box only as wide as its parent, then wraps.
+        if (!y && getComputedStyle(t.firstElementChild).whiteSpace !== 'pre')
+          tn = Math.min(tn, px(getComputedStyle(el.parentElement).width));
+        n = Math.max(n, tn);
+      }
+      return n;
+    }
+    // The text's width on one line, or its height as it wraps now. An empty TextBox shows
+    // its placeholder.
+    function text(s, y) {
+      var input = null, len;
+      if (s.tagName === 'INPUT') {
+        input = s;
+        input.style.display = 'none';
+        s = document.createElement('span');
+        s.textContent = input.value || input.placeholder;
+        input.parentNode.appendChild(s);
+      }
+      if (y) len = px(getComputedStyle(s).height);
+      else {
+        s.style.whiteSpace = 'pre';
+        len = px(getComputedStyle(s).width);
+        s.style.whiteSpace = '';
+      }
+      if (input) {
+        s.remove();
+        input.style.display = '';
+      }
+      return len;
+    }
+    // Fits the boxes inside a node, outer ones first, to the size their parents have now.
+    function walk(node) {
+      for (var k = node && node.firstElementChild; k; k = k.nextElementSibling) {
+        if (k.hasAttribute('data-ar')) aspect(k);
+        if (k.hasAttribute('data-auto')) grow(k); else walk(k);
+      }
+    }
+    // A page is as long as what's on it, and boxes that grew push it longer.
+    function page(pc) {
+      pc.style.minHeight = '';
+      var n = px(getComputedStyle(pc).minHeight);
+      for (var k = pc.firstElementChild; k; k = k.nextElementSibling) {
+        var ks = getComputedStyle(k);
+        if (ks.display !== 'none') n = Math.max(n, start(ks, 1) + px(ks.height));
+      }
+      pc.style.minHeight = n + 'px';
     }
     function fit() {
-      var ar = document.querySelectorAll('[data-ar]');
-      ar.forEach(function (el) { el.style.width = ''; el.style.height = ''; });
-      ar.forEach(function (el) {
-        var r = +el.dataset.ar, wh = size(el), w = wh[0], h = wh[1];
-        if (h > 0 && w / h > r) w = h * r; else h = w / r;
-        el.style.width = w + 'px'; el.style.height = h + 'px';
-      });
+      walk(document.body);
+      document.querySelectorAll('[data-grow]').forEach(page);
       document.querySelectorAll('[data-r]').forEach(function (el) {
         var p = el.dataset.r.split(','), m = Math.min.apply(Math, size(el));
         el.style.borderRadius = Math.max(0, Math.min(+p[0] * m + +p[1], m / 2)) + 'px';
@@ -173,6 +255,7 @@ ${SCRIPT_OPEN}
       });
     }
     addEventListener('resize', fit);
+    addEventListener('input', fit);
     if (document.fonts) document.fonts.ready.then(fit);
     fit();
   })();
@@ -224,6 +307,17 @@ export class HtmlWriter {
 
   rule(sel: string, decls: Decl[]) {
     this.rules.push({ sel, decls });
+  }
+
+  /**
+   * Whether the object has AutomaticSize at the base or at any breakpoint. Such an object
+   * gets `data-auto` and says which way it grows in `--auto`, which media queries can change.
+   */
+  grows(inst: AnyInstance): boolean {
+    const ids = [undefined, ...breakpointsOf(this.doc).map((b) => b.id)];
+    return ids.some(
+      (bp) => automaticSizeOf(resolveProps(this.doc, inst as Instance, bp)) !== 'None',
+    );
   }
 
   /** Insets of a content box: a UIPadding becomes insets, never CSS padding. */
@@ -303,6 +397,12 @@ export class HtmlWriter {
       if (t.length) r.push(['transform', t.join(' ')]);
     }
     r.push(['width', calcU(p.Size[0], p.Size[1])], ['height', v(p.Size[2], p.Size[3])]);
+    const grows = this.grows(inst);
+    if (grows) {
+      r.push(['--auto', automaticSizeOf(p).toLowerCase()]);
+      attrs.push('data-auto');
+      this.needsScript = true;
+    }
     if (p.ZIndex !== 1) r.push(['z-index', String(p.ZIndex)]);
     if (!p.Visible) r.push(['display', 'none']);
     const grad = childOfClass(doc, inst.id, 'UIGradient');
@@ -431,6 +531,8 @@ export class HtmlWriter {
         ['text-align', tp.TextXAlignment.toLowerCase()],
         ['white-space', tp.TextWrapped ? 'pre-wrap' : 'pre'],
       );
+      // Roblox breaks a word too long for the line.
+      if (tp.TextWrapped) ts.push(['overflow-wrap', 'anywhere']);
       if (!inst.props.TextScaled) ts.push(['font-size', `${tp.TextSize}px`]);
       if (textStrokes.length)
         ts.push([
@@ -452,7 +554,8 @@ export class HtmlWriter {
         : `<span>${esc(tp.Text)}</span>`;
       inner += `\n${ind}  <${box} class="t ${tc}"${inst.props.TextScaled && !input ? ' data-fit' : ''}>${body}</${box}>`;
     }
-    if (this.sortedChildren(inst.id).length) {
+    // A box that grows always has a content box: the script reads its padding there.
+    if (this.sortedChildren(inst.id).length || this.grows(inst)) {
       const list = childOfClass(doc, inst.id, 'UIListLayout');
       const cc = cls + 'c';
       const scroll = inst.className === 'ScrollingFrame';
