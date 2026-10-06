@@ -112,6 +112,15 @@ describe('the sample site', () => {
     expect(home.slice(phone)).toContain('display:none;');
   });
 
+  it('paints the page background, see-through when asked', () => {
+    expect(home).toContain('body{background-color:rgb(');
+    const home2 = text(
+      exportSite(edit(doc, set(byName(doc, 'Home').id, { BackgroundTransparency: 0.5 }))),
+      'index.html',
+    );
+    expect(home2).toMatch(/body\{background-color:rgba\(\d+, \d+, \d+, 0\.5\);\}/);
+  });
+
   it('stacks the sections with flexbox and sizes them in vh', () => {
     expect(home).toContain(
       '.pc{--vh:100vh;min-height:var(--vh);display:flex;flex-direction:column;',

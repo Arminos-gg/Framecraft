@@ -18,7 +18,7 @@ import {
   type InstanceId,
 } from '../model/document.ts';
 import type { AssetId, Link } from '../model/values.ts';
-import { calcU, esc, rgb, roundTo } from './format.ts';
+import { calcU, esc, rgb, rgba, roundTo } from './format.ts';
 import {
   calcV,
   COMMENT_OPEN,
@@ -171,7 +171,10 @@ const STATIC_CSS = `  html, body { margin: 0; }
 function writePage(w: HtmlWriter, page: Page): string {
   const doc = w.doc;
   const p = w.props(page);
-  w.rule('body', [['background-color', rgb(p.BackgroundColor3)]]);
+  const background = p.BackgroundTransparency
+    ? rgba(p.BackgroundColor3, p.BackgroundTransparency)
+    : rgb(p.BackgroundColor3);
+  w.rule('body', [['background-color', background]]);
   const padding = childOfClass(doc, page.id, 'UIPadding');
   const pad = padding && w.props(padding);
   if (pad)
