@@ -52,7 +52,7 @@ These are facts about Roblox, not style preferences. Breaking them makes exports
 ## Gotchas
 
 - The Luau export sets `IgnoreGuiInset = true` so Studio uses the same full-screen area as the editor.
-- Fonts are Google look-alikes (Gotham is Montserrat, BuilderSans is Figtree, Arial is Arimo). Exports keep the real `Enum.Font` names.
+- Font is a family; FontWeight and FontStyle are the other parts of Roblox's FontFace (older names such as GothamBold are read as Gotham + Bold, see `src/model/fonts.ts`). Roblox fonts are drawn with Google look-alikes (Gotham is Montserrat, BuilderSans is Figtree, Arial is Arimo); web fonts such as Inter get the closest Roblox font in the Roblox exports. LetterSpacing is web only.
 - Roblox images (`rbxassetid://`) can't load in a browser. ImageLabels show an uploaded preview picture in the editor and export the asset id.
 - Exporter-specific rules are in `.claude/rules/exporters.md` and load when you touch exporter files.
 
