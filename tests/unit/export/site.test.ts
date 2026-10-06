@@ -96,7 +96,27 @@ describe('the sample site', () => {
       '<meta name="description" content="Small-batch coffee, roasted every week.">',
     );
     expect(home).not.toContain('canonical');
-    expect(home).toContain('family=Montserrat:wght@500;700');
+    expect(home).toContain('family=Fraunces:wght@600;700&family=Inter:wght@500;600');
+  });
+
+  it('writes the font, weight and letter spacing, with a media query when it changes', () => {
+    let doc = site();
+    const headline = byName(doc, 'Headline').id;
+    doc = edit(doc, set(headline, { FontStyle: 'Italic', LetterSpacing: -1.5 }), {
+      type: 'setProps',
+      id: headline,
+      props: { LetterSpacing: 0.5 },
+      breakpoint: bp(doc, 'Phone'),
+    });
+    const html = text(exportSite(doc, {}), 'index.html');
+    expect(html).toContain('family=Fraunces:ital,wght@0,700;1,600&family=Inter');
+    expect(html).toContain(
+      'font-family:"Fraunces", Georgia, serif;font-weight:600;font-style:italic;',
+    );
+    expect(html).toContain('letter-spacing:-1.5px;');
+    const phone = html.indexOf('@media (max-width: 809px)');
+    expect(phone).toBeGreaterThan(0);
+    expect(html.indexOf('letter-spacing:0.5px;')).toBeGreaterThan(phone);
   });
 
   it('writes each breakpoint’s changes as a media query, widest first', () => {

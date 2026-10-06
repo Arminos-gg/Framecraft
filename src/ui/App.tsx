@@ -3,6 +3,7 @@ import { Editor, type SaveStatus } from '../editor/editor.ts';
 import { sampleProject } from '../model/sample.ts';
 import { EditorContext, useEditor, useEditorState } from './editor-context.ts';
 import { ExportDialog, type ExportKind } from './ExportDialog.tsx';
+import { ComponentsDrawer } from './Components.tsx';
 import { Explorer } from './Explorer.tsx';
 import { Icon, Mark } from './icons.tsx';
 import { hasPictures, picturesIn } from './pictures.ts';
@@ -51,8 +52,11 @@ function Shell() {
   }, [editor, openExport]);
 
   const { preview, saveStatus, toast } = state;
+  const drawer = state.components && !preview;
   return (
-    <div className={preview ? 'app preview' : 'app'}>
+    <div
+      className={['app', preview && 'preview', drawer && 'with-drawer'].filter(Boolean).join(' ')}
+    >
       <header className="topbar">
         <span className="brand">
           <Mark />
@@ -131,6 +135,7 @@ function Shell() {
 
       <Ribbon />
       <Explorer open={sheet === 'explorer'} onClose={() => setSheet(null)} />
+      {drawer && <ComponentsDrawer />}
       <Viewport />
       <Properties open={sheet === 'props'} onClose={() => setSheet(null)} />
       {menu && (
@@ -253,8 +258,10 @@ function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
       s: () => saveProjectFile(editor),
       o: () => void openProjectFile(editor),
       e: openExport,
+      b: () => editor.toggleTextStyle('bold'),
+      i: () => editor.toggleTextStyle('italic'),
     }[k];
-    if (action && !(preview && 'dcxvag'.includes(k))) {
+    if (action && !(preview && 'dcxvbiag'.includes(k))) {
       e.preventDefault();
       action();
     } else if (k === 'v' && !preview) {

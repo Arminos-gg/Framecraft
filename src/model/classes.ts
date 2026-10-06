@@ -2,7 +2,7 @@
  * The class registry: every Roblox class the editor supports, with its own typed property
  * schema. Property names, order and defaults follow the prototype, which follows Studio.
  */
-import { FONT_NAMES } from './fonts.ts';
+import { FONT_NAMES, FONT_STYLES, FONT_WEIGHT_NAMES } from './fonts.ts';
 import {
   colorSequence,
   normalizeValue,
@@ -147,10 +147,15 @@ function scrollBase(className: string, size: UDim2) {
 const textProps = (text: string) => ({
   Text: spec('string', 'Text', text),
   Font: enumSpec('Text', FONT_NAMES, 'SourceSans'),
+  /** The parts of Roblox's FontFace: Font is its family. */
+  FontWeight: enumSpec('Text', FONT_WEIGHT_NAMES, 'Regular'),
+  FontStyle: enumSpec('Text', FONT_STYLES, 'Normal'),
   TextColor3: spec('color', 'Text', [0, 0, 0], OV),
   TextSize: spec('int', 'Text', 14, { min: 1, max: 100, ...OV }),
   /** Each line's height as a multiple of TextSize, the text centered in it. */
   LineHeight: spec('number', 'Text', 1, { min: 1, max: 3, step: 0.05, ...OV }),
+  /** Extra space after each letter in pixels, as CSS letter-spacing. Roblox has none. */
+  LetterSpacing: spec('number', 'Text', 0, { min: -20, max: 100, step: 0.1, ...OV, ...WEB }),
   TextScaled: spec('bool', 'Text', false, OV),
   TextWrapped: spec('bool', 'Text', false, OV),
   TextXAlignment: enumSpec('Text', ['Left', 'Center', 'Right'], 'Center', OV),

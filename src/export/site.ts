@@ -25,7 +25,6 @@ import {
   calcV,
   COMMENT_OPEN,
   FIT_SCRIPT,
-  googleFontsHref,
   HtmlWriter,
   isGui,
   ruleText,
@@ -296,7 +295,7 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
       anchor: (id) => anchors.get(id),
     };
 
-    const base = new HtmlWriter(doc, undefined, links);
+    const base = new HtmlWriter(doc, undefined, links, true);
     const body = writePage(base, page);
     // Free-placed boxes that grow push the page longer; the script works out how much.
     const grows =
@@ -306,7 +305,7 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
     const media: string[] = [];
     const tints = new Set(base.tints);
     for (const bp of breakpoints) {
-      const w = new HtmlWriter(doc, bp.id, links);
+      const w = new HtmlWriter(doc, bp.id, links, true);
       writePage(w, page);
       for (const t of w.tints) tints.add(t);
       const before = new Map(previous.map((r) => [r.sel, r.decls]));
@@ -333,7 +332,7 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
     if (social) head.push(`<meta property="og:image" content="${esc(`${baseUrl}/${social}`)}">`);
     const favicon = sp.Favicon ? imagePath(sp.Favicon) : undefined;
     if (favicon) head.push(`<link rel="icon" href="${esc(up + favicon)}">`);
-    const fontsHref = googleFontsHref([...base.fontsUsed]);
+    const fontsHref = base.fontsHref();
     if (fontsHref) head.push(`<link rel="stylesheet" href="${fontsHref}">`);
 
     const html = `<!doctype html>

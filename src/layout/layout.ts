@@ -26,6 +26,7 @@ import {
 } from '../model/document.ts';
 import type { UDim, UDim2 } from '../model/values.ts';
 import { measureText, type TextMeasurer } from './text.ts';
+import { faceOf } from '../model/fonts.ts';
 
 export interface Rect {
   readonly x: number;
@@ -66,6 +67,8 @@ class Engine {
   readonly doc: Doc;
   readonly breakpoint: InstanceId | undefined;
   readonly measure: TextMeasurer;
+  /** Laying out a page, where web-only properties such as LetterSpacing apply. */
+  site = false;
   constructor(doc: Doc, breakpoint: InstanceId | undefined, measure: TextMeasurer) {
     this.doc = doc;
     this.breakpoint = breakpoint;
@@ -142,9 +145,10 @@ class Engine {
     // An empty TextBox shows its placeholder.
     const request = {
       text: t.Text || (t.PlaceholderText ?? ''),
-      font: t.Font,
+      ...faceOf(t),
       size: t.TextSize,
       lineHeight: t.LineHeight,
+      letterSpacing: this.site ? t.LetterSpacing : 0,
     };
     if (x) {
       const width = this.measure(request).w + padding;
@@ -327,6 +331,7 @@ class Engine {
    * grows to fit what's on the page, so stacked sections push the page longer.
    */
   layoutPage(page: Instance<'Page'>, viewport: Viewport) {
+    this.site = true;
     const area = { x: 0, y: 0, w: viewport.width, h: viewport.height };
     const content = this.padded(page.id, area);
     this.layoutChildren(page.id, content);

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { exportHtml, googleFontsHref } from '../../../src/export/html.ts';
+import { exportHtml } from '../../../src/export/html.ts';
+import {
+  googleFontsHref,
+  type FontName,
+  type FontStyle,
+  type FontWeight,
+} from '../../../src/model/fonts.ts';
 import { calcU, rgba } from '../../../src/export/format.ts';
 import { addAsset } from '../../../src/model/assets.ts';
 import type { ClassName, PropsOf } from '../../../src/model/classes.ts';
@@ -53,17 +59,41 @@ describe('CSS values', () => {
   });
 
   it('asks Google Fonts for every family and weight once', () => {
-    expect(googleFontsHref(['GothamBold', 'Gotham', 'GothamBold', 'LuckiestGuy'])).toBe(
+    const face = (font: FontName, weight: FontWeight = 'Regular', style: FontStyle = 'Normal') => ({
+      font,
+      weight,
+      style,
+    });
+    expect(
+      googleFontsHref([
+        face('Gotham', 'Bold'),
+        face('Gotham'),
+        face('Gotham', 'Bold'),
+        face('LuckiestGuy'),
+      ]),
+    ).toBe(
       'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Luckiest+Guy&display=swap',
     );
-    expect(googleFontsHref(['SourceSansItalic', 'SourceSans'])).toBe(
+    expect(googleFontsHref([face('SourceSans', 'Regular', 'Italic'), face('SourceSans')])).toBe(
       'https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;1,400&display=swap',
+    );
+    // A weight the font doesn't have asks for its nearest; a font without italics stays upright.
+    expect(googleFontsHref([face('Oswald', 'Heavy', 'Italic'), face('Inter', 'SemiBold')])).toBe(
+      'https://fonts.googleapis.com/css2?family=Oswald:wght@700&family=Inter:wght@600&display=swap',
     );
     expect(googleFontsHref([])).toBeNull();
   });
 });
 
 describe('HTML export', () => {
+  it('leaves out letter spacing, which Roblox doesn’t have', () => {
+    const s = scene();
+    s.add(s.screen, 'TextLabel', { Font: 'Inter', FontWeight: 'Medium', LetterSpacing: 3 });
+    const html = exportHtml(s.doc);
+    expect(html).toContain('font-family:"Inter", system-ui, sans-serif;font-weight:500;');
+    expect(html).not.toContain('letter-spacing');
+  });
+
   it('shows an image preview from the library, or a placeholder', () => {
     const s = scene();
     const img = s.add(s.screen, 'ImageLabel', { Image: 'rbxassetid://42', ScaleType: 'Fit' });

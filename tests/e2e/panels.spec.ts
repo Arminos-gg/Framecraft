@@ -197,7 +197,8 @@ test.describe('Properties', () => {
     await commit(page, '#p-Rotation', '15');
     await commit(page, '#p-TextSize', '-4');
     await page.locator('#p-Visible').uncheck();
-    await page.locator('#p-Font').selectOption('Arial');
+    await page.locator('#p-Font').click();
+    await page.getByRole('option', { name: /^Arial/ }).click();
     const props = await propsOf(page, id);
     expect(props).toMatchObject({
       Text: 'v2',
@@ -212,6 +213,65 @@ test.describe('Properties', () => {
     await page.locator('#p-Text').fill('nope');
     await page.locator('#p-Text').press('Escape');
     expect((await propsOf(page, id)).Text).toBe('v2');
+  });
+
+  test('picks a font from the menu, its weight and its letter spacing', async ({ page }) => {
+    const id = await selectByName(page, 'Headline');
+    const font = page.locator('#p-Font');
+    await expect(font).toHaveText('Fraunces');
+    // The menu searches as you type; arrows and Enter pick.
+    await font.click();
+    const menu = page.getByRole('dialog', { name: 'Fonts' });
+    const search = menu.getByRole('combobox');
+    await search.fill('dm');
+    await expect(menu.getByRole('option')).toHaveText([/^DM Sans/, /^DM Serif Display/]);
+    await search.press('ArrowDown');
+    await search.press('Enter');
+    await expect(menu).toBeHidden();
+    await expect(font).toBeFocused();
+    expect((await propsOf(page, id)).Font).toBe('DMSerifDisplay');
+    await font.click();
+    await search.fill('jakarta');
+    await search.press('Enter');
+    expect((await propsOf(page, id)).Font).toBe('PlusJakartaSans');
+    // Escape closes the menu without a change.
+    await font.click();
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    expect((await propsOf(page, id)).Font).toBe('PlusJakartaSans');
+
+    // Weights the font has, with their numbers, and a Bold toggle.
+    await page.locator('#p-FontWeight').selectOption('Light');
+    expect((await propsOf(page, id)).FontWeight).toBe('Light');
+    await expect(page.locator('#p-FontWeight option')).toHaveText([
+      'ExtraLight · 200',
+      'Light · 300',
+      'Regular · 400',
+      'Medium · 500',
+      'SemiBold · 600',
+      'Bold · 700',
+      'ExtraBold · 800',
+    ]);
+    const bold = page.getByRole('button', { name: 'Bold', exact: true });
+    await bold.click();
+    expect((await propsOf(page, id)).FontWeight).toBe('Bold');
+    await expect(bold).toHaveAttribute('aria-pressed', 'true');
+    // Ctrl+B and Ctrl+I work on the selection from outside a text field.
+    await page.keyboard.press('Control+b');
+    await page.keyboard.press('Control+i');
+    expect(await propsOf(page, id)).toMatchObject({ FontWeight: 'Regular', FontStyle: 'Italic' });
+
+    await commit(page, '#p-LetterSpacing', '-1.5');
+    expect((await propsOf(page, id)).LetterSpacing).toBe(-1.5);
+    const span = page.locator(`.gui[data-id="${id}"] .txt > span`);
+    await expect(span).toHaveCSS('letter-spacing', '-1.5px');
+    await expect(span).toHaveCSS('font-weight', '400');
+    await expect(span).toHaveCSS('font-style', 'italic');
+
+    // Roblox has no letter spacing, so the Roblox screens don't offer it.
+    await selectByName(page, 'Version');
+    await expect(page.locator('#p-FontWeight')).toBeVisible();
+    await expect(page.locator('#p-LetterSpacing')).toHaveCount(0);
   });
 
   test('grows a label to fit its text with AutomaticSize', async ({ page }) => {

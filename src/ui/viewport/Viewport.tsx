@@ -36,6 +36,7 @@ import { rulerSteps } from './rulers.ts';
 import { Rulers } from './Rulers.tsx';
 import { Stage } from './Stage.tsx';
 import { useDocFonts } from './useDocFonts.ts';
+import { COMPONENT_MIME, decodeComponentDrag } from '../component-drag.ts';
 
 /** Space around the device when it's fitted to the viewport. */
 const PAD = 40;
@@ -504,13 +505,26 @@ export function Viewport() {
             if (targetAt(e.target) !== null) setMenu({ x: e.clientX, y: e.clientY });
           }}
           onDragOver={(e) => {
-            // Image and SVG files dropped here become ImageLabels.
-            if (state.preview || ![...e.dataTransfer.types].includes('Files')) return;
+            if (state.preview) return;
+            // A component from the drawer, or image and SVG files, which become ImageLabels.
+            const types = [...e.dataTransfer.types];
+            if (!types.includes(COMPONENT_MIME) && !types.includes('Files')) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = 'copy';
           }}
           onDrop={(e) => {
-            if (state.preview || !hasPictures(e.dataTransfer)) return;
+            if (state.preview) return;
+            if (e.dataTransfer.types.includes(COMPONENT_MIME)) {
+              const drag = decodeComponentDrag(e.dataTransfer.getData(COMPONENT_MIME));
+              if (!drag) return;
+              e.preventDefault();
+              // Into the object dropped on, or else what the viewport shows.
+              const el = frameAt(e.target);
+              if (el && el.dataset.device !== device.id) editor.setDevice(el.dataset.device!);
+              editor.addComponent(drag.def, drag.options, guiIdAt(e.target));
+              return;
+            }
+            if (!hasPictures(e.dataTransfer)) return;
             e.preventDefault();
             picturesIn(e.dataTransfer).then(
               (pics) => pics.forEach((pic) => editor.insertPicture(pic)),

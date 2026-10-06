@@ -19,7 +19,7 @@ import {
   type Instance,
   type InstanceId,
 } from '../model/document.ts';
-import { FONTS, type FontName } from '../model/fonts.ts';
+import { faceKey, faceOf, fontCss, googleFontsHref, parseFaceKey } from '../model/fonts.ts';
 import type { AssetId, Color3, ColorSequence, Link, NumberSequence } from '../model/values.ts';
 import { calcU, esc, fmtNum, rgb, rgba, roundTo } from './format.ts';
 
@@ -50,48 +50,8 @@ const FLEX = {
 } as const;
 export const OBJECT_FIT = { Stretch: 'fill', Fit: 'contain', Crop: 'cover' } as const;
 
-/** Google Fonts families with a single style, which take no weight list. */
-const STATIC_FAMILIES = new Set(['Luckiest Guy', 'Bangers', 'Press Start 2P', 'Permanent Marker']);
-
 /** HTML tags whose content must be phrasing content, so nothing inside may be a div. */
 const PHRASING_ONLY = new Set(['h1', 'h2', 'h3', 'p']);
-
-/** The CSS font for a Roblox font: its Google look-alike with a fallback. */
-export function fontCss(name: FontName) {
-  const f: { family: string; weight: number; italic?: boolean } = FONTS[name];
-  const mono = /Mono/.test(f.family) || f.family === 'Press Start 2P';
-  const serif = f.family === 'Merriweather';
-  const fallback = mono
-    ? 'ui-monospace, monospace'
-    : serif
-      ? 'Georgia, serif'
-      : 'system-ui, sans-serif';
-  return {
-    family: `"${f.family}", ${fallback}`,
-    weight: f.weight,
-    style: f.italic ? 'italic' : 'normal',
-  };
-}
-
-/** One Google Fonts stylesheet link for every font the page uses. */
-export function googleFontsHref(names: readonly FontName[]): string | null {
-  const families = new Map<string, Set<string>>();
-  for (const name of names) {
-    const f: { family: string; weight: number; italic?: boolean } = FONTS[name];
-    const specs = families.get(f.family) ?? new Set<string>();
-    specs.add((f.italic ? '1,' : '0,') + f.weight);
-    families.set(f.family, specs);
-  }
-  const parts = [...families].map(([family, set]) => {
-    const name = family.replace(/ /g, '+');
-    if (STATIC_FAMILIES.has(family)) return 'family=' + name;
-    const specs = [...set].sort();
-    if (specs.some((s) => s.startsWith('1,'))) return `family=${name}:ital,wght@${specs.join(';')}`;
-    const weights = specs.map((s) => s.slice(2)).sort((a, b) => +a - +b);
-    return `family=${name}:wght@${weights.join(';')}`;
-  });
-  return parts.length ? `https://fonts.googleapis.com/css2?${parts.join('&')}&display=swap` : null;
-}
 
 /** Two keypoints at the ends need no stop positions; more get a position each. */
 function stops<T>(seq: readonly { time: number; value: T }[], css: (v: T) => string): string {
@@ -339,7 +299,8 @@ interface EmitContext {
  */
 export class HtmlWriter {
   readonly rules: Rule[] = [];
-  readonly fontsUsed = new Set<FontName>();
+  /** The faces the text uses, as `faceKey`s. */
+  readonly fontsUsed = new Set<string>();
   /** Every ImageColor3 tint the images use, by `tintKey`. */
   readonly tints = new Set<string>();
   needsScript = false;
@@ -347,10 +308,18 @@ export class HtmlWriter {
   readonly doc: Doc;
   readonly breakpoint: InstanceId | undefined;
   readonly links: WriterLinks;
-  constructor(doc: Doc, breakpoint: InstanceId | undefined, links: WriterLinks) {
+  /** Writing a website, where web-only properties such as LetterSpacing apply. */
+  readonly site: boolean;
+  constructor(doc: Doc, breakpoint: InstanceId | undefined, links: WriterLinks, site = false) {
     this.doc = doc;
     this.breakpoint = breakpoint;
     this.links = links;
+    this.site = site;
+  }
+
+  /** The Google Fonts link for the faces written so far, or null for none. */
+  fontsHref(): string | null {
+    return googleFontsHref([...this.fontsUsed].map(parseFaceKey));
   }
 
   props<I extends AnyInstance>(inst: I): I['props'] {
@@ -602,8 +571,9 @@ export class HtmlWriter {
       inst.className === 'TextBox'
     ) {
       const tp = this.props(inst);
-      this.fontsUsed.add(tp.Font);
-      const f = fontCss(tp.Font);
+      const face = faceOf(tp);
+      this.fontsUsed.add(faceKey(face));
+      const f = fontCss(face);
       const tc = `${cls}t`;
       const textStrokes = childrenOf(doc, inst.id)
         .filter((k): k is Instance<'UIStroke'> & AnyInstance => k.className === 'UIStroke')
@@ -628,6 +598,8 @@ export class HtmlWriter {
       if (tp.TextWrapped) ts.push(['overflow-wrap', 'anywhere']);
       if (!inst.props.TextScaled) ts.push(['font-size', `${tp.TextSize}px`]);
       if (tp.LineHeight !== 1) ts.push(['line-height', fmtNum(tp.LineHeight)]);
+      if (this.site && tp.LetterSpacing)
+        ts.push(['letter-spacing', `${fmtNum(tp.LetterSpacing)}px`]);
       if (textStrokes.length)
         ts.push([
           'text-shadow',
@@ -698,7 +670,7 @@ export function exportHtml(doc: Doc, options: HtmlOptions = {}): string {
       return `\n  <div class="screen ${sc}" data-name="${esc(sg.props.Name)}">${kids}\n  </div>`;
     })
     .join('');
-  const fontsHref = googleFontsHref([...w.fontsUsed]);
+  const fontsHref = w.fontsHref();
   const title = esc(screenGuis[0]?.props.Name ?? 'Framecraft export');
   const backdrop = BACKDROP_CSS[options.backdrop ?? 'game'];
   return `<!doctype html>
@@ -713,7 +685,7 @@ ${COMMENT_OPEN} Built with Framecraft (prototype). Every object keeps its Roblox
   body { background: ${backdrop}; overflow: hidden; }
   /* A ScreenGui covers the window. Position and Size are {Scale, Offset} pairs: calc(Scale% + Offset px). */
   .screen { position: fixed; inset: 0; }
-  .g { position: absolute; box-sizing: border-box; }
+  .g { position: absolute; box-sizing: border-box; margin: 0; font-size: inherit; font-weight: inherit; }
   .c, .t { position: absolute; }
   .t { display: flex; pointer-events: none; }
   .t > * { line-height: 1; }

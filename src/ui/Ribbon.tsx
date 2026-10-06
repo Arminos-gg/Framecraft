@@ -36,7 +36,7 @@ const UNIT_HINTS: Record<UnitMode, string> = {
 
 export function Ribbon() {
   const editor = useEditor();
-  const { doc, selection, view, preview, unit, snap } = useEditorState();
+  const { doc, selection, view, preview, unit, snap, components } = useEditorState();
   const [shapes, setShapes] = useState<HTMLElement | null>(null);
   const sel = selection === null ? undefined : getInstance(doc, selection);
   const layer: ClassName = view.kind === 'page' ? 'Page' : 'ScreenGui';
@@ -73,6 +73,17 @@ export function Ribbon() {
             Shapes
           </button>
           {shapes && <ShapesMenu anchor={shapes} onClose={() => setShapes(null)} />}
+          <button
+            className={components ? 'tool on' : 'tool'}
+            type="button"
+            data-components
+            title="Pre-made components: navbars, pricing tables, hotbars and more"
+            aria-pressed={components}
+            onClick={() => editor.setComponentsOpen(!components)}
+          >
+            <Icon name="components" />
+            Components
+          </button>
         </div>
         <div className="cap">Insert object</div>
       </div>

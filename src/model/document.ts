@@ -2,6 +2,7 @@
  * The document: a tree of Roblox instances held in a flat map by id. Documents are immutable;
  * every change goes through a command (commands.ts), which returns a new document.
  */
+import { upgradeFont } from './fonts.ts';
 import {
   canParent,
   classDef,
@@ -64,7 +65,7 @@ export function createInstance<C extends ClassName>(
   id: InstanceId = newId(),
 ): Instance<C> {
   const merged: Record<string, unknown> = defaultProps(className);
-  for (const [key, value] of Object.entries(props)) {
+  for (const [key, value] of Object.entries(upgradeFont(props))) {
     const v = normalizeProp(className, key, value);
     if (v === undefined)
       throw new ModelError(`${className} can't take ${key} = ${JSON.stringify(value)}`);
