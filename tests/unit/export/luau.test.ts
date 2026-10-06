@@ -128,6 +128,36 @@ describe('Luau export', () => {
     parses(code);
   });
 
+  it('writes a Roblox font as Enum.Font, and any other face as FontFace', () => {
+    const s = scene();
+    s.add(s.screen, 'TextLabel', { Name: 'Bold', Font: 'Gotham', FontWeight: 'Bold' });
+    s.add(s.screen, 'TextLabel', { Name: 'Italic', Font: 'SourceSans', FontStyle: 'Italic' });
+    s.add(s.screen, 'TextLabel', { Name: 'Semi', Font: 'Gotham', FontWeight: 'SemiBold' });
+    s.add(s.screen, 'TextLabel', { Name: 'Mont', Font: 'Montserrat' });
+    s.add(s.screen, 'TextLabel', {
+      Name: 'Web',
+      Font: 'Inter',
+      FontWeight: 'Bold',
+      FontStyle: 'Italic',
+      LetterSpacing: 2,
+    });
+    const code = s.luau();
+    expect(code).toContain('bold.Font = Enum.Font.GothamBold');
+    expect(code).toContain('italic.Font = Enum.Font.SourceSansItalic');
+    expect(code).toContain(
+      'semi.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold)',
+    );
+    expect(code).toContain('mont.FontFace = Font.new("rbxasset://fonts/families/Montserrat.json")');
+    // Roblox has no Inter, so the closest Roblox font stands in, and it says so.
+    expect(code).toContain(
+      'web.FontFace = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold, Enum.FontStyle.Italic) -- Inter isn\'t in Roblox, so BuilderSans stands in',
+    );
+    // Letter spacing is web only.
+    expect(code).not.toContain('LetterSpacing');
+    expect(code).not.toContain('FontWeight =');
+    parses(code);
+  });
+
   it('uses the base values, not a breakpoint’s', () => {
     const doc = site();
     const sg = createInstance('ScreenGui', { Name: 'Hud' }, 'hud') as AnyInstance;

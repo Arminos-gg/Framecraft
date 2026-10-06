@@ -18,7 +18,7 @@ import {
   type Instance,
   type InstanceId,
 } from '../model/document.ts';
-import { FONTS, type FontName } from '../model/fonts.ts';
+import { faceKey, faceOf, fontCss, googleFontsHref, parseFaceKey } from '../model/fonts.ts';
 import type { AssetId, Color3, ColorSequence, Link, NumberSequence } from '../model/values.ts';
 import { calcU, esc, fmtNum, rgb, rgba, roundTo } from './format.ts';
 
@@ -49,48 +49,8 @@ const FLEX = {
 } as const;
 export const OBJECT_FIT = { Stretch: 'fill', Fit: 'contain', Crop: 'cover' } as const;
 
-/** Google Fonts families with a single style, which take no weight list. */
-const STATIC_FAMILIES = new Set(['Luckiest Guy', 'Bangers', 'Press Start 2P', 'Permanent Marker']);
-
 /** HTML tags whose content must be phrasing content, so nothing inside may be a div. */
 const PHRASING_ONLY = new Set(['h1', 'h2', 'h3', 'p']);
-
-/** The CSS font for a Roblox font: its Google look-alike with a fallback. */
-export function fontCss(name: FontName) {
-  const f: { family: string; weight: number; italic?: boolean } = FONTS[name];
-  const mono = /Mono/.test(f.family) || f.family === 'Press Start 2P';
-  const serif = f.family === 'Merriweather';
-  const fallback = mono
-    ? 'ui-monospace, monospace'
-    : serif
-      ? 'Georgia, serif'
-      : 'system-ui, sans-serif';
-  return {
-    family: `"${f.family}", ${fallback}`,
-    weight: f.weight,
-    style: f.italic ? 'italic' : 'normal',
-  };
-}
-
-/** One Google Fonts stylesheet link for every font the page uses. */
-export function googleFontsHref(names: readonly FontName[]): string | null {
-  const families = new Map<string, Set<string>>();
-  for (const name of names) {
-    const f: { family: string; weight: number; italic?: boolean } = FONTS[name];
-    const specs = families.get(f.family) ?? new Set<string>();
-    specs.add((f.italic ? '1,' : '0,') + f.weight);
-    families.set(f.family, specs);
-  }
-  const parts = [...families].map(([family, set]) => {
-    const name = family.replace(/ /g, '+');
-    if (STATIC_FAMILIES.has(family)) return 'family=' + name;
-    const specs = [...set].sort();
-    if (specs.some((s) => s.startsWith('1,'))) return `family=${name}:ital,wght@${specs.join(';')}`;
-    const weights = specs.map((s) => s.slice(2)).sort((a, b) => +a - +b);
-    return `family=${name}:wght@${weights.join(';')}`;
-  });
-  return parts.length ? `https://fonts.googleapis.com/css2?${parts.join('&')}&display=swap` : null;
-}
 
 /** Two keypoints at the ends need no stop positions; more get a position each. */
 function stops<T>(seq: readonly { time: number; value: T }[], css: (v: T) => string): string {
@@ -101,6 +61,34 @@ export const gradientCss = (color: ColorSequence, rotation: number) =>
   `linear-gradient(${90 + rotation}deg, ${stops<Color3>(color, rgb)})`;
 export const maskCss = (transparency: NumberSequence, rotation: number) =>
   `linear-gradient(${90 + rotation}deg, ${stops<number>(transparency, (t) => `rgba(0,0,0,${roundTo(1 - t, 3)})`)})`;
+
+/**
+ * ImageColor3 multiplies an image's colors, so a white picture takes the color exactly and
+ * white leaves any picture as it is. Browsers do the same multiply with an SVG color matrix
+ * filter, one per color, which the page defines once and images point to by id.
+ */
+export const isTinted = (c: Color3): boolean => c[0] !== 255 || c[1] !== 255 || c[2] !== 255;
+/** A tint color as six hex digits, its key in a set of tints. */
+export const tintKey = (c: Color3): string =>
+  c.map((v) => v.toString(16).padStart(2, '0')).join('');
+export const tintId = (key: string): string => 'fc-tint-' + key;
+/** The color matrix that multiplies by a tint. */
+export function tintMatrix(key: string): string {
+  const [r, g, b] = [0, 2, 4].map((i) => fmtNum(parseInt(key.slice(i, i + 2), 16) / 255));
+  return `${r} 0 0 0 0 0 ${g} 0 0 0 0 0 ${b} 0 0 0 0 0 1 0`;
+}
+/** The hidden SVG with a filter for each tint, or nothing when no image is tinted. */
+export function tintDefs(keys: Iterable<string>, indent = ''): string {
+  const filters = [...new Set(keys)]
+    .sort()
+    .map(
+      (k) =>
+        `\n${indent}  <filter id="${tintId(k)}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${tintMatrix(k)}"/></filter>`,
+    );
+  return filters.length
+    ? `\n${indent}<svg width="0" height="0" aria-hidden="true" style="position:absolute">${filters.join('')}\n${indent}</svg>`
+    : '';
+}
 
 /** A text outline drawn as a ring of shadows. */
 export function textRing(thickness: number, color: string): string {
@@ -308,16 +296,27 @@ interface EmitContext {
  */
 export class HtmlWriter {
   readonly rules: Rule[] = [];
-  readonly fontsUsed = new Set<FontName>();
+  /** The faces the text uses, as `faceKey`s. */
+  readonly fontsUsed = new Set<string>();
+  /** Every ImageColor3 tint the images use, by `tintKey`. */
+  readonly tints = new Set<string>();
   needsScript = false;
   seq = 0;
   readonly doc: Doc;
   readonly breakpoint: InstanceId | undefined;
   readonly links: WriterLinks;
-  constructor(doc: Doc, breakpoint: InstanceId | undefined, links: WriterLinks) {
+  /** Writing a website, where web-only properties such as LetterSpacing apply. */
+  readonly site: boolean;
+  constructor(doc: Doc, breakpoint: InstanceId | undefined, links: WriterLinks, site = false) {
     this.doc = doc;
     this.breakpoint = breakpoint;
     this.links = links;
+    this.site = site;
+  }
+
+  /** The Google Fonts link for the faces written so far, or null for none. */
+  fontsHref(): string | null {
+    return googleFontsHref([...this.fontsUsed].map(parseFaceKey));
   }
 
   props<I extends AnyInstance>(inst: I): I['props'] {
@@ -536,9 +535,19 @@ export class HtmlWriter {
     if (inst.className === 'ImageLabel' || inst.className === 'ImageButton') {
       const ip = this.props(inst);
       const src = inst.preview ? this.links.imageSrc(inst.preview) : undefined;
-      inner += src
-        ? `\n${ind}  <img class="img" src="${src}" alt="${esc(inst.props.AltText)}" style="object-fit:${OBJECT_FIT[ip.ScaleType]};opacity:${roundTo(1 - ip.ImageTransparency, 3)}">`
-        : `\n${ind}  <${box} class="ph">${esc(ip.Image || 'image')}</${box}>`;
+      if (src) {
+        // In a rule rather than inline, so breakpoints can change them too.
+        const ic = `${cls}i`;
+        const d: Decl[] = [['object-fit', OBJECT_FIT[ip.ScaleType]]];
+        if (ip.ImageTransparency) d.push(['opacity', fmtNum(1 - ip.ImageTransparency, 3)]);
+        if (isTinted(ip.ImageColor3)) {
+          const key = tintKey(ip.ImageColor3);
+          this.tints.add(key);
+          d.push(['filter', `url(#${tintId(key)})`]);
+        }
+        this.rule(`.${ic}`, d);
+        inner += `\n${ind}  <img class="img ${ic}" src="${src}" alt="${esc(inst.props.AltText)}">`;
+      } else inner += `\n${ind}  <${box} class="ph">${esc(ip.Image || 'image')}</${box}>`;
     }
     if (
       inst.className === 'TextLabel' ||
@@ -546,8 +555,9 @@ export class HtmlWriter {
       inst.className === 'TextBox'
     ) {
       const tp = this.props(inst);
-      this.fontsUsed.add(tp.Font);
-      const f = fontCss(tp.Font);
+      const face = faceOf(tp);
+      this.fontsUsed.add(faceKey(face));
+      const f = fontCss(face);
       const tc = `${cls}t`;
       const textStrokes = childrenOf(doc, inst.id)
         .filter((k): k is Instance<'UIStroke'> & AnyInstance => k.className === 'UIStroke')
@@ -572,6 +582,8 @@ export class HtmlWriter {
       if (tp.TextWrapped) ts.push(['overflow-wrap', 'anywhere']);
       if (!inst.props.TextScaled) ts.push(['font-size', `${tp.TextSize}px`]);
       if (tp.LineHeight !== 1) ts.push(['line-height', fmtNum(tp.LineHeight)]);
+      if (this.site && tp.LetterSpacing)
+        ts.push(['letter-spacing', `${fmtNum(tp.LetterSpacing)}px`]);
       if (textStrokes.length)
         ts.push([
           'text-shadow',
@@ -640,7 +652,7 @@ export function exportHtml(doc: Doc, options: HtmlOptions = {}): string {
       return `\n  <div class="screen ${sc}" data-name="${esc(sg.props.Name)}">${kids}\n  </div>`;
     })
     .join('');
-  const fontsHref = googleFontsHref([...w.fontsUsed]);
+  const fontsHref = w.fontsHref();
   const title = esc(screenGuis[0]?.props.Name ?? 'Framecraft export');
   const backdrop = BACKDROP_CSS[options.backdrop ?? 'game'];
   return `<!doctype html>
@@ -655,7 +667,7 @@ ${COMMENT_OPEN} Built with Framecraft (prototype). Every object keeps its Roblox
   body { background: ${backdrop}; overflow: hidden; }
   /* A ScreenGui covers the window. Position and Size are {Scale, Offset} pairs: calc(Scale% + Offset px). */
   .screen { position: fixed; inset: 0; }
-  .g { position: absolute; box-sizing: border-box; }
+  .g { position: absolute; box-sizing: border-box; margin: 0; font-size: inherit; font-weight: inherit; }
   .c, .t { position: absolute; }
   .t { display: flex; pointer-events: none; }
   .t > * { line-height: 1; }
@@ -669,7 +681,7 @@ ${COMMENT_OPEN} Built with Framecraft (prototype). Every object keeps its Roblox
   ${w.rules.map(ruleText).join('\n  ')}
 </style>
 </head>
-<body>${screens}${w.needsScript ? FIT_SCRIPT : ''}
+<body>${tintDefs(w.tints, '  ')}${screens}${w.needsScript ? FIT_SCRIPT : ''}
 </body>
 </html>
 `;

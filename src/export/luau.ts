@@ -22,6 +22,7 @@ import type {
   Vector2,
 } from '../model/values.ts';
 import { fmtNum } from './format.ts';
+import { FONTS, faceOf, legacyFontOf, robloxFace, type TextFace } from '../model/fonts.ts';
 
 export type LuauTarget = 'command' | 'local';
 
@@ -86,6 +87,16 @@ export function luaUDim2(u: UDim2): string {
 const luaUDim = (u: UDim) => `UDim.new(${luaNum(u[0])}, ${luaNum(u[1], 0)})`;
 const luaColor = (c: Color3) => `Color3.fromRGB(${c[0]}, ${c[1]}, ${c[2]})`;
 const luaVec2 = (v: Vector2) => `Vector2.new(${luaNum(v[0])}, ${luaNum(v[1])})`;
+/** Font.new for a face. A web font Roblox doesn't have gets its closest Roblox font. */
+function luaFontFace(face: TextFace): string {
+  const { family, weight, style } = robloxFace(face);
+  const args = [luaStr(family)];
+  if (weight !== 'Regular' || style !== 'Normal') args.push('Enum.FontWeight.' + weight);
+  if (style !== 'Normal') args.push('Enum.FontStyle.' + style);
+  const f = FONTS[face.font];
+  const note = f.webOnly ? ` -- ${f.label} isn't in Roblox, so ${f.roblox} stands in` : '';
+  return `Font.new(${args.join(', ')})${note}`;
+}
 const isWhite = (c: Color3) => c[0] === 255 && c[1] === 255 && c[2] === 255;
 
 /** Two keypoints use the short constructor; more spell out every keypoint. */
@@ -176,7 +187,10 @@ function luauProps(inst: AnyInstance): [string, string | number][] {
   if (p.ClipsDescendants) add('ClipsDescendants', 'true');
   if (def.text) {
     const t = inst.props as TextProps;
-    add('Font', 'Enum.Font.' + t.Font);
+    const face = faceOf(t);
+    const legacy = legacyFontOf(face);
+    if (legacy) add('Font', 'Enum.Font.' + legacy);
+    else add('FontFace', luaFontFace(face));
     add('Text', luaStr(t.Text));
     if (def.input && t.PlaceholderText) add('PlaceholderText', luaStr(t.PlaceholderText));
     add('TextColor3', luaColor(t.TextColor3));

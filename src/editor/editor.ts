@@ -8,7 +8,7 @@
  * On a page shown at Tablet or Phone, edits change that breakpoint's values.
  */
 import { slug } from '../export/site.ts';
-import { isGui, type Backdrop } from '../export/html.ts';
+import { isGui, isTinted, type Backdrop } from '../export/html.ts';
 import {
   ancestorAngle,
   layoutContainer,
@@ -20,6 +20,7 @@ import {
 import { textVersion } from '../layout/text.ts';
 import { addAsset, type Assets } from '../model/assets.ts';
 import { canParent, classDef, isOverridable, type ClassName } from '../model/classes.ts';
+import { FONT_WEIGHTS, type FontStyle, type FontWeight } from '../model/fonts.ts';
 import { batch, insert, move, remove, setPreview, type Command } from '../model/commands.ts';
 import {
   childOfClass,
@@ -27,9 +28,11 @@ import {
   extractSubtree,
   getInstance,
   ModelError,
+  newId,
   reIdSubtree,
   resolveProps,
   serviceOf,
+  single,
   subtreeIds,
   type AnyInstance,
   type Doc,
@@ -48,6 +51,12 @@ import {
   type Device,
 } from './devices.ts';
 import { hasModifier, insertParent, newSubtree } from './insert.ts';
+import { finishShape, shapeById, shapeClass, shapePicture, shapeProps } from './shapes.ts';
+import {
+  componentSubtree,
+  type ComponentDef,
+  type ComponentOptions,
+} from '../model/components/index.ts';
 import {
   moveRect,
   positionFor,
@@ -88,6 +97,17 @@ export interface Gesture {
   readonly id: InstanceId;
   readonly kind: 'move' | 'resize';
   readonly guides: readonly Guide[];
+}
+
+/** A picture to place: a data URL, with its size in pixels for a new object. */
+export interface Picture {
+  readonly dataUrl: string;
+  readonly width: number;
+  readonly height: number;
+  /** A one-color SVG made white, so ImageColor3 colors it (it starts black). */
+  readonly recolor?: boolean;
+  /** The new object's Name, such as the file's name. */
+  readonly name?: string;
 }
 
 export interface Toast {
@@ -136,6 +156,8 @@ export interface EditorState {
   /** The Explorer row whose name is being edited. */
   readonly renaming: InstanceId | null;
   readonly saveStatus: SaveStatus;
+  /** The Components drawer is open. */
+  readonly components: boolean;
 }
 
 export const LIST_PLACES = 'A UIListLayout places this object. Change LayoutOrder to reorder it.';
@@ -335,6 +357,7 @@ export class Editor {
       expanded: initialExpanded(doc),
       renaming: null,
       saveStatus: 'idle',
+      components: false,
     };
     this.history.subscribe(() => this.#onDocChange());
   }
@@ -513,6 +536,9 @@ export class Editor {
   }
   setSnap(snap: boolean) {
     this.#update({ snap });
+  }
+  setComponentsOpen(components: boolean) {
+    if (components !== this.#state.components) this.#update({ components });
   }
   setBackdrop(backdrop: Backdrop) {
     this.#update({ backdrop });
@@ -751,6 +777,21 @@ export class Editor {
     return this.#execute(edit(id, { [key]: value }, here));
   }
 
+  /**
+   * Ctrl+B and Ctrl+I: turns the selected text bold (or back to Regular) or italic (or back
+   * to Normal). Returns false when the selection has no text.
+   */
+  toggleTextStyle(which: 'bold' | 'italic'): boolean {
+    const id = this.#state.selection;
+    const inst = id === null ? undefined : getInstance(this.doc, id);
+    if (!inst || !classDef(inst.className).text) return false;
+    const p = inst.props as { FontWeight: FontWeight; FontStyle: FontStyle };
+    if (which === 'italic')
+      return this.setProp(inst.id, 'FontStyle', p.FontStyle === 'Italic' ? 'Normal' : 'Italic');
+    const bold = FONT_WEIGHTS[p.FontWeight] >= FONT_WEIGHTS.SemiBold;
+    return this.setProp(inst.id, 'FontWeight', bold ? 'Regular' : 'Bold');
+  }
+
   /** Drops the shown breakpoint's own value, so the property inherits again. */
   resetProp(id: InstanceId, key: string) {
     const bp = this.breakpointFor(id);
@@ -791,6 +832,55 @@ export class Editor {
    * into what the viewport shows. A modifier goes on `parentId` itself.
    */
   insert(className: ClassName, parentId: InstanceId | null = this.#state.selection) {
+    return this.#insertNew(className, parentId);
+  }
+
+  /**
+   * Inserts a shape from the Shapes menu, where an object would go. Picture shapes add their
+   * white SVG to the image library.
+   */
+  insertShape(shapeId: string, parentId: InstanceId | null = this.#state.selection) {
+    const shape = shapeById(shapeId);
+    if (!shape) return null;
+    const picture = shapePicture(shape);
+    if (picture !== undefined && this.#addPicture(picture) === null) return null;
+    return this.#insertNew(shapeClass(shape), parentId, shapeProps(shape), (root) =>
+      finishShape(shape, root, newId),
+    );
+  }
+
+  /**
+   * Inserts an ImageLabel showing a picture, as big as the picture up to 400 px a side: a
+   * pasted or dropped SVG or image.
+   */
+  insertPicture(pic: Picture, parentId: InstanceId | null = this.#state.selection) {
+    const preview = this.#addPicture(pic.dataUrl);
+    if (preview === null) return null;
+    const fit = Math.min(1, 400 / Math.max(pic.width, pic.height, 1));
+    const w = Math.max(1, Math.round(pic.width * fit));
+    const h = Math.max(1, Math.round(pic.height * fit));
+    const props: Record<string, unknown> = {
+      Size: [0, w, 0, h],
+      BackgroundTransparency: 1,
+    };
+    const name = pic.name?.trim();
+    if (name) props.Name = name;
+    if (pic.recolor) props.ImageColor3 = [0, 0, 0];
+    return this.#insertNew('ImageLabel', parentId, props, (root) => single({ ...root, preview }));
+  }
+
+  /**
+   * Inserts a new object, layer, page or modifier and selects it. An object goes into
+   * `parentId` (the selection by default) or its nearest ancestor that can hold it, or else
+   * into what the viewport shows. A modifier goes on `parentId` itself. `start` and `finish`
+   * shape the new object: properties it starts with, and what goes with it.
+   */
+  #insertNew(
+    className: ClassName,
+    parentId: InstanceId | null,
+    start?: Readonly<Record<string, unknown>>,
+    finish?: (root: AnyInstance) => Subtree,
+  ) {
     const doc = this.doc;
     const scene = this.scene;
     const kind = classDef(className).kind;
@@ -831,11 +921,95 @@ export class Editor {
     let area = box?.content ?? rectOf(scene);
     // On a long page, center in the first screen rather than halfway down.
     if (parent.className === 'Page') area = { ...area, h: Math.min(area.h, scene.device.height) };
-    const subtree = newSubtree(this.doc, className, parent, area);
+    let subtree = newSubtree(this.doc, className, parent, area, newId, start);
+    if (finish) subtree = finish(subtree.instances[subtree.rootId]!);
     cmds.push(insert(parent.id, subtree));
     if (!this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds))) return null;
     this.select(subtree.rootId);
     return subtree.rootId;
+  }
+
+  /**
+   * Where a component lands: a block in the selection or its nearest ancestor that can hold
+   * it, a website section in that object's page, and otherwise what the viewport shows.
+   * Undefined when the Roblox screens have no ScreenGui yet.
+   */
+  #componentParent(def: ComponentDef, parentId: InstanceId | null): AnyInstance | undefined {
+    const doc = this.doc;
+    const scene = this.scene;
+    let parent = insertParent(doc, 'Frame', parentId);
+    if (def.place === 'section') {
+      const view = parent ? viewOf(doc, parent.id) : scene.view;
+      if (view?.kind === 'page') parent = getInstance(doc, view.pageId);
+    }
+    return (
+      parent ??
+      getInstance(doc, scene.view.kind === 'page' ? scene.view.pageId : (scene.roots[0] ?? ''))
+    );
+  }
+
+  /** The name of the object a component would land in now, for the Add button. */
+  componentParentName(def: ComponentDef): string {
+    return this.#componentParent(def, this.#state.selection)?.props.Name ?? 'a new ScreenGui';
+  }
+
+  /**
+   * Adds a copy of a pre-made component and selects it. A block lands inside the selection, or
+   * its nearest ancestor that can hold it, like Insert; a website section goes into the page.
+   * Straight on a page, a block gets a section of its own. Returns the new component's id.
+   */
+  addComponent(
+    def: ComponentDef,
+    options: ComponentOptions,
+    parentId: InstanceId | null = this.#state.selection,
+  ): InstanceId | null {
+    const doc = this.doc;
+    const scene = this.scene;
+    let parent = this.#componentParent(def, parentId);
+    const cmds: Command[] = [];
+    if (!parent) {
+      // Roblox screens with no ScreenGui yet: make one to hold the component.
+      const starterGui = serviceOf(doc, 'StarterGui');
+      const layer = newSubtree(doc, 'ScreenGui', starterGui, rectOf(scene));
+      cmds.push(insert(starterGui.id, layer));
+      parent = layer.instances[layer.rootId]!;
+    }
+    const onPage = parent.className === 'Page';
+    const copy = componentSubtree(doc, def, options, onPage ? 'page' : 'other');
+    const outer = copy.instances[copy.rootId]!;
+    const siblings = childrenOf(doc, parent.id).filter(isGui);
+    let place: Record<string, unknown> = {};
+    if (childOfClass(doc, parent.id, 'UIListLayout')) {
+      // Last in the list.
+      const last = Math.max(0, ...siblings.map((c) => resolveProps(doc, c).LayoutOrder));
+      place = { LayoutOrder: last + 1 };
+    } else if (def.place === 'block') {
+      const nudge = (12 * siblings.length) % 96;
+      place = { AnchorPoint: [0.5, 0.5], Position: [0.5, nudge, 0.5, nudge] };
+    }
+    const subtree: Subtree = {
+      ...copy,
+      instances: {
+        ...copy.instances,
+        [outer.id]: { ...outer, props: { ...outer.props, ...place } } as AnyInstance,
+      },
+    };
+    cmds.push(insert(parent.id, subtree));
+    if (!this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds))) return null;
+    // On a page, a block's section holds it; select the component itself.
+    const rootId =
+      onPage && def.place !== 'section'
+        ? (outer.children.find((id) => {
+            const c = copy.instances[id]!;
+            return isGui(c);
+          }) ?? outer.id)
+        : outer.id;
+    this.select(rootId);
+    this.toast(`${def.name} added to ${parent.props.Name}`, {
+      label: 'Undo',
+      run: () => this.undo(),
+    });
+    return rootId;
   }
 
   /** Reparents or reorders: `index` is the place among the new parent's other children. */
@@ -900,11 +1074,26 @@ export class Editor {
     }
   }
 
-  /** Shows a picture in an ImageLabel or ImageButton, or removes it with null. The export keeps the Image id. */
-  setImagePreview(id: InstanceId, dataUrl: string | null) {
-    const asset = dataUrl === null ? null : this.#addPicture(dataUrl);
-    if (dataUrl !== null && asset === null) return;
-    this.#execute(setPreview(id, asset));
+  /**
+   * Shows a picture in an ImageLabel or ImageButton, or removes it with null. The export keeps
+   * the Image id. A one-color SVG comes in white, so an ImageColor3 still at white turns
+   * black to keep it looking as it did.
+   */
+  setImagePreview(id: InstanceId, picture: string | Pick<Picture, 'dataUrl' | 'recolor'> | null) {
+    const pic: Pick<Picture, 'dataUrl' | 'recolor'> | null =
+      typeof picture === 'string' ? { dataUrl: picture } : picture;
+    const asset = pic === null ? null : this.#addPicture(pic.dataUrl);
+    if (pic !== null && asset === null) return;
+    const inst = getInstance(this.doc, id);
+    const recolor =
+      pic?.recolor &&
+      (inst?.className === 'ImageLabel' || inst?.className === 'ImageButton') &&
+      !isTinted(inst.props.ImageColor3);
+    this.#execute(
+      recolor
+        ? batch(setPreview(id, asset), edit(id, { ImageColor3: [0, 0, 0] }, undefined))
+        : setPreview(id, asset),
+    );
   }
 
   /** Sets a picture property such as a page's SocialImage, or clears it with null. */

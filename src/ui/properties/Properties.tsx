@@ -6,8 +6,8 @@
  */
 import { useMemo, useState, type ReactNode } from 'react';
 import { docColors } from '../../editor/color.ts';
-import { pagesOf, sceneOf, viewOf } from '../../editor/editor.ts';
-import { isGui } from '../../export/html.ts';
+import { pagesOf, sceneOf, viewOf, type Picture } from '../../editor/editor.ts';
+import { isGui, isTinted, tintId, tintKey } from '../../export/html.ts';
 import {
   CATEGORY_ORDER,
   classDef,
@@ -18,13 +18,16 @@ import {
   type PropSpec,
 } from '../../model/classes.ts';
 import { getInstance, resolveProps, type AnyInstance } from '../../model/document.ts';
-import { valueEquals, type Link } from '../../model/values.ts';
+import type { FontName, FontWeight } from '../../model/fonts.ts';
+import { valueEquals, type Color3, type Link } from '../../model/values.ts';
 import { useEditor, useEditorState } from '../editor-context.ts';
-import { MAX_PICTURE_BYTES, pickFile, readDataUrl } from '../files.ts';
+import { pickFile } from '../files.ts';
+import { PICTURE_TYPES, pictureFromFile } from '../pictures.ts';
 import { ClassIcon, Icon } from '../icons.tsx';
 import { InsertMenu } from '../InsertMenu.tsx';
 import { SidePanel } from '../Panel.tsx';
 import { CodePane } from './CodePane.tsx';
+import { FontField, FontWeightField } from './FontFields.tsx';
 import {
   AlphaField,
   BoolField,
@@ -198,12 +201,14 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
   }
 
   const set = (key: string) => (v: unknown) => editor.setProp(inst.id, key, v);
-  const upload = async (apply: (dataUrl: string) => void) => {
-    const file = await pickFile('image/*');
+  const upload = async (apply: (pic: Picture) => void) => {
+    const file = await pickFile(PICTURE_TYPES);
     if (!file) return;
-    if (file.size > MAX_PICTURE_BYTES)
-      return editor.toast('Pick an image under 1.5 MB, so the project still fits in your browser.');
-    apply(await readDataUrl(file));
+    try {
+      apply(await pictureFromFile(file));
+    } catch (err) {
+      editor.toast(err instanceof Error ? err.message : 'That file couldn’t be read.');
+    }
   };
 
   const row = (key: string) => {
@@ -267,6 +272,17 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
 
   function editorFor(spec: PropSpec, key: string, id: string, v: unknown): ReactNode {
     const onChange = set(key);
+    if (key === 'Font')
+      return <FontField id={id} value={v as FontName} onSite={onSite} onChange={onChange} />;
+    if (key === 'FontWeight')
+      return (
+        <FontWeightField
+          id={id}
+          font={values.Font as FontName}
+          value={v as FontWeight}
+          onChange={onChange}
+        />
+      );
     switch (spec.type) {
       case 'string':
         return (
@@ -291,7 +307,8 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
             label={key}
             large
             src={inst!.preview && state.assets[inst!.preview]}
-            onUpload={() => upload((url) => editor.setImagePreview(inst!.id, url))}
+            tint={tintOf(values.ImageColor3)}
+            onUpload={() => upload((pic) => editor.setImagePreview(inst!.id, pic))}
             onRemove={() => editor.setImagePreview(inst!.id, null)}
           />
         );
@@ -306,6 +323,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
             min={spec.min}
             max={spec.max}
             step={spec.step}
+            unit={key === 'LetterSpacing' ? 'px' : undefined}
             onChange={onChange}
           />
         );
@@ -374,7 +392,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
           <PictureField
             label={key}
             src={src}
-            onUpload={() => upload((url) => editor.setPicture(inst!.id, key, url))}
+            onUpload={() => upload((pic) => editor.setPicture(inst!.id, key, pic.dataUrl))}
             onRemove={() => editor.setPicture(inst!.id, key, null)}
           />
         );
@@ -528,4 +546,10 @@ function SelHead({ inst }: { inst: AnyInstance }) {
       )}
     </div>
   );
+}
+
+/** The filter the viewport tints a picture with (see Stage), for its thumbnail. */
+function tintOf(color: unknown): string | undefined {
+  const c = color as Color3 | undefined;
+  return c && isTinted(c) ? `url(#${tintId(tintKey(c))})` : undefined;
 }

@@ -7,6 +7,7 @@
  * root and keep preview pictures on the object. Version 3 has the DataModel root, per
  * breakpoint changes, and an image library next to the document.
  */
+import { upgradeFont } from './fonts.ts';
 import { addAsset, isAssetId, isImageDataUrl, usedAssets, type Assets } from './assets.ts';
 import {
   classDef,
@@ -136,7 +137,10 @@ function readInstance(id: InstanceId, r: unknown, version: number): AnyInstance 
     );
 
   const rawProps = isObject(r.props) ? r.props : {};
-  const given = version === 1 && className === 'UIGradient' ? upgradeGradient(rawProps) : rawProps;
+  // Older Font names carry a weight (GothamBold); they become a family and a FontWeight.
+  const given = upgradeFont(
+    version === 1 && className === 'UIGradient' ? upgradeGradient(rawProps) : rawProps,
+  );
   const props: Record<string, unknown> = defaultProps(className);
   for (const key of Object.keys(props)) {
     if (!Object.hasOwn(given, key)) continue;
