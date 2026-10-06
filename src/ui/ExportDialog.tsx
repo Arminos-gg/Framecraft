@@ -1,14 +1,16 @@
 /**
- * Export: the website as a zip of static files, the Roblox screens as one HTML page or as
- * Luau for Studio, and the project file.
+ * Export: the website as a zip of static files, the Roblox screens as one HTML page, as Luau
+ * for Studio or as a Roblox model file, and the project file.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { pagesOf } from '../editor/editor.ts';
 import { exportHtml } from '../export/html.ts';
 import { exportLuau, type LuauTarget } from '../export/luau.ts';
+import { exportRbxmx, screensOf } from '../export/rbxmx.ts';
 import { exportSite } from '../export/site.ts';
 import { makeZip } from '../export/zip.ts';
 import { usedAssets } from '../model/assets.ts';
+import { subtreeIds } from '../model/document.ts';
 import { serializeProject } from '../model/project.ts';
 import { CodeView } from './CodeView.tsx';
 import { useEditor, useEditorState } from './editor-context.ts';
@@ -16,17 +18,26 @@ import { copyText, download, selectText } from './files.ts';
 import { Icon } from './icons.tsx';
 import { PROJECT_FILE, saveProjectFile } from './project-actions.ts';
 
-export type ExportKind = 'site' | 'html' | 'luau' | 'project';
+export type ExportKind = 'site' | 'html' | 'luau' | 'rbxmx' | 'project';
 
 const TABS: readonly (readonly [ExportKind, string])[] = [
   ['site', 'Website'],
   ['html', 'HTML page'],
   ['luau', 'Luau for Studio'],
+  ['rbxmx', 'Roblox model'],
   ['project', 'Project file'],
 ];
 
 const SITE_ZIP = 'website.zip';
 const HTML_FILE = 'framecraft-ui.html';
+const MODEL_FILE = 'framecraft-ui.rbxmx';
+/** Every screen, or the id of one. */
+const ALL = '';
+
+/** A file name from a screen's Name, without characters file systems refuse. */
+const modelFile = (name: string) =>
+  // eslint-disable-next-line no-control-regex
+  (name.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').trim() || 'screen') + '.rbxmx';
 
 const size = (n: number) =>
   n < 1000
@@ -42,6 +53,7 @@ export function ExportDialog({ kind, onClose }: { kind: ExportKind; onClose: () 
   const { doc, assets } = useEditorState();
   const [tab, setTab] = useState(kind);
   const [target, setTarget] = useState<LuauTarget>('command');
+  const [screen, setScreen] = useState(ALL);
   const dialog = useRef<HTMLDialogElement>(null);
   const pre = useRef<HTMLPreElement>(null);
 
@@ -51,6 +63,20 @@ export function ExportDialog({ kind, onClose }: { kind: ExportKind; onClose: () 
   }, []);
 
   const site = useMemo(() => (tab === 'site' ? exportSite(doc, assets) : []), [tab, doc, assets]);
+  const screens = screensOf(doc);
+  // A screen picked earlier may have been deleted since.
+  const picked = screens.find((s) => s.id === screen);
+  const model = useMemo(() => {
+    if (tab !== 'rbxmx') return '';
+    const one = screensOf(doc).some((s) => s.id === screen);
+    return exportRbxmx(doc, one ? [screen] : undefined);
+  }, [tab, doc, screen]);
+  const modelName = picked ? modelFile(picked.props.Name) : MODEL_FILE;
+  const modelObjects = (picked ? [picked] : screens).reduce(
+    (n, s) => n + subtreeIds(doc, s.id).length,
+    0,
+  );
+
   const text = useMemo(
     () =>
       tab === 'html'
@@ -75,6 +101,13 @@ export function ExportDialog({ kind, onClose }: { kind: ExportKind; onClose: () 
   const downloadHtml = () => {
     download(HTML_FILE, text, 'text/html');
     editor.toast(`Downloaded ${HTML_FILE}.`);
+  };
+
+  const downloadModel = () => {
+    download(modelName, model, 'application/xml');
+    editor.toast(
+      `Downloaded ${modelName}. In Studio, right-click StarterGui and choose Insert from File.`,
+    );
   };
 
   const pages = pagesOf(doc).length;
@@ -204,6 +237,66 @@ export function ExportDialog({ kind, onClose }: { kind: ExportKind; onClose: () 
             <button className="btn primary" type="button" onClick={() => void copy()}>
               <Icon name="copy" />
               Copy
+            </button>
+          </footer>
+        </>
+      )}
+
+      {tab === 'rbxmx' && (
+        <>
+          <div className="how">
+            <p>
+              A model file for Roblox Studio. In Studio’s Explorer, right-click StarterGui, choose
+              Insert from File and pick this file. Your screens land there, ready to edit like
+              anything you built by hand.
+            </p>
+            {screens.length > 1 && (
+              <span className="selw">
+                <select
+                  className="fld txt"
+                  aria-label="Which screens"
+                  value={picked ? picked.id : ALL}
+                  onChange={(e) => setScreen(e.target.value)}
+                >
+                  <option value={ALL}>All screens</option>
+                  {screens.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.props.Name}
+                    </option>
+                  ))}
+                </select>
+                <Icon name="chevDown" />
+              </span>
+            )}
+          </div>
+          {screens.length ? (
+            <ul className="files" aria-label="Files">
+              <li>
+                <Icon name="file" />
+                <span className="path">{modelName}</span>
+                <span className="d">{size(byteLength(model))}</span>
+              </li>
+            </ul>
+          ) : (
+            <p className="empty">
+              You have no Roblox screens yet. Switch the viewport to the Roblox screens and insert a
+              ScreenGui.
+            </p>
+          )}
+          <footer>
+            <span className="count">
+              {picked ? 1 : screens.length}{' '}
+              {(picked ? 1 : screens.length) === 1 ? 'screen' : 'screens'}, {modelObjects}{' '}
+              {modelObjects === 1 ? 'object' : 'objects'}
+            </span>
+            <button
+              className="btn primary"
+              type="button"
+              disabled={!screens.length}
+              onClick={downloadModel}
+            >
+              <Icon name="download" />
+              Download .rbxmx
             </button>
           </footer>
         </>

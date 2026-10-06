@@ -404,6 +404,50 @@ test.describe('export and project files', () => {
     await expect(dialog).toBeHidden();
   });
 
+  test('downloads the Roblox screens as a model file', async ({ page }) => {
+    await page.getByRole('button', { name: 'Export', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Export' });
+    await dialog.getByRole('tab', { name: 'Roblox model' }).click();
+    await expect(dialog.getByText('framecraft-ui.rbxmx')).toBeVisible();
+    const objects = await page.evaluate(() => {
+      const fc = window.framecraft!;
+      const starterGui = Object.values(fc.doc.instances).find((i) => i.className === 'StarterGui')!;
+      const count = (id: string): number =>
+        1 + fc.doc.instances[id]!.children.reduce((n, c) => n + count(c), 0);
+      return count(starterGui.id) - 1;
+    });
+    await expect(dialog.locator('.count')).toContainText(`${objects} objects`);
+
+    const read = async () => {
+      const download = page.waitForEvent('download');
+      await dialog.getByRole('button', { name: 'Download .rbxmx' }).click();
+      const file = await download;
+      const xml = await readFile((await file.path())!, 'utf8');
+      // The browser's XML parser reads it, with one Item per object.
+      const items = await page.evaluate((text) => {
+        const parsed = new DOMParser().parseFromString(text, 'application/xml');
+        if (parsed.querySelector('parsererror')) return -1;
+        return parsed.querySelectorAll('Item').length;
+      }, xml);
+      return { name: file.suggestedFilename(), items };
+    };
+    expect(await read()).toEqual({ name: 'framecraft-ui.rbxmx', items: objects });
+    await page.keyboard.press('Escape');
+
+    // With a second screen, one screen can be picked on its own.
+    await page.evaluate(() => {
+      const fc = window.framecraft!;
+      const starterGui = Object.values(fc.doc.instances).find((i) => i.className === 'StarterGui')!;
+      fc.insert('ScreenGui', starterGui.id);
+    });
+    await page.getByRole('button', { name: 'Export', exact: true }).click();
+    await dialog.getByRole('tab', { name: 'Roblox model' }).click();
+    await expect(dialog.locator('.count')).toContainText(`2 screens, ${objects + 1} objects`);
+    await dialog.getByLabel('Which screens').selectOption({ label: 'ScreenGui' });
+    await expect(dialog.locator('.count')).toContainText('1 screen, 1 object');
+    expect(await read()).toEqual({ name: 'ScreenGui.rbxmx', items: 1 });
+  });
+
   test('saves a project file and opens it again', async ({ page }) => {
     const download = page.waitForEvent('download');
     await page.keyboard.press('Control+s');

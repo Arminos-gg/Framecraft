@@ -1711,6 +1711,12 @@ button.bpdot.on:hover {
   margin: 0;
   font: 600 15px/1 var(--font-ui);
 }
+/* On a narrow window the tabs wrap inside their track rather than running off the dialog */
+.modal header .seg {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  min-width: 0;
+}
 .modal .how {
   display: flex;
   align-items: flex-start;
