@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Editor, LIST_PLACES, sceneOf, sideBySideScenes } from '../../../src/editor/editor.ts';
 import { breakpointsOf, type AnyInstance, type InstanceId } from '../../../src/model/document.ts';
 import { blankSiteDoc, sampleProject } from '../../../src/model/sample.ts';
@@ -223,6 +223,50 @@ describe('keyboard actions', () => {
     ed.select(id('StarterGui'));
     ed.deleteSelection();
     expect(ed.doc).toBe(before);
+  });
+
+  it('says what a delete took, and its Undo brings it back while nothing changed since', () => {
+    const coins = id('Coins');
+    const inside = Object.values(ed.doc.instances).filter((i) => i.parent === coins).length;
+    ed.select(coins);
+    ed.deleteSelection();
+    const toast = ed.state.toast!;
+    expect(toast).toMatchObject({ text: 'Deleted Coins', tone: 'delete' });
+    expect(toast.detail).toMatch(new RegExp(`^Frame and \\d+ objects? inside it$`));
+    expect(inside).toBeGreaterThan(0);
+    toast.action!.run();
+    expect(ed.doc.instances[coins]).toBeDefined();
+    expect(ed.state.selection).toBe(coins);
+    expect(ed.state.toast).toMatchObject({ text: 'Coins is back', tone: 'done' });
+
+    // After another change, the old toast's Undo would take back that change instead.
+    ed.select(id('Version'));
+    ed.deleteSelection();
+    const stale = ed.state.toast!;
+    expect(stale.detail).toBe('TextLabel');
+    ed.setProp(id('Coins'), 'Name', 'Gold');
+    stale.action!.run();
+    expect(byName('Gold')).toBeDefined();
+    expect(Object.values(ed.doc.instances).some((i) => i.props.Name === 'Version')).toBe(false);
+    expect(ed.state.toast?.text).toMatch(/changed things since/);
+  });
+
+  it('keeps a toast while the pointer rests on it', () => {
+    vi.useFakeTimers();
+    try {
+      ed.toast('Hello');
+      vi.advanceTimersByTime(1000);
+      ed.holdToast(true);
+      vi.advanceTimersByTime(10_000);
+      expect(ed.state.toast?.text).toBe('Hello');
+      ed.holdToast(false);
+      vi.advanceTimersByTime(1500);
+      expect(ed.state.toast?.text).toBe('Hello');
+      vi.advanceTimersByTime(200);
+      expect(ed.state.toast).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('duplicates next to the original, a little offset, as one step', () => {

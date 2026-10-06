@@ -216,6 +216,9 @@ test.describe('Properties', () => {
 
   test('grows a label to fit its text with AutomaticSize', async ({ page }) => {
     await page.getByLabel('Show').selectOption('screens');
+    // Text measures differently once web fonts arrive; let them arrive first, so the layout
+    // and the Stage are read on the same side of that change.
+    await page.evaluate(() => document.fonts.ready);
     const id = await selectByName(page, 'Version');
     await commit(page, '#p-Text', 'A version line much longer than the 260 pixels it has');
     const box = () =>
@@ -256,8 +259,36 @@ test.describe('Properties', () => {
     expect((await propsOf(page, id)).BackgroundColor3).toEqual([255, 255, 255]);
     await commit(page, '#p-BackgroundColor3', '0');
     expect((await propsOf(page, id)).BackgroundColor3).toEqual([0, 0, 0]);
-    await page.getByLabel('BackgroundColor3 picker').fill('#00ff00');
+    // The picker: Hex and R, G, B fields, a drag in the square as one undo step, and the
+    // project's own colors.
+    await page.getByLabel('BackgroundColor3 picker').click();
+    const picker = page.getByRole('dialog', { name: 'BackgroundColor3' });
+    await commit(page, '#cp-BackgroundColor3-hex', '00ff00');
     expect((await propsOf(page, id)).BackgroundColor3).toEqual([0, 255, 0]);
+    await commit(page, '#cp-BackgroundColor3-hex', '255');
+    expect((await propsOf(page, id)).BackgroundColor3).toEqual([255, 255, 255]);
+    await commit(page, '#cp-BackgroundColor3-R', '10');
+    expect((await propsOf(page, id)).BackgroundColor3).toEqual([10, 255, 255]);
+    await page.locator('#cp-BackgroundColor3-B').press('ArrowDown');
+    expect((await propsOf(page, id)).BackgroundColor3).toEqual([10, 255, 254]);
+    await page.getByLabel('Hue').fill('0');
+    const reddish = (await propsOf(page, id)).BackgroundColor3;
+    expect(reddish).toEqual([255, 10, 10]);
+    const area = (await picker
+      .getByRole('slider', { name: 'Saturation and brightness' })
+      .boundingBox())!;
+    await page.mouse.move(area.x + 2, area.y + 2);
+    await page.mouse.down();
+    // Past the corner: the drag keeps to the square.
+    await page.mouse.move(area.x + area.width + 20, area.y - 20, { steps: 6 });
+    await page.mouse.up();
+    expect((await propsOf(page, id)).BackgroundColor3).toEqual([255, 0, 0]);
+    // The whole drag is one undo step.
+    await page.evaluate(() => window.framecraft!.undo());
+    expect((await propsOf(page, id)).BackgroundColor3).toEqual(reddish);
+    await expect(picker.getByRole('button', { name: /^Use #/ }).first()).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(picker).toBeHidden();
 
     await commit(page, '#p-BackgroundTransparency', '0.5');
     expect((await propsOf(page, id)).BackgroundTransparency).toBe(0.5);
@@ -293,7 +324,9 @@ test.describe('Properties', () => {
     expect((await propsOf(page, corner)).CornerRadius).toEqual([0.5, 12]);
 
     const gradient = await selectByName(page, 'UIGradient');
-    await page.getByLabel('Color start color').fill('#000000');
+    await page.getByLabel('Color start color').click();
+    await commit(page, '#cp-Color-start-color-hex', '#000000');
+    await page.keyboard.press('Escape');
     await commit(page, '#p-Transparency-0', '0.5');
     const props = await propsOf(page, gradient);
     expect((props.Color as { value: number[] }[])[0]!.value).toEqual([0, 0, 0]);
