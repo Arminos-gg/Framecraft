@@ -32,7 +32,8 @@ function lineOf(text: string, inst: AnyInstance | undefined): number | undefined
 
 function luauFor(doc: Doc, inst: AnyInstance | undefined): Code {
   const def = inst && classDef(inst.className);
-  const own = inst && def && !def.web && ['container', 'gui', 'modifier'].includes(def.kind);
+  const own =
+    inst && def && !def.web && ['container', 'gui', 'modifier', 'folder'].includes(def.kind);
   if (inst && own)
     return {
       text: exportLuauSubtree(doc, inst.id),

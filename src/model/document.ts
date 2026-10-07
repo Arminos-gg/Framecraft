@@ -2,6 +2,7 @@
  * The document: a tree of Roblox instances held in a flat map by id. Documents are immutable;
  * every change goes through a command (commands.ts), which returns a new document.
  */
+import { upgradeFont } from './fonts.ts';
 import {
   canParent,
   classDef,
@@ -64,7 +65,7 @@ export function createInstance<C extends ClassName>(
   id: InstanceId = newId(),
 ): Instance<C> {
   const merged: Record<string, unknown> = defaultProps(className);
-  for (const [key, value] of Object.entries(props)) {
+  for (const [key, value] of Object.entries(upgradeFont(props))) {
     const v = normalizeProp(className, key, value);
     if (v === undefined)
       throw new ModelError(`${className} can't take ${key} = ${JSON.stringify(value)}`);
@@ -101,6 +102,31 @@ export function childOfClass<C extends ClassName>(
 ): Instance<C> | undefined {
   return childrenOf(doc, id).find((c) => c.className === className) as Instance<C> | undefined;
 }
+
+/**
+ * The objects that draw inside `id`, in tree order, with the objects in its Folders (and in
+ * theirs) where the Folder is: Roblox draws them as if they sat in `id` itself.
+ */
+export function drawnChildren(doc: Doc, id: InstanceId): AnyInstance[] {
+  return childrenOf(doc, id).flatMap((c) => {
+    const kind = classDef(c.className).kind;
+    return kind === 'gui' ? [c] : kind === 'folder' ? drawnChildren(doc, c.id) : [];
+  });
+}
+
+/** The instance itself, or the nearest one above it that isn't a Folder: where its objects draw. */
+export function drawnParent(doc: Doc, id: InstanceId): AnyInstance | undefined {
+  let inst = getInstance(doc, id);
+  while (inst && classDef(inst.className).kind === 'folder')
+    inst = inst.parent === null ? undefined : getInstance(doc, inst.parent);
+  return inst;
+}
+
+/** The objects that draw inside `id` through its Folders only, in tree order. */
+export const folderObjects = (doc: Doc, id: InstanceId): AnyInstance[] =>
+  childrenOf(doc, id).flatMap((c) =>
+    classDef(c.className).kind === 'folder' ? drawnChildren(doc, c.id) : [],
+  );
 
 /** Is `ancestorId` a parent, grandparent and so on of `id`? */
 export function isAncestor(doc: Doc, ancestorId: InstanceId, id: InstanceId): boolean {

@@ -9,7 +9,6 @@ import {
   fmtColor,
   fmtLength,
   fmtVec2,
-  fromHex,
   hex,
   parseColor,
   parseLength,
@@ -31,6 +30,7 @@ import type {
 import { valueEquals } from '../../model/values.ts';
 import { Icon } from '../icons.tsx';
 import { Popover } from '../Popover.tsx';
+import { ColorPicker } from './ColorPicker.tsx';
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 
@@ -326,45 +326,47 @@ export function AlphaField({
   );
 }
 
-/** A color swatch that opens the system color picker; a drag in the picker is one undo step. */
+/** A color swatch that opens the color picker. */
 function Swatch({
   label,
   value,
   onChange,
   gesture,
+  swatches,
   className = 'sw',
 }: {
   label: string;
   value: Color3;
   onChange: (c: Color3) => void;
   gesture: Gesture;
+  swatches?: () => readonly Color3[];
   className?: string;
 }) {
-  const ref = useRef<HTMLInputElement>(null);
-  // React's onChange fires on every move; the native change event marks the end.
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const end = () => gesture.end();
-    el.addEventListener('change', end);
-    return () => el.removeEventListener('change', end);
-  }, [gesture]);
+  const [open, setOpen] = useState<HTMLElement | null>(null);
   return (
-    <label className={className} style={{ background: rgb(value) }} title="Pick a color">
-      <input
-        ref={ref}
-        type="color"
-        value={hex(value)}
+    <>
+      <button
+        type="button"
+        className={cx(className, open && 'open')}
+        style={{ background: rgb(value) }}
         aria-label={label}
-        onChange={(e) => {
-          const c = fromHex(e.target.value);
-          if (!c) return;
-          gesture.begin();
-          onChange(c);
-        }}
-        onBlur={() => gesture.end()}
+        aria-haspopup="dialog"
+        aria-expanded={!!open}
+        title={`${hex(value).toUpperCase()}: pick a color`}
+        onClick={(e) => setOpen(open ? null : e.currentTarget)}
       />
-    </label>
+      {open && (
+        <ColorPicker
+          anchor={open}
+          label={label.replace(/ picker$/, '')}
+          value={value}
+          onChange={onChange}
+          gesture={gesture}
+          swatches={swatches}
+          onClose={() => setOpen(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -374,16 +376,25 @@ export function ColorField({
   value,
   onChange,
   gesture,
+  swatches,
 }: {
   id: string;
   label: string;
   value: Color3;
   onChange: (c: Color3) => void;
   gesture: Gesture;
+  /** Colors the picker offers, such as the ones the project already uses. */
+  swatches?: () => readonly Color3[];
 }) {
   return (
     <span className="cfld">
-      <Swatch label={`${label} picker`} value={value} onChange={onChange} gesture={gesture} />
+      <Swatch
+        label={`${label} picker`}
+        value={value}
+        onChange={onChange}
+        gesture={gesture}
+        swatches={swatches}
+      />
       <TextField
         id={id}
         label={label}
@@ -620,11 +631,13 @@ export function ColorSeqField({
   value,
   onChange,
   gesture,
+  swatches,
 }: {
   label: string;
   value: ColorSequence;
   onChange: (v: ColorSequence) => void;
   gesture: Gesture;
+  swatches?: () => readonly Color3[];
 }) {
   const bar = `linear-gradient(90deg, ${value.map((k) => `${rgb(k.value)} ${k.time * 100}%`).join(', ')})`;
   const swatch = (i: number) => (
@@ -634,6 +647,7 @@ export function ColorSeqField({
       label={`${label} ${stopName(i, value.length).toLowerCase()} color`}
       value={value[i]!.value}
       gesture={gesture}
+      swatches={swatches}
       onChange={(c) => onChange(value.map((k, j) => (j === i ? { ...k, value: c } : k)))}
     />
   );
@@ -690,6 +704,7 @@ export function PictureField({
   onUpload,
   onRemove,
   large,
+  tint,
 }: {
   label: string;
   /** The picture, if there is one. */
@@ -698,11 +713,13 @@ export function PictureField({
   onRemove: () => void;
   /** A bigger thumbnail, for an image object's own picture. */
   large?: boolean;
+  /** A CSS filter that tints the thumbnail as ImageColor3 tints the picture. */
+  tint?: string;
 }) {
   return (
     <span className={large ? 'picfld big' : 'picfld'}>
       <span className="thumb" aria-hidden="true">
-        {src ? <img src={src} alt="" /> : <Icon name="image" />}
+        {src ? <img src={src} alt="" style={{ filter: tint }} /> : <Icon name="image" />}
       </span>
       <button
         className="btn sm"

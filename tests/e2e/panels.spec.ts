@@ -197,7 +197,8 @@ test.describe('Properties', () => {
     await commit(page, '#p-Rotation', '15');
     await commit(page, '#p-TextSize', '-4');
     await page.locator('#p-Visible').uncheck();
-    await page.locator('#p-Font').selectOption('Arial');
+    await page.locator('#p-Font').click();
+    await page.getByRole('option', { name: /^Arial/ }).click();
     const props = await propsOf(page, id);
     expect(props).toMatchObject({
       Text: 'v2',
@@ -214,8 +215,70 @@ test.describe('Properties', () => {
     expect((await propsOf(page, id)).Text).toBe('v2');
   });
 
+  test('picks a font from the menu, its weight and its letter spacing', async ({ page }) => {
+    const id = await selectByName(page, 'Headline');
+    const font = page.locator('#p-Font');
+    await expect(font).toHaveText('Fraunces');
+    // The menu searches as you type; arrows and Enter pick.
+    await font.click();
+    const menu = page.getByRole('dialog', { name: 'Fonts' });
+    const search = menu.getByRole('combobox');
+    await search.fill('dm');
+    await expect(menu.getByRole('option')).toHaveText([/^DM Sans/, /^DM Serif Display/]);
+    await search.press('ArrowDown');
+    await search.press('Enter');
+    await expect(menu).toBeHidden();
+    await expect(font).toBeFocused();
+    expect((await propsOf(page, id)).Font).toBe('DMSerifDisplay');
+    await font.click();
+    await search.fill('jakarta');
+    await search.press('Enter');
+    expect((await propsOf(page, id)).Font).toBe('PlusJakartaSans');
+    // Escape closes the menu without a change.
+    await font.click();
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    expect((await propsOf(page, id)).Font).toBe('PlusJakartaSans');
+
+    // Weights the font has, with their numbers, and a Bold toggle.
+    await page.locator('#p-FontWeight').selectOption('Light');
+    expect((await propsOf(page, id)).FontWeight).toBe('Light');
+    await expect(page.locator('#p-FontWeight option')).toHaveText([
+      'ExtraLight · 200',
+      'Light · 300',
+      'Regular · 400',
+      'Medium · 500',
+      'SemiBold · 600',
+      'Bold · 700',
+      'ExtraBold · 800',
+    ]);
+    const bold = page.getByRole('button', { name: 'Bold', exact: true });
+    await bold.click();
+    expect((await propsOf(page, id)).FontWeight).toBe('Bold');
+    await expect(bold).toHaveAttribute('aria-pressed', 'true');
+    // Ctrl+B and Ctrl+I work on the selection from outside a text field.
+    await page.keyboard.press('Control+b');
+    await page.keyboard.press('Control+i');
+    expect(await propsOf(page, id)).toMatchObject({ FontWeight: 'Regular', FontStyle: 'Italic' });
+
+    await commit(page, '#p-LetterSpacing', '-1.5');
+    expect((await propsOf(page, id)).LetterSpacing).toBe(-1.5);
+    const span = page.locator(`.gui[data-id="${id}"] .txt > span`);
+    await expect(span).toHaveCSS('letter-spacing', '-1.5px');
+    await expect(span).toHaveCSS('font-weight', '400');
+    await expect(span).toHaveCSS('font-style', 'italic');
+
+    // Roblox has no letter spacing, so the Roblox screens don't offer it.
+    await selectByName(page, 'Version');
+    await expect(page.locator('#p-FontWeight')).toBeVisible();
+    await expect(page.locator('#p-LetterSpacing')).toHaveCount(0);
+  });
+
   test('grows a label to fit its text with AutomaticSize', async ({ page }) => {
     await page.getByLabel('Show').selectOption('screens');
+    // Text measures differently once web fonts arrive; let them arrive first, so the layout
+    // and the Stage are read on the same side of that change.
+    await page.evaluate(() => document.fonts.ready);
     const id = await selectByName(page, 'Version');
     await commit(page, '#p-Text', 'A version line much longer than the 260 pixels it has');
     const box = () =>
@@ -232,7 +295,14 @@ test.describe('Properties', () => {
     // The Stage draws it at the grown size, and Properties says Size is now the smallest.
     const drawn = page.locator(`.screen .gui[data-id="${id}"]`);
     expect((await drawn.boundingBox())!.width).toBeGreaterThan(0);
-    expect(await drawn.evaluate((el) => parseFloat(el.style.width))).toBeCloseTo(grown.w, 3);
+    // Web fonts may arrive in the meantime and measure the text again, so compare with the
+    // layout as it is when the Stage is read.
+    await expect
+      .poll(async () => {
+        const w = await drawn.evaluate((el) => parseFloat(el.style.width));
+        return Math.abs(w - (await box()).w);
+      })
+      .toBeLessThan(0.001);
     await expect(page.getByText('Size is the smallest it gets')).toBeVisible();
 
     // Wrapped, it keeps its width and grows down instead.
@@ -256,8 +326,36 @@ test.describe('Properties', () => {
     expect((await propsOf(page, id)).BackgroundColor3).toEqual([255, 255, 255]);
     await commit(page, '#p-BackgroundColor3', '0');
     expect((await propsOf(page, id)).BackgroundColor3).toEqual([0, 0, 0]);
-    await page.getByLabel('BackgroundColor3 picker').fill('#00ff00');
+    // The picker: Hex and R, G, B fields, a drag in the square as one undo step, and the
+    // project's own colors.
+    await page.getByLabel('BackgroundColor3 picker').click();
+    const picker = page.getByRole('dialog', { name: 'BackgroundColor3' });
+    await commit(page, '#cp-BackgroundColor3-hex', '00ff00');
     expect((await propsOf(page, id)).BackgroundColor3).toEqual([0, 255, 0]);
+    await commit(page, '#cp-BackgroundColor3-hex', '255');
+    expect((await propsOf(page, id)).BackgroundColor3).toEqual([255, 255, 255]);
+    await commit(page, '#cp-BackgroundColor3-R', '10');
+    expect((await propsOf(page, id)).BackgroundColor3).toEqual([10, 255, 255]);
+    await page.locator('#cp-BackgroundColor3-B').press('ArrowDown');
+    expect((await propsOf(page, id)).BackgroundColor3).toEqual([10, 255, 254]);
+    await page.getByLabel('Hue').fill('0');
+    const reddish = (await propsOf(page, id)).BackgroundColor3;
+    expect(reddish).toEqual([255, 10, 10]);
+    const area = (await picker
+      .getByRole('slider', { name: 'Saturation and brightness' })
+      .boundingBox())!;
+    await page.mouse.move(area.x + 2, area.y + 2);
+    await page.mouse.down();
+    // Past the corner: the drag keeps to the square.
+    await page.mouse.move(area.x + area.width + 20, area.y - 20, { steps: 6 });
+    await page.mouse.up();
+    expect((await propsOf(page, id)).BackgroundColor3).toEqual([255, 0, 0]);
+    // The whole drag is one undo step.
+    await page.evaluate(() => window.framecraft!.undo());
+    expect((await propsOf(page, id)).BackgroundColor3).toEqual(reddish);
+    await expect(picker.getByRole('button', { name: /^Use #/ }).first()).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(picker).toBeHidden();
 
     await commit(page, '#p-BackgroundTransparency', '0.5');
     expect((await propsOf(page, id)).BackgroundTransparency).toBe(0.5);
@@ -293,7 +391,9 @@ test.describe('Properties', () => {
     expect((await propsOf(page, corner)).CornerRadius).toEqual([0.5, 12]);
 
     const gradient = await selectByName(page, 'UIGradient');
-    await page.getByLabel('Color start color').fill('#000000');
+    await page.getByLabel('Color start color').click();
+    await commit(page, '#cp-Color-start-color-hex', '#000000');
+    await page.keyboard.press('Escape');
     await commit(page, '#p-Transparency-0', '0.5');
     const props = await propsOf(page, gradient);
     expect((props.Color as { value: number[] }[])[0]!.value).toEqual([0, 0, 0]);

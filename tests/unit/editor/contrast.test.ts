@@ -129,7 +129,7 @@ describe('text contrast', () => {
 
   it('needs 3:1 for large text', () => {
     expect(onPage({ TextSize: 32 }).c!.needed).toBe(3);
-    expect(onPage({ TextSize: 20, Font: 'GothamBold' }).c!.needed).toBe(3);
+    expect(onPage({ TextSize: 20, Font: 'Gotham', FontWeight: 'Bold' }).c!.needed).toBe(3);
   });
 
   it('can’t tell over a picture, over the game, or for empty text', () => {

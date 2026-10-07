@@ -6,11 +6,17 @@
  * writer for pages, once per breakpoint. See .claude/rules/exporters.md.
  */
 import type { Assets } from '../model/assets.ts';
-import { automaticSizeOf, classDef, type AutomaticSize } from '../model/classes.ts';
+import {
+  automaticSizeOf,
+  classDef,
+  type AppearStyle,
+  type AutomaticSize,
+} from '../model/classes.ts';
 import {
   breakpointsOf,
   childOfClass,
   childrenOf,
+  folderObjects,
   resolveProps,
   serviceOf,
   type AnyInstance,
@@ -18,7 +24,7 @@ import {
   type Instance,
   type InstanceId,
 } from '../model/document.ts';
-import { FONTS, type FontName } from '../model/fonts.ts';
+import { faceKey, faceOf, fontCss, googleFontsHref, parseFaceKey } from '../model/fonts.ts';
 import type { AssetId, Color3, ColorSequence, Link, NumberSequence } from '../model/values.ts';
 import { calcU, esc, fmtNum, rgb, rgba, roundTo } from './format.ts';
 
@@ -49,48 +55,8 @@ const FLEX = {
 } as const;
 export const OBJECT_FIT = { Stretch: 'fill', Fit: 'contain', Crop: 'cover' } as const;
 
-/** Google Fonts families with a single style, which take no weight list. */
-const STATIC_FAMILIES = new Set(['Luckiest Guy', 'Bangers', 'Press Start 2P', 'Permanent Marker']);
-
 /** HTML tags whose content must be phrasing content, so nothing inside may be a div. */
 const PHRASING_ONLY = new Set(['h1', 'h2', 'h3', 'p']);
-
-/** The CSS font for a Roblox font: its Google look-alike with a fallback. */
-export function fontCss(name: FontName) {
-  const f: { family: string; weight: number; italic?: boolean } = FONTS[name];
-  const mono = /Mono/.test(f.family) || f.family === 'Press Start 2P';
-  const serif = f.family === 'Merriweather';
-  const fallback = mono
-    ? 'ui-monospace, monospace'
-    : serif
-      ? 'Georgia, serif'
-      : 'system-ui, sans-serif';
-  return {
-    family: `"${f.family}", ${fallback}`,
-    weight: f.weight,
-    style: f.italic ? 'italic' : 'normal',
-  };
-}
-
-/** One Google Fonts stylesheet link for every font the page uses. */
-export function googleFontsHref(names: readonly FontName[]): string | null {
-  const families = new Map<string, Set<string>>();
-  for (const name of names) {
-    const f: { family: string; weight: number; italic?: boolean } = FONTS[name];
-    const specs = families.get(f.family) ?? new Set<string>();
-    specs.add((f.italic ? '1,' : '0,') + f.weight);
-    families.set(f.family, specs);
-  }
-  const parts = [...families].map(([family, set]) => {
-    const name = family.replace(/ /g, '+');
-    if (STATIC_FAMILIES.has(family)) return 'family=' + name;
-    const specs = [...set].sort();
-    if (specs.some((s) => s.startsWith('1,'))) return `family=${name}:ital,wght@${specs.join(';')}`;
-    const weights = specs.map((s) => s.slice(2)).sort((a, b) => +a - +b);
-    return `family=${name}:wght@${weights.join(';')}`;
-  });
-  return parts.length ? `https://fonts.googleapis.com/css2?${parts.join('&')}&display=swap` : null;
-}
 
 /** Two keypoints at the ends need no stop positions; more get a position each. */
 function stops<T>(seq: readonly { time: number; value: T }[], css: (v: T) => string): string {
@@ -101,6 +67,34 @@ export const gradientCss = (color: ColorSequence, rotation: number) =>
   `linear-gradient(${90 + rotation}deg, ${stops<Color3>(color, rgb)})`;
 export const maskCss = (transparency: NumberSequence, rotation: number) =>
   `linear-gradient(${90 + rotation}deg, ${stops<number>(transparency, (t) => `rgba(0,0,0,${roundTo(1 - t, 3)})`)})`;
+
+/**
+ * ImageColor3 multiplies an image's colors, so a white picture takes the color exactly and
+ * white leaves any picture as it is. Browsers do the same multiply with an SVG color matrix
+ * filter, one per color, which the page defines once and images point to by id.
+ */
+export const isTinted = (c: Color3): boolean => c[0] !== 255 || c[1] !== 255 || c[2] !== 255;
+/** A tint color as six hex digits, its key in a set of tints. */
+export const tintKey = (c: Color3): string =>
+  c.map((v) => v.toString(16).padStart(2, '0')).join('');
+export const tintId = (key: string): string => 'fc-tint-' + key;
+/** The color matrix that multiplies by a tint. */
+export function tintMatrix(key: string): string {
+  const [r, g, b] = [0, 2, 4].map((i) => fmtNum(parseInt(key.slice(i, i + 2), 16) / 255));
+  return `${r} 0 0 0 0 0 ${g} 0 0 0 0 0 ${b} 0 0 0 0 0 1 0`;
+}
+/** The hidden SVG with a filter for each tint, or nothing when no image is tinted. */
+export function tintDefs(keys: Iterable<string>, indent = ''): string {
+  const filters = [...new Set(keys)]
+    .sort()
+    .map(
+      (k) =>
+        `\n${indent}  <filter id="${tintId(k)}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${tintMatrix(k)}"/></filter>`,
+    );
+  return filters.length
+    ? `\n${indent}<svg width="0" height="0" aria-hidden="true" style="position:absolute">${filters.join('')}\n${indent}</svg>`
+    : '';
+}
 
 /** A text outline drawn as a ring of shadows. */
 export function textRing(thickness: number, color: string): string {
@@ -114,6 +108,38 @@ export function textRing(thickness: number, color: string): string {
   }
   return out.join(', ');
 }
+
+/**
+ * A UIStroke around the box as box-shadows, drawn outside it as Roblox does. On the website a
+ * stroke can leave sides out: each side is its own shadow, and a corner between two drawn
+ * sides is filled in.
+ */
+export function strokeShadows(stroke: Instance<'UIStroke'>['props']): string[] {
+  const t = fmtNum(stroke.Thickness);
+  const color = rgba(stroke.Color, stroke.Transparency);
+  const { Top, Right, Bottom, Left } = stroke;
+  if (Top && Right && Bottom && Left) return [`0 0 0 ${t}px ${color}`];
+  const out: string[] = [];
+  const side = (x: number, y: number) => {
+    const px = (n: number) => (n ? `${n < 0 ? '-' : ''}${t}px` : '0');
+    out.push(`${px(x)} ${px(y)} 0 0 ${color}`);
+  };
+  if (Top) side(0, -1);
+  if (Right) side(1, 0);
+  if (Bottom) side(0, 1);
+  if (Left) side(-1, 0);
+  if (Top && Right) side(1, -1);
+  if (Right && Bottom) side(1, 1);
+  if (Bottom && Left) side(-1, 1);
+  if (Left && Top) side(-1, -1);
+  return out;
+}
+
+/** The CSS transition for an object with a UIHover. */
+export const hoverTransition = (duration: number) =>
+  ['background-color', 'scale', 'translate', 'filter']
+    .map((k) => `${k} ${fmtNum(duration)}s`)
+    .join(', ');
 
 /** A {Scale, Offset} pair on a page's vertical axis, where Scale is a share of the window. */
 export function calcV(scale: number, offset: number): string {
@@ -192,18 +218,20 @@ ${SCRIPT_OPEN}
       walk(c);
     }
     function need(el, c, y) {
-      var cs = getComputedStyle(c), n = 0, items = 0;
+      var cs = getComputedStyle(c), n = 0, items = 0, free = 0;
       var pad = y ? px(cs.top) + px(cs.bottom) : px(cs.left) + px(cs.right);
       var list = cs.display === 'flex', along = list && (cs.flexDirection === 'column') === !!y;
       for (var k = c.firstElementChild; k; k = k.nextElementSibling) {
         var ks = getComputedStyle(k);
         if (!k.classList.contains('g') || ks.display === 'none') continue;
         var len = px(y ? ks.height : ks.width);
-        if (along) { n += len; items++; }
-        else n = Math.max(n, (list ? 0 : start(ks, y)) + len);
+        // Objects in a Folder are placed by their own Position, even in a list.
+        if (ks.position === 'absolute') free = Math.max(free, start(ks, y) + len);
+        else if (along) { n += len; items++; }
+        else n = Math.max(n, len);
       }
       if (items > 1) n += (items - 1) * px(y ? cs.rowGap : cs.columnGap);
-      n += pad;
+      n = Math.max(n, free) + pad;
       var t = el.querySelector(':scope > .t');
       if (t && t.firstElementChild && !t.hasAttribute('data-fit')) {
         var tn = text(t.firstElementChild, y) + pad;
@@ -301,6 +329,59 @@ interface EmitContext {
   readonly order?: number;
 }
 
+/** Pinned objects draw above everything else on the page, as they stay while it scrolls. */
+export const PIN_Z = 1000;
+
+/** The keyframes each Appear style plays, named in the exported CSS and the editor's. */
+export const APPEAR_KEYFRAMES: Record<Exclude<AppearStyle, 'None'>, string> = {
+  Fade: 'fc-fade',
+  SlideUp: 'fc-up',
+  SlideLeft: 'fc-left',
+  SlideRight: 'fc-right',
+  Zoom: 'fc-zoom',
+};
+
+/** What each Appear style starts from; the object ends where the layout puts it. */
+export const APPEAR_CSS = `@keyframes fc-fade { from { opacity: 0; } }
+  @keyframes fc-up { from { opacity: 0; translate: 0 40px; } }
+  @keyframes fc-left { from { opacity: 0; translate: 40px 0; } }
+  @keyframes fc-right { from { opacity: 0; translate: -40px 0; } }
+  @keyframes fc-zoom { from { opacity: 0; scale: 0.9; } }`;
+
+/** CSS for the Appear animations: hidden until the script sees them, then played once. */
+const APPEAR_PAGE_CSS = `  /* Appear: an object waits hidden (fc-pre) until it scrolls into view, then plays (fc-in). */
+  .fc-pre { opacity: 0; }
+  .fc-in { animation: 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+  ${Object.entries(APPEAR_KEYFRAMES)
+    .map(([style, name]) => `.fc-in[data-appear="${style}"] { animation-name: ${name}; }`)
+    .join('\n  ')}
+  ${APPEAR_CSS}`;
+
+/**
+ * Plays each object's Appear animation the first time it scrolls into view. Without the
+ * script, or for people who ask for less motion, everything simply shows.
+ */
+const APPEAR_SCRIPT = `
+${SCRIPT_OPEN}
+  (function () {
+    if (!('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var seen = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        e.target.classList.replace('fc-pre', 'fc-in');
+        seen.unobserve(e.target);
+      });
+    }, { rootMargin: '0px 0px -8% 0px' });
+    document.querySelectorAll('[data-appear]').forEach(function (el) {
+      el.classList.add('fc-pre');
+      seen.observe(el);
+    });
+  })();
+${SCRIPT_CLOSE}`;
+
+/** The CSS and script a page with Appear animations needs, for the website export. */
+export const APPEAR_EXPORT = { css: APPEAR_PAGE_CSS, script: APPEAR_SCRIPT };
+
 /**
  * Writes the elements and CSS rules for a tree of objects with the values at one breakpoint
  * (none for the base values). Elements come out in the base order whatever the breakpoint,
@@ -308,16 +389,31 @@ interface EmitContext {
  */
 export class HtmlWriter {
   readonly rules: Rule[] = [];
-  readonly fontsUsed = new Set<FontName>();
+  /** The faces the text uses, as `faceKey`s. */
+  readonly fontsUsed = new Set<string>();
+  /** Every ImageColor3 tint the images use, by `tintKey`. */
+  readonly tints = new Set<string>();
   needsScript = false;
+  /** Some object has an Appear animation. */
+  needsAppear = false;
+  /** Some object straight on the page is pinned outside a list. */
+  hasPinned = false;
   seq = 0;
   readonly doc: Doc;
   readonly breakpoint: InstanceId | undefined;
   readonly links: WriterLinks;
-  constructor(doc: Doc, breakpoint: InstanceId | undefined, links: WriterLinks) {
+  /** Writing a website, where web-only properties such as LetterSpacing apply. */
+  readonly site: boolean;
+  constructor(doc: Doc, breakpoint: InstanceId | undefined, links: WriterLinks, site = false) {
     this.doc = doc;
     this.breakpoint = breakpoint;
     this.links = links;
+    this.site = site;
+  }
+
+  /** The Google Fonts link for the faces written so far, or null for none. */
+  fontsHref(): string | null {
+    return googleFontsHref([...this.fontsUsed].map(parseFaceKey));
   }
 
   props<I extends AnyInstance>(inst: I): I['props'] {
@@ -393,17 +489,30 @@ export class HtmlWriter {
     return order.map((o) => o.c);
   }
 
+  /** The objects in the instance's Folders, which draw as if they sat in the instance. */
+  folderChildren(id: InstanceId): Gui[] {
+    return folderObjects(this.doc, id).filter(isGui);
+  }
+
   /**
    * The children of `id` as HTML, in the base order. At a breakpoint whose list order differs,
-   * each item gets a CSS `order`.
+   * each item gets a CSS `order`. Objects in its Folders come last, placed by their own
+   * Position even in a list, as in Roblox.
    */
   emitChildren(id: InstanceId, inList: boolean, depth: number, ctx: EmitContext): string {
     const base = this.sortedChildren(id);
     const here = this.breakpoint === undefined ? base : this.sortedChildren(id, true);
     const reordered = here.some((c, i) => c !== base[i]);
-    return base
-      .map((c) => this.emit(c, inList, depth, reordered ? { ...ctx, order: here.indexOf(c) } : ctx))
-      .join('');
+    return (
+      base
+        .map((c) =>
+          this.emit(c, inList, depth, reordered ? { ...ctx, order: here.indexOf(c) } : ctx),
+        )
+        .join('') +
+      this.folderChildren(id)
+        .map((c) => this.emit(c, false, depth, ctx))
+        .join('')
+    );
   }
 
   emit(inst: Gui, inList: boolean, depth: number, ctx: EmitContext): string {
@@ -414,7 +523,19 @@ export class HtmlWriter {
     const r: Decl[] = [];
     const attrs: string[] = [];
     const v = ctx.onPage ? calcV : calcU;
-    if (inList) r.push(['position', 'relative'], ['flex', 'none']);
+    // Pinned, straight on a page: in a list it sticks to the window's top as the page scrolls
+    // past; placed freely it sits in a fixed layer the size of the page's content area.
+    const pinned = ctx.onPage && inst.props.Pinned;
+    if (inList)
+      r.push(
+        ...((pinned
+          ? [
+              ['position', 'sticky'],
+              ['top', '0'],
+            ]
+          : [['position', 'relative']]) as Decl[]),
+        ['flex', 'none'],
+      );
     else {
       r.push(
         ['left', calcU(p.Position[0], p.Position[1])],
@@ -440,7 +561,8 @@ export class HtmlWriter {
       attrs.push('data-canvas');
       this.needsScript = true;
     }
-    if (p.ZIndex !== 1) r.push(['z-index', String(p.ZIndex)]);
+    if (pinned && inList) r.push(['z-index', String(PIN_Z + p.ZIndex)]);
+    else if (p.ZIndex !== 1) r.push(['z-index', String(p.ZIndex)]);
     if (!p.Visible) r.push(['display', 'none']);
     const grad = childOfClass(doc, inst.id, 'UIGradient');
     const g = grad && this.props(grad);
@@ -476,10 +598,13 @@ export class HtmlWriter {
       );
     for (const s of strokes) {
       const sp = this.props(s);
-      if (sp.Thickness > 0 && !strokesText(inst, s))
-        shadows.push(`0 0 0 ${fmtNum(sp.Thickness)}px ${rgba(sp.Color, sp.Transparency)}`);
+      if (sp.Thickness > 0 && !strokesText(inst, s)) shadows.push(...strokeShadows(sp));
     }
     if (shadows.length) r.push(['box-shadow', shadows.join(', ')]);
+    if (p.BackgroundBlur > 0) {
+      const blur = `blur(${p.BackgroundBlur}px)`;
+      r.push(['-webkit-backdrop-filter', blur], ['backdrop-filter', blur]);
+    }
     if (p.ClipsDescendants) r.push(['overflow', 'hidden']);
     if (def.scroll) r.push(['overflow', 'auto']);
     const aspect = childOfClass(doc, inst.id, 'UIAspectRatioConstraint');
@@ -487,13 +612,20 @@ export class HtmlWriter {
       attrs.push(`data-ar="${fmtNum(aspect.props.AspectRatio)}"`);
       this.needsScript = true;
     }
-    if (
+    const darkens =
       (inst.className === 'TextButton' || inst.className === 'ImageButton') &&
-      inst.props.AutoButtonColor
-    )
-      attrs.push('data-btn');
+      inst.props.AutoButtonColor;
+    if (darkens) attrs.push('data-btn');
     if (ctx.order !== undefined) r.push(['order', String(ctx.order)]);
+    if (inst.props.Appear !== 'None') {
+      attrs.push(`data-appear="${inst.props.Appear}"`);
+      if (inst.props.AppearDelay) r.push(['animation-delay', `${fmtNum(inst.props.AppearDelay)}s`]);
+      this.needsAppear = true;
+    }
+    const hover = childOfClass(doc, inst.id, 'UIHover');
+    if (hover) r.push(['transition', hoverTransition(hover.props.Duration)]);
     this.rule(`.${cls}`, r);
+    if (hover) this.hoverRules(inst, cls, hover, darkens);
 
     // The element: a link, the chosen tag, or a div. Links and tags come from the base values.
     const href =
@@ -525,7 +657,26 @@ export class HtmlWriter {
     );
     const ind = '  '.repeat(depth + 2);
     const attrText = [...head, ...attrs].map((a) => ' ' + a).join('');
-    return `\n${ind}<${tag} class="g ${cls}"${attrText} data-name="${esc(p.Name)}">${inner}${inner ? '\n' + ind : ''}</${tag}>`;
+    const el = `\n${ind}<${tag} class="g ${cls}"${attrText} data-name="${esc(p.Name)}">${inner}${inner ? '\n' + ind : ''}</${tag}>`;
+    if (!pinned || inList) return el;
+    this.hasPinned = true;
+    return `\n${ind}<div class="pin">${el.replace(/\n/g, '\n  ')}\n${ind}</div>`;
+  }
+
+  /** A UIHover's look while the mouse is over the object. */
+  hoverRules(inst: Gui, cls: string, hover: Instance<'UIHover'>, darkens: boolean) {
+    const h = this.props(hover);
+    const r: Decl[] = [['background-color', rgba(h.BackgroundColor3, h.BackgroundTransparency)]];
+    if (h.Scale !== 1) r.push(['scale', fmtNum(h.Scale)]);
+    if (h.Lift) r.push(['translate', `0 ${-h.Lift}px`]);
+    // The hover colors replace AutoButtonColor's darkening; a press still darkens.
+    if (darkens) r.push(['filter', 'none']);
+    this.rule(`.${cls}:hover`, r);
+    if (darkens) this.rule(`.${cls}:active`, [['filter', 'brightness(0.75)']]);
+    if (classDef(inst.className).text) {
+      const tp = this.props(inst as Instance<'TextLabel'>);
+      this.rule(`.${cls}:hover > .t > *`, [['color', rgba(h.TextColor3, tp.TextTransparency)]]);
+    }
   }
 
   /** What goes inside an object's element: its picture, its text and its children. */
@@ -536,9 +687,20 @@ export class HtmlWriter {
     if (inst.className === 'ImageLabel' || inst.className === 'ImageButton') {
       const ip = this.props(inst);
       const src = inst.preview ? this.links.imageSrc(inst.preview) : undefined;
-      inner += src
-        ? `\n${ind}  <img class="img" src="${src}" alt="${esc(inst.props.AltText)}" style="object-fit:${OBJECT_FIT[ip.ScaleType]};opacity:${roundTo(1 - ip.ImageTransparency, 3)}">`
-        : `\n${ind}  <${box} class="ph" aria-hidden="true">${esc(ip.Image || 'image')}</${box}>`;
+      if (src) {
+        // In a rule rather than inline, so breakpoints can change them too.
+        const ic = `${cls}i`;
+        const d: Decl[] = [['object-fit', OBJECT_FIT[ip.ScaleType]]];
+        if (ip.ImageTransparency) d.push(['opacity', fmtNum(1 - ip.ImageTransparency, 3)]);
+        if (isTinted(ip.ImageColor3)) {
+          const key = tintKey(ip.ImageColor3);
+          this.tints.add(key);
+          d.push(['filter', `url(#${tintId(key)})`]);
+        }
+        this.rule(`.${ic}`, d);
+        inner += `\n${ind}  <img class="img ${ic}" src="${src}" alt="${esc(inst.props.AltText)}">`;
+      } else
+        inner += `\n${ind}  <${box} class="ph" aria-hidden="true">${esc(ip.Image || 'image')}</${box}>`;
     }
     if (
       inst.className === 'TextLabel' ||
@@ -546,8 +708,9 @@ export class HtmlWriter {
       inst.className === 'TextBox'
     ) {
       const tp = this.props(inst);
-      this.fontsUsed.add(tp.Font);
-      const f = fontCss(tp.Font);
+      const face = faceOf(tp);
+      this.fontsUsed.add(faceKey(face));
+      const f = fontCss(face);
       const tc = `${cls}t`;
       const textStrokes = childrenOf(doc, inst.id)
         .filter((k): k is Instance<'UIStroke'> & AnyInstance => k.className === 'UIStroke')
@@ -572,6 +735,10 @@ export class HtmlWriter {
       if (tp.TextWrapped) ts.push(['overflow-wrap', 'anywhere']);
       if (!inst.props.TextScaled) ts.push(['font-size', `${tp.TextSize}px`]);
       if (tp.LineHeight !== 1) ts.push(['line-height', fmtNum(tp.LineHeight)]);
+      if (this.site && tp.LetterSpacing)
+        ts.push(['letter-spacing', `${fmtNum(tp.LetterSpacing)}px`]);
+      const hover = childOfClass(doc, inst.id, 'UIHover');
+      if (hover) ts.push(['transition', `color ${fmtNum(hover.props.Duration)}s`]);
       if (textStrokes.length)
         ts.push([
           'text-shadow',
@@ -593,7 +760,9 @@ export class HtmlWriter {
       inner += `\n${ind}  <${box} class="t ${tc}"${inst.props.TextScaled && !input ? ' data-fit' : ''}>${body}</${box}>`;
     }
     // A box that grows always has a content box: the script reads its padding there.
-    if (this.sortedChildren(inst.id).length || this.grows(inst) || this.growsCanvas(inst)) {
+    const hasKids =
+      this.sortedChildren(inst.id).length > 0 || this.folderChildren(inst.id).length > 0;
+    if (hasKids || this.grows(inst) || this.growsCanvas(inst)) {
       const list = childOfClass(doc, inst.id, 'UIListLayout');
       const cc = cls + 'c';
       const scroll = inst.className === 'ScrollingFrame';
@@ -640,7 +809,7 @@ export function exportHtml(doc: Doc, options: HtmlOptions = {}): string {
       return `\n  <div class="screen ${sc}" data-name="${esc(sg.props.Name)}">${kids}\n  </div>`;
     })
     .join('');
-  const fontsHref = googleFontsHref([...w.fontsUsed]);
+  const fontsHref = w.fontsHref();
   const title = esc(screenGuis[0]?.props.Name ?? 'Framecraft export');
   const backdrop = BACKDROP_CSS[options.backdrop ?? 'game'];
   return `<!doctype html>
@@ -655,7 +824,7 @@ ${COMMENT_OPEN} Built with Framecraft (prototype). Every object keeps its Roblox
   body { background: ${backdrop}; overflow: hidden; }
   /* A ScreenGui covers the window. Position and Size are {Scale, Offset} pairs: calc(Scale% + Offset px). */
   .screen { position: fixed; inset: 0; }
-  .g { position: absolute; box-sizing: border-box; }
+  .g { position: absolute; box-sizing: border-box; margin: 0; font-size: inherit; font-weight: inherit; }
   .c, .t { position: absolute; }
   .t { display: flex; pointer-events: none; }
   .t > * { line-height: 1; }
@@ -671,7 +840,7 @@ ${COMMENT_OPEN} Built with Framecraft (prototype). Every object keeps its Roblox
   ${w.rules.map(ruleText).join('\n  ')}
 </style>
 </head>
-<body>${screens}${w.needsScript ? FIT_SCRIPT : ''}
+<body>${tintDefs(w.tints, '  ')}${screens}${w.needsScript ? FIT_SCRIPT : ''}
 </body>
 </html>
 `;

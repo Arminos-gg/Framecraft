@@ -10,6 +10,8 @@ import {
   breakpointsOf,
   childOfClass,
   childrenOf,
+  drawnChildren,
+  folderObjects,
   serviceOf,
   subtreeIds,
   type AnyInstance,
@@ -20,13 +22,16 @@ import {
 import type { AssetId, Link } from '../model/values.ts';
 import { calcU, esc, rgb, rgba, roundTo } from './format.ts';
 import {
+  APPEAR_EXPORT,
   calcV,
   COMMENT_OPEN,
   FIT_SCRIPT,
-  googleFontsHref,
   HtmlWriter,
   isGui,
+  PIN_Z,
   ruleText,
+  tintDefs,
+  type Gui,
   type Decl,
   type Rule,
   type WriterLinks,
@@ -122,11 +127,16 @@ const RESET: Record<string, string> = {
   'mask-image': 'none',
   'border-radius': '0',
   'box-shadow': 'none',
+  'backdrop-filter': 'none',
+  '-webkit-backdrop-filter': 'none',
   overflow: 'visible',
   'font-style': 'normal',
   'line-height': '1',
   'text-shadow': 'none',
   order: '0',
+  'object-fit': 'fill',
+  opacity: '1',
+  filter: 'none',
 };
 
 /** The declarations that change from `before` to `after`, in the order `after` lists them. */
@@ -167,7 +177,8 @@ const STATIC_CSS = `  html, body { margin: 0; }
         background: repeating-linear-gradient(45deg, #ddd 0 6px, #eee 6px 12px); }
   [data-btn] { cursor: pointer; }
   [data-btn]:hover { filter: brightness(0.9); }
-  [data-btn]:active { filter: brightness(0.75); }`;
+  [data-btn]:active { filter: brightness(0.75); }
+  .pin > * { pointer-events: auto; }`;
 
 /** The page's own rules and its elements, with the values the writer's breakpoint gives. */
 function writePage(w: HtmlWriter, page: Page): string {
@@ -194,20 +205,40 @@ function writePage(w: HtmlWriter, page: Page): string {
   // Free-placed sections grow the page through min-height; a list grows it by itself.
   const list = childOfClass(doc, page.id, 'UIListLayout');
   const bottoms: string[] = [];
-  if (!list)
-    for (const c of childrenOf(doc, page.id).filter(isGui)) {
-      const cp = w.props(c);
-      if (!cp.Visible) continue;
-      const below = 1 - cp.AnchorPoint[1];
-      bottoms.push(calcV(cp.Position[2] + below * cp.Size[2], cp.Position[3] + below * cp.Size[3]));
-    }
+  for (const c of freeSections(doc, page.id)) {
+    const cp = w.props(c);
+    if (!cp.Visible) continue;
+    const below = 1 - cp.AnchorPoint[1];
+    bottoms.push(calcV(cp.Position[2] + below * cp.Size[2], cp.Position[3] + below * cp.Size[3]));
+  }
   w.rule('.pc', [
     ['--vh', vh],
     ['min-height', bottoms.length ? `max(var(--vh), ${bottoms.join(', ')})` : 'var(--vh)'],
     ...(list ? w.listCss(list, true) : []),
   ]);
-  return w.emitChildren(page.id, !!list, 1, { onPage: true, phrasing: false, linked: false });
+  const body = w.emitChildren(page.id, !!list, 1, { onPage: true, phrasing: false, linked: false });
+  // Pinned objects sit in a layer fixed to the window, inset like the page's content.
+  if (w.hasPinned)
+    w.rule('.pin', [
+      ['position', 'fixed'],
+      ['left', pad ? calcU(...pad.PaddingLeft) : '0px'],
+      ['right', pad ? calcU(...pad.PaddingRight) : '0px'],
+      ['top', pad ? calcVh(...pad.PaddingTop) : '0px'],
+      ['z-index', String(PIN_Z)],
+      ['pointer-events', 'none'],
+    ]);
+  return body;
 }
+
+/**
+ * The objects on a page placed by their own Position: all of them without a UIListLayout,
+ * and those in Folders either way.
+ */
+const freeSections = (doc: Doc, pageId: InstanceId): Gui[] =>
+  (childOfClass(doc, pageId, 'UIListLayout')
+    ? folderObjects(doc, pageId)
+    : drawnChildren(doc, pageId)
+  ).filter(isGui);
 
 /** Every link that points at a section, as the id its target object gets on its page. */
 function sectionAnchors(doc: Doc, pages: readonly Page[]): Map<InstanceId, string> {
@@ -282,17 +313,19 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
       anchor: (id) => anchors.get(id),
     };
 
-    const base = new HtmlWriter(doc, undefined, links);
+    const base = new HtmlWriter(doc, undefined, links, true);
     const body = writePage(base, page);
     // Free-placed boxes that grow push the page longer; the script works out how much.
     const grows =
       !childOfClass(doc, page.id, 'UIListLayout') &&
-      childrenOf(doc, page.id).some((c) => isGui(c) && base.grows(c));
+      freeSections(doc, page.id).some((c) => base.grows(c));
     let previous: readonly Rule[] = base.rules;
     const media: string[] = [];
+    const tints = new Set(base.tints);
     for (const bp of breakpoints) {
-      const w = new HtmlWriter(doc, bp.id, links);
+      const w = new HtmlWriter(doc, bp.id, links, true);
       writePage(w, page);
+      for (const t of w.tints) tints.add(t);
       const before = new Map(previous.map((r) => [r.sel, r.decls]));
       const changed = w.rules
         .map((r) => ({ sel: r.sel, decls: changedDecls(before.get(r.sel) ?? [], r.decls) }))
@@ -317,7 +350,7 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
     if (social) head.push(`<meta property="og:image" content="${esc(`${baseUrl}/${social}`)}">`);
     const favicon = sp.Favicon ? imagePath(sp.Favicon) : undefined;
     if (favicon) head.push(`<link rel="icon" href="${esc(up + favicon)}">`);
-    const fontsHref = googleFontsHref([...base.fontsUsed]);
+    const fontsHref = base.fontsHref();
     if (fontsHref) head.push(`<link rel="stylesheet" href="${fontsHref}">`);
 
     const html = `<!doctype html>
@@ -328,15 +361,15 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
 ${head.join('\n')}
 ${COMMENT_OPEN} Built with Framecraft. Every object keeps its Roblox name in data-name. -->
 <style>
-${STATIC_CSS}
+${STATIC_CSS}${base.needsAppear ? '\n' + APPEAR_EXPORT.css : ''}
   ${[...base.rules.map(ruleText), ...media].join('\n  ')}
 </style>
 </head>
-<body>
+<body>${tintDefs(tints, '  ')}
   <main class="page" data-name="${esc(pp.Name)}">
     <div class="c pc"${grows ? ' data-grow' : ''}>${body}
     </div>
-  </main>${base.needsScript ? FIT_SCRIPT : ''}
+  </main>${base.needsScript ? FIT_SCRIPT : ''}${base.needsAppear ? APPEAR_EXPORT.script : ''}
 </body>
 </html>
 `;

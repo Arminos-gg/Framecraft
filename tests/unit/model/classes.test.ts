@@ -55,18 +55,25 @@ describe('class registry', () => {
       'ClipsDescendants',
       'Text',
       'Font',
+      'FontWeight',
+      'FontStyle',
       'TextColor3',
       'TextSize',
       'LineHeight',
+      'LetterSpacing',
       'TextScaled',
       'TextWrapped',
       'TextXAlignment',
       'TextYAlignment',
       'TextTransparency',
       'AutoButtonColor',
-      // Web-only properties come last.
+      // Web-only properties come last, apart from LetterSpacing, which sits with the text.
       'Link',
       'HtmlTag',
+      'Pinned',
+      'BackgroundBlur',
+      'Appear',
+      'AppearDelay',
     ]);
   });
 
@@ -172,9 +179,27 @@ describe('website markers', () => {
       'BackgroundColor3',
       'BackgroundTransparency',
     ]);
-    expect(webProps('TextButton')).toEqual(['Link', 'HtmlTag']);
-    expect(webProps('ImageLabel')).toEqual(['AltText', 'Link', 'HtmlTag']);
+    expect(webProps('TextButton')).toEqual([
+      'LetterSpacing',
+      'Link',
+      'HtmlTag',
+      'Pinned',
+      'BackgroundBlur',
+      'Appear',
+      'AppearDelay',
+    ]);
+    expect(webProps('ImageLabel')).toEqual([
+      'AltText',
+      'Link',
+      'HtmlTag',
+      'Pinned',
+      'BackgroundBlur',
+      'Appear',
+      'AppearDelay',
+    ]);
     expect(webProps('UICorner')).toEqual([]);
+    expect(webProps('UIStroke')).toEqual(['Top', 'Right', 'Bottom', 'Left']);
+    expect(classDef('UIHover').web).toBe(true);
   });
 
   it('allows one StarterGui and one Site per project', () => {

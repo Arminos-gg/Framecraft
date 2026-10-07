@@ -7,7 +7,7 @@
  */
 import { isGui, strokesText, type Gui } from '../export/html.ts';
 import { classDef } from '../model/classes.ts';
-import { FONTS } from '../model/fonts.ts';
+import { FONT_WEIGHTS } from '../model/fonts.ts';
 import {
   childOfClass,
   childrenOf,
@@ -142,9 +142,8 @@ export function textContrast(doc: Doc, scene: Scene, id: InstanceId): TextContra
     below = below.flatMap((b) => l.colors.map((c) => blend(c, l.opacity, b)));
 
   // Text drawn see-through mixes with the background too.
-  const font = FONTS[p.Font] as { weight: number };
   const size = p.TextScaled ? Math.min(100, box.content.h) : p.TextSize;
-  const needed = isLargeText(size, font.weight) ? 3 : 4.5;
+  const needed = isLargeText(size, FONT_WEIGHTS[p.FontWeight]) ? 3 : 4.5;
   let worst: TextContrast | undefined;
   for (const bg of below) {
     const text = blend(p.TextColor3, 1 - p.TextTransparency, bg);

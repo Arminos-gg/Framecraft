@@ -3,8 +3,8 @@ import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 interface PopoverProps {
   /** The element it opens from; clicks on it don't count as clicks outside. */
   anchor: HTMLElement;
-  /** Below the anchor, or to its right (from an Explorer row). */
-  placement?: 'below' | 'right';
+  /** Below the anchor, to its right (from an Explorer row) or to its left (from Properties). */
+  placement?: 'below' | 'right' | 'left';
   label: string;
   className?: string;
   onClose: () => void;
@@ -29,8 +29,9 @@ export function Popover({
     const a = anchor.getBoundingClientRect();
     const w = el.offsetWidth;
     const h = el.offsetHeight;
-    const left = placement === 'right' ? a.right + 6 : a.left;
-    const top = placement === 'right' ? a.top - 8 : a.bottom + 6;
+    const left =
+      placement === 'right' ? a.right + 6 : placement === 'left' ? a.left - w - 12 : a.left;
+    const top = placement === 'below' ? a.bottom + 6 : a.top - 8;
     el.style.left = `${Math.max(8, Math.min(left, innerWidth - w - 8))}px`;
     el.style.top = `${Math.max(8, Math.min(top, innerHeight - h - 8))}px`;
   });

@@ -2,12 +2,14 @@
  * The Properties panel: the selected object's properties by category, with an editor for
  * each value type, and the Code tab. On a page shown at a breakpoint, properties that may
  * differ per breakpoint change there only; a dot marks the ones changed there, and clicking
- * it goes back to the inherited value.
+ * it goes back to the inherited value. With several objects selected, it shows the properties
+ * they all have, with the values of the one picked last, and an edit changes all of them.
  */
 import { useMemo, useState, type ReactNode } from 'react';
 import { fmtRatio, textContrast, type TextContrast } from '../../editor/contrast.ts';
-import { pagesOf, sceneOf, viewOf } from '../../editor/editor.ts';
-import { isGui } from '../../export/html.ts';
+import { docColors } from '../../editor/color.ts';
+import { pagesOf, sceneOf, viewOf, type Picture } from '../../editor/editor.ts';
+import { isGui, isTinted, tintId, tintKey } from '../../export/html.ts';
 import {
   CATEGORY_ORDER,
   classDef,
@@ -19,14 +21,17 @@ import {
 } from '../../model/classes.ts';
 import { getInstance, resolveProps, type AnyInstance } from '../../model/document.ts';
 import { rgb } from '../../export/format.ts';
-import { valueEquals, type Link } from '../../model/values.ts';
+import type { FontName, FontWeight } from '../../model/fonts.ts';
+import { valueEquals, type Color3, type Link } from '../../model/values.ts';
 import { useEditor, useEditorState } from '../editor-context.ts';
-import { MAX_PICTURE_BYTES, pickFile, readDataUrl } from '../files.ts';
+import { pickFile } from '../files.ts';
+import { PICTURE_TYPES, pictureFromFile } from '../pictures.ts';
 import { ClassIcon, Icon } from '../icons.tsx';
 import { InsertMenu } from '../InsertMenu.tsx';
 import { SidePanel } from '../Panel.tsx';
 import { onTabKeys } from '../tabs.ts';
 import { CodePane } from './CodePane.tsx';
+import { FontField, FontWeightField } from './FontFields.tsx';
 import {
   AlphaField,
   BoolField,
@@ -49,7 +54,7 @@ import { notesFor } from './notes.ts';
 type Tab = 'props' | 'code';
 
 export function Properties({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { selection } = useEditorState();
+  const { selected } = useEditorState();
   const [tab, setTab] = useState<Tab>('props');
   // What stays open or closed as the selection changes.
   const [closed, setClosed] = useState<ReadonlySet<Category>>(new Set());
@@ -88,7 +93,7 @@ export function Properties({ open, onClose }: { open: boolean; onClose: () => vo
       {tab === 'props' ? (
         <div className="pbody" role="tabpanel" id="tabpanel-props" aria-labelledby="tab-props">
           <PropsBody
-            key={selection ?? 'none'}
+            key={selected.join(' ') || 'none'}
             closed={closed}
             onToggleCategory={(c) => setClosed((s) => toggle(s, c))}
           />
@@ -126,6 +131,14 @@ function Help() {
         </dt>
         <dd>Duplicate</dd>
         <dt>
+          <kbd>Ctrl</kbd> or <kbd>Shift</kbd> + click
+        </dt>
+        <dd>Select several</dd>
+        <dt>
+          <kbd>Ctrl</kbd> <kbd>G</kbd>
+        </dt>
+        <dd>Group into a Folder</dd>
+        <dt>
           <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd>
         </dt>
         <dd>Nudge 1 px, 10 px with Shift</dd>
@@ -141,6 +154,8 @@ function Help() {
           <kbd>P</kbd>
         </dt>
         <dd>Preview</dd>
+        <dt>Middle button</dt>
+        <dd>Drag to pan</dd>
         <dt>
           <kbd>F6</kbd>
         </dt>
@@ -166,10 +181,13 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
   const [filter, setFilter] = useState('');
   const { doc, selection } = state;
   const inst = selection === null ? undefined : getInstance(doc, selection);
+  const all = state.selected.flatMap((id) => getInstance(doc, id) ?? []);
+  const many = all.length > 1;
   const gesture = useMemo<Gesture>(
     () => ({ begin: () => editor.beginGesture(), end: () => editor.endGesture() }),
     [editor],
   );
+  const projectColors = useMemo(() => () => docColors(editor.doc), [editor]);
   if (!inst) return <Help />;
   const help = SERVICE_HELP[inst.className];
   if (help)
@@ -196,8 +214,14 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
   const keys = propNames(inst.className).filter((k) => {
     const spec = propSpec(inst.className, k)!;
     if (def.kind === 'service' && k === 'Name') return false;
+    // Several objects: the properties they all have. Pictures stay one object's.
+    if (many && (spec.type === 'image' || spec.type === 'asset')) return false;
+    if (many && !all.every((o) => propSpec(o.className, k))) return false;
     // Links and HTML tags only mean something on the website.
     if (spec.web && !onSite) return false;
+    // Only objects straight on a page can be pinned to the window.
+    if ((k as string) === 'Pinned' && getInstance(doc, inst.parent ?? '')?.className !== 'Page')
+      return false;
     return !q || k.toLowerCase().includes(q);
   });
   const byCategory = new Map<Category, string[]>();
@@ -206,13 +230,26 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
     byCategory.set(c, [...(byCategory.get(c) ?? []), k]);
   }
 
-  const set = (key: string) => (v: unknown) => editor.setProp(inst.id, key, v);
-  const upload = async (apply: (dataUrl: string) => void) => {
-    const file = await pickFile('image/*');
+  const set = (key: string) => (v: unknown) =>
+    many ? editor.setSelectedProp(key, v) : editor.setProp(inst.id, key, v);
+  /** Whether the selected objects differ in a property. */
+  const mixed = (key: string, v: unknown) =>
+    many &&
+    all.some(
+      (o) =>
+        !valueEquals(
+          (resolveProps(doc, o, editor.breakpointFor(o.id)) as Record<string, unknown>)[key],
+          v,
+        ),
+    );
+  const upload = async (apply: (pic: Picture) => void) => {
+    const file = await pickFile(PICTURE_TYPES);
     if (!file) return;
-    if (file.size > MAX_PICTURE_BYTES)
-      return editor.toast('Pick an image under 1.5 MB, so the project still fits in your browser.');
-    apply(await readDataUrl(file));
+    try {
+      apply(await pictureFromFile(file));
+    } catch (err) {
+      editor.toast(err instanceof Error ? err.message : 'That file couldn’t be read.');
+    }
   };
 
   const row = (key: string) => {
@@ -227,6 +264,8 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
     if (!valueEquals(v, spec.default) || (spec.type === 'image' && inst.preview)) cls.push('chg');
     if (dim) cls.push('dim');
     if (spec.type === 'udim2') cls.push('two');
+    const differs = mixed(key, v);
+    if (differs) cls.push('mixed');
     const marker =
       bpInst && isOverridable(inst.className, key) ? (
         here ? (
@@ -235,7 +274,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
             type="button"
             aria-label={`${key} is changed for ${bpInst.props.Name}. Use the inherited value`}
             title={`Changed for ${bpInst.props.Name}. Click to use the inherited value.`}
-            onClick={() => editor.resetProp(inst.id, key)}
+            onClick={() => (many ? editor.resetSelectedProp(key) : editor.resetProp(inst.id, key))}
           />
         ) : (
           <span className="bpdot" title={`Changes here apply to ${bpInst.props.Name} only`} />
@@ -246,7 +285,14 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
     return (
       <div key={key}>
         <div className={cls.join(' ')}>
-          <label htmlFor={spec.type === 'udim2' ? `${id}-X` : id} title={key}>
+          <label
+            htmlFor={spec.type === 'udim2' ? `${id}-X` : id}
+            title={
+              differs
+                ? `${key} differs between the selected objects; this is ${inst.props.Name}’s`
+                : key
+            }
+          >
             {key}
           </label>
           {editorFor(spec, key, id, v)}
@@ -276,6 +322,17 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
 
   function editorFor(spec: PropSpec, key: string, id: string, v: unknown): ReactNode {
     const onChange = set(key);
+    if (key === 'Font')
+      return <FontField id={id} value={v as FontName} onSite={onSite} onChange={onChange} />;
+    if (key === 'FontWeight')
+      return (
+        <FontWeightField
+          id={id}
+          font={values.Font as FontName}
+          value={v as FontWeight}
+          onChange={onChange}
+        />
+      );
     switch (spec.type) {
       case 'string':
         return (
@@ -300,7 +357,8 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
             label={key}
             large
             src={inst!.preview && state.assets[inst!.preview]}
-            onUpload={() => upload((url) => editor.setImagePreview(inst!.id, url))}
+            tint={tintOf(values.ImageColor3)}
+            onUpload={() => upload((pic) => editor.setImagePreview(inst!.id, pic))}
             onRemove={() => editor.setImagePreview(inst!.id, null)}
           />
         );
@@ -315,6 +373,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
             min={spec.min}
             max={spec.max}
             step={spec.step}
+            unit={key === 'LetterSpacing' ? 'px' : undefined}
             onChange={onChange}
           />
         );
@@ -348,6 +407,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
             value={v as never}
             onChange={onChange}
             gesture={gesture}
+            swatches={projectColors}
           />
         );
       case 'vec2':
@@ -366,7 +426,13 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
         return <UDim2Field id={id} label={key} value={v as never} onChange={onChange} />;
       case 'colorseq':
         return (
-          <ColorSeqField label={key} value={v as never} onChange={onChange} gesture={gesture} />
+          <ColorSeqField
+            label={key}
+            value={v as never}
+            onChange={onChange}
+            gesture={gesture}
+            swatches={projectColors}
+          />
         );
       case 'numseq':
         return <NumSeqField id={id} label={key} value={v as never} onChange={onChange} />;
@@ -376,7 +442,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
           <PictureField
             label={key}
             src={src}
-            onUpload={() => upload((url) => editor.setPicture(inst!.id, key, url))}
+            onUpload={() => upload((pic) => editor.setPicture(inst!.id, key, pic.dataUrl))}
             onRemove={() => editor.setPicture(inst!.id, key, null)}
           />
         );
@@ -395,7 +461,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
 
   return (
     <>
-      <SelHead inst={inst} />
+      {many ? <ManyHead list={all} primary={inst} /> : <SelHead inst={inst} />}
       {bpInst?.className === 'Breakpoint' && (
         <div className="bpbar">
           <b>{bpInst.props.Name}</b>: layout, size, visibility, text size and colors change for{' '}
@@ -469,13 +535,60 @@ function ContrastNote({ c }: { c: TextContrast }) {
   );
 }
 
+/** Several objects selected: how many, of which classes, and their actions. */
+function ManyHead({ list, primary }: { list: readonly AnyInstance[]; primary: AnyInstance }) {
+  const editor = useEditor();
+  const classes = [...new Set(list.map((i) => i.className))];
+  return (
+    <div className="selhead">
+      <div className="who">
+        <ClassIcon className={classes.length === 1 ? classes[0]! : 'Folder'} />
+        <b>{list.length} objects</b>
+        <span className="cls">{classes.length === 1 ? classes[0] : 'Mixed'}</span>
+        <span className="acts">
+          <button
+            className="ibtn sm"
+            type="button"
+            aria-label="Group into a Folder"
+            title="Group into a Folder (Ctrl+G)"
+            onClick={() => editor.groupSelection()}
+          >
+            <Icon name="group" />
+          </button>
+          <button
+            className="ibtn sm"
+            type="button"
+            aria-label="Duplicate"
+            title="Duplicate (Ctrl+D)"
+            onClick={() => editor.duplicateSelection()}
+          >
+            <Icon name="duplicate" />
+          </button>
+          <button
+            className="ibtn sm"
+            type="button"
+            aria-label="Delete"
+            title="Delete (Del)"
+            onClick={() => editor.deleteSelection()}
+          >
+            <Icon name="trash" />
+          </button>
+        </span>
+      </div>
+      <div className="parentline">
+        Edits change all of them. Values shown are {primary.props.Name}’s.
+      </div>
+    </div>
+  );
+}
+
 /** The selection's name and class, its actions, and its modifiers as chips. */
 function SelHead({ inst }: { inst: AnyInstance }) {
   const editor = useEditor();
   const { doc } = useEditorState();
   const [adding, setAdding] = useState<HTMLElement | null>(null);
   const def = classDef(inst.className);
-  const editable = def.kind === 'gui' || def.kind === 'container' || def.kind === 'modifier';
+  const editable = ['gui', 'container', 'modifier', 'folder'].includes(def.kind);
   const mods = inst.children
     .map((c) => getInstance(doc, c)!)
     .filter((c) => classDef(c.className).kind === 'modifier');
@@ -554,4 +667,10 @@ function SelHead({ inst }: { inst: AnyInstance }) {
       )}
     </div>
   );
+}
+
+/** The filter the viewport tints a picture with (see Stage), for its thumbnail. */
+function tintOf(color: unknown): string | undefined {
+  const c = color as Color3 | undefined;
+  return c && isTinted(c) ? `url(#${tintId(tintKey(c))})` : undefined;
 }

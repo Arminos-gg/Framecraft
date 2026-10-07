@@ -2,7 +2,7 @@
  * The class registry: every Roblox class the editor supports, with its own typed property
  * schema. Property names, order and defaults follow the prototype, which follows Studio.
  */
-import { FONT_NAMES } from './fonts.ts';
+import { FONT_NAMES, FONT_STYLES, FONT_WEIGHT_NAMES } from './fonts.ts';
 import {
   colorSequence,
   normalizeValue,
@@ -24,9 +24,11 @@ export const CATEGORY_ORDER = [
   'Image',
   'Scrolling',
   'Behavior',
+  'Animation',
   'Corner',
   'Stroke',
   'Gradient',
+  'Hover',
   'Padding',
   'Layout',
   'Constraint',
@@ -81,9 +83,11 @@ const WEB = { web: true } as const;
  * root: the hidden DataModel at the top. service: StarterGui (Roblox screens) and Site
  * (web pages), one of each. container: a ScreenGui or Page, a full-window layer.
  * gui: an object that draws. modifier: a child object that changes its parent (UICorner and
- * so on). setting: a project setting kept in the tree, such as a Breakpoint.
+ * so on). setting: a project setting kept in the tree, such as a Breakpoint. folder: a Folder,
+ * which only groups objects; they draw as if they sat in the Folder's parent.
  */
-export type ClassKind = 'root' | 'service' | 'container' | 'gui' | 'modifier' | 'setting';
+export type ClassKind =
+  'root' | 'service' | 'container' | 'gui' | 'modifier' | 'setting' | 'folder';
 
 export interface ClassDef {
   readonly kind: ClassKind;
@@ -105,7 +109,7 @@ export interface ClassDef {
 
 const name = (className: string) => spec('string', 'Data', className);
 
-const IN_LAYERS = { kinds: ['container', 'gui'] } as const;
+const IN_LAYERS = { kinds: ['container', 'gui', 'folder'] } as const;
 const ON_OBJECTS = { kinds: ['gui'] } as const;
 
 /** Which way an object grows to fit its text and children; Size is then its smallest size. */
@@ -145,10 +149,15 @@ function scrollBase(className: string, size: UDim2) {
 const textProps = (text: string) => ({
   Text: spec('string', 'Text', text),
   Font: enumSpec('Text', FONT_NAMES, 'SourceSans'),
+  /** The parts of Roblox's FontFace: Font is its family. */
+  FontWeight: enumSpec('Text', FONT_WEIGHT_NAMES, 'Regular'),
+  FontStyle: enumSpec('Text', FONT_STYLES, 'Normal'),
   TextColor3: spec('color', 'Text', [0, 0, 0], OV),
   TextSize: spec('int', 'Text', 14, { min: 1, max: 100, ...OV }),
   /** Each line's height as a multiple of TextSize, the text centered in it. */
   LineHeight: spec('number', 'Text', 1, { min: 1, max: 3, step: 0.05, ...OV }),
+  /** Extra space after each letter in pixels, as CSS letter-spacing. Roblox has none. */
+  LetterSpacing: spec('number', 'Text', 0, { min: -20, max: 100, step: 0.1, ...OV, ...WEB }),
   TextScaled: spec('bool', 'Text', false, OV),
   TextWrapped: spec('bool', 'Text', false, OV),
   TextXAlignment: enumSpec('Text', ['Left', 'Center', 'Right'], 'Center', OV),
@@ -178,10 +187,28 @@ export const HTML_TAGS = [
   'p',
 ] as const;
 
+/** How an object on a web page comes in the first time it scrolls into view. */
+export const APPEAR_STYLES = [
+  'None',
+  'Fade',
+  'SlideUp',
+  'SlideLeft',
+  'SlideRight',
+  'Zoom',
+] as const;
+export type AppearStyle = (typeof APPEAR_STYLES)[number];
+
 /** Web-only properties every object has, last in its list. */
 const webProps = () => ({
   Link: spec('link', 'Web', null, WEB),
   HtmlTag: enumSpec('Web', HTML_TAGS, 'Auto', WEB),
+  /** Straight on a page: stays on screen while the page scrolls. */
+  Pinned: spec('bool', 'Web', false, WEB),
+  /** Blurs whatever is behind the object, in pixels: frosted glass. */
+  BackgroundBlur: spec('int', 'Appearance', 0, { min: 0, max: 100, ...OV, ...WEB }),
+  Appear: enumSpec('Animation', APPEAR_STYLES, 'None', WEB),
+  /** Seconds to wait before appearing, to stagger objects that come in together. */
+  AppearDelay: spec('number', 'Animation', 0, { min: 0, max: 10, step: 0.1, ...WEB }),
 });
 const altText = () => ({ AltText: spec('string', 'Web', '', WEB) });
 
@@ -240,6 +267,15 @@ export const CLASSES = {
       BackgroundColor3: spec('color', 'Appearance', [255, 255, 255], { ...OV, ...WEB }),
       BackgroundTransparency: spec('alpha', 'Appearance', 0, { ...OV, ...WEB }),
     },
+  },
+  /**
+   * Groups objects, as in Studio. Its objects draw and lay out as if they sat in the Folder's
+   * parent, placed by their own Position; a UIListLayout there doesn't arrange them.
+   */
+  Folder: {
+    kind: 'folder',
+    parents: IN_LAYERS,
+    props: { Name: name('Folder') },
   },
   Frame: {
     kind: 'gui',
@@ -326,6 +362,11 @@ export const CLASSES = {
       Thickness: spec('number', 'Stroke', 1, { min: 0, step: 0.5, ...OV }),
       Transparency: spec('alpha', 'Stroke', 0, OV),
       ApplyStrokeMode: enumSpec('Stroke', ['Contextual', 'Border'], 'Contextual', OV),
+      // Which sides of the box the outline draws on, for the website. Roblox draws all four.
+      Top: spec('bool', 'Stroke', true, { ...OV, ...WEB }),
+      Right: spec('bool', 'Stroke', true, { ...OV, ...WEB }),
+      Bottom: spec('bool', 'Stroke', true, { ...OV, ...WEB }),
+      Left: spec('bool', 'Stroke', true, { ...OV, ...WEB }),
     },
   },
   UIGradient: {
@@ -364,6 +405,23 @@ export const CLASSES = {
       SortOrder: enumSpec('Layout', ['LayoutOrder', 'Name'], 'LayoutOrder'),
     },
   },
+  UIHover: {
+    kind: 'modifier',
+    web: true,
+    parents: ON_OBJECTS,
+    props: {
+      Name: name('UIHover'),
+      BackgroundColor3: spec('color', 'Hover', [255, 255, 255], { ...OV, ...WEB }),
+      BackgroundTransparency: spec('alpha', 'Hover', 0, { ...OV, ...WEB }),
+      TextColor3: spec('color', 'Hover', [0, 0, 0], { ...OV, ...WEB }),
+      /** How much bigger the object gets, 1 for no change. */
+      Scale: spec('number', 'Hover', 1.05, { min: 0.5, max: 2, step: 0.01, ...OV, ...WEB }),
+      /** How many pixels the object moves up. */
+      Lift: spec('int', 'Hover', 0, { min: -100, max: 100, ...OV, ...WEB }),
+      /** Seconds the change takes. */
+      Duration: spec('number', 'Hover', 0.2, { min: 0, max: 2, step: 0.05, ...WEB }),
+    },
+  },
   UIAspectRatioConstraint: {
     kind: 'modifier',
     parents: ON_OBJECTS,
@@ -399,6 +457,7 @@ export const MODIFIER_CLASSES = [
   'UIPadding',
   'UIListLayout',
   'UIAspectRatioConstraint',
+  'UIHover',
 ] as const satisfies readonly ClassName[];
 
 export const isClassName = (s: unknown): s is ClassName =>

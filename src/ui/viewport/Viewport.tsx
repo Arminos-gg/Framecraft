@@ -1,16 +1,19 @@
 /**
  * The viewport: the device (a Roblox screen or a page of the site) drawn at a zoom, with the
  * selection on top, or every device next to each other. Pointer gestures go to the editor in
- * the pixels of the device they started on, which becomes the one being edited.
+ * the pixels of the device they started on, which becomes the one being edited. Shift or Ctrl
+ * and click adds to the selection, a drag from empty space selects what's in its box, a
+ * right-click opens the object menu, and the middle button (or Space and drag) pans.
  */
 import {
   Fragment,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
-  type KeyboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
   type PointerEvent,
 } from 'react';
@@ -24,14 +27,17 @@ import {
 } from '../../editor/editor.ts';
 import type { Handle, Point } from '../../editor/geometry.ts';
 import { isGui, type Backdrop } from '../../export/html.ts';
-import { getInstance, isAncestor } from '../../model/document.ts';
+import { getInstance } from '../../model/document.ts';
 import { useEditor, useEditorState } from '../editor-context.ts';
 import { Icon } from '../icons.tsx';
+import { ObjectMenu } from '../ObjectMenu.tsx';
+import { hasPictures, picturesIn } from '../pictures.ts';
 import { Overlay } from './Overlay.tsx';
 import { rulerSteps } from './rulers.ts';
 import { Rulers } from './Rulers.tsx';
 import { Stage } from './Stage.tsx';
 import { useDocFonts } from './useDocFonts.ts';
+import { COMPONENT_MIME, decodeComponentDrag } from '../component-drag.ts';
 
 /** Space around the device when it's fitted to the viewport. */
 const PAD = 40;
@@ -52,6 +58,14 @@ const viewKey = (v: View) => (v.kind === 'page' ? 'page:' + v.pageId : 'screens'
 const frameAt = (target: EventTarget | null) =>
   target instanceof Element ? target.closest<HTMLElement>('.device[data-device]') : null;
 
+/** The rectangle between two corners. */
+const boxOf = (a: Point, b: Point) => ({
+  x: Math.min(a.x, b.x),
+  y: Math.min(a.y, b.y),
+  w: Math.abs(a.x - b.x),
+  h: Math.abs(a.y - b.y),
+});
+
 /** The object drawn under a DOM element, if any. */
 function guiIdAt(target: EventTarget | null): string | null {
   const el =
@@ -70,6 +84,55 @@ export function Viewport() {
   const deviceRef = useRef<HTMLDivElement>(null);
   const [frame, setFrame] = useState({ w: 0, h: 0 });
   const [mouse, setMouse] = useState<Point | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  /** A box drawn from empty space, in the edited device's pixels, selecting what's inside. */
+  const [marquee, setMarquee] = useState<{
+    start: Point;
+    now: Point;
+    base: readonly string[];
+    active: boolean;
+  } | null>(null);
+  /** Panning with the middle button, or with Space held: where it started. */
+  const pan = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const [panning, setPanning] = useState(false);
+  const space = useRef(false);
+  const [spaceHeld, setSpaceHeld] = useState(false);
+
+  // Space held down turns a drag into panning, as in most design tools.
+  useEffect(() => {
+    const typing = (t: EventTarget | null) =>
+      t instanceof HTMLElement &&
+      (t.tagName === 'INPUT' ||
+        t.tagName === 'TEXTAREA' ||
+        t.tagName === 'SELECT' ||
+        t.tagName === 'BUTTON' ||
+        t.isContentEditable);
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat || typing(e.target) || e.defaultPrevented) return;
+      if ((e.target as Element | null)?.closest?.('[role="tree"], [role="menu"], dialog')) return;
+      e.preventDefault();
+      space.current = true;
+      setSpaceHeld(true);
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || !space.current) return;
+      space.current = false;
+      setSpaceHeld(false);
+    };
+    const blur = () => {
+      space.current = false;
+      setSpaceHeld(false);
+    };
+    document.addEventListener('keydown', down);
+    document.addEventListener('keyup', up);
+    window.addEventListener('blur', blur);
+    return () => {
+      document.removeEventListener('keydown', down);
+      document.removeEventListener('keyup', up);
+      window.removeEventListener('blur', blur);
+    };
+  }, []);
 
   useLayoutEffect(() => {
     const cv = canvasRef.current;
@@ -177,15 +240,27 @@ export function Viewport() {
     guiIdAt(target) ?? (frameAt(target) ? pageId : null);
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    // The middle button, or Space and drag, pans the canvas (in preview too).
+    if (e.button === 1 || (e.button === 0 && space.current)) {
+      const cv = canvasRef.current;
+      if (!cv) return;
+      e.preventDefault();
+      pan.current = { x: e.clientX, y: e.clientY, left: cv.scrollLeft, top: cv.scrollTop };
+      setPanning(true);
+      e.currentTarget.setPointerCapture(e.pointerId);
+      return;
+    }
     if (state.preview) return;
     const target = e.target as Element;
     if (target.closest('.device-name')) return;
     if (e.button !== 0) {
-      // A right-click selects what's under it, the page included, without moving anything.
+      // A right-click selects what's under it, the page included, without moving anything,
+      // and opens the object menu. Something already selected stays selected with the rest.
       if (e.button !== 2) return;
       const el = frameAt(target);
       if (el && el.dataset.device !== device.id) editor.setDevice(el.dataset.device!);
-      editor.select(targetAt(target));
+      const id = targetAt(target);
+      if (id === null || !state.selected.includes(id)) editor.select(id);
       return;
     }
     const handle = target.closest<HTMLElement>('.handle');
@@ -203,24 +278,58 @@ export function Viewport() {
     dragFrame.current = el ?? deviceRef.current;
     const p = toDevice(e.clientX, e.clientY, dragFrame.current!);
     const id = guiIdAt(target);
+    const adding = e.shiftKey || e.ctrlKey || e.metaKey;
     if (!id) {
-      editor.select(el ? pageId : null);
+      // Empty space selects the page (or nothing); a drag from it selects what's in its box.
+      if (!adding) editor.select(el ? pageId : null);
+      if (e.pointerType !== 'touch') {
+        e.preventDefault();
+        const base = adding ? state.selected.filter((s) => s !== pageId) : [];
+        setMarquee({ start: p, now: p, base, active: false });
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }
       return;
     }
     e.preventDefault();
-    const sel = state.selection;
-    const selected = sel === null ? undefined : getInstance(doc, sel);
-    if (sel !== null && selected && isGui(selected) && id !== sel && isAncestor(doc, sel, id)) {
-      // A drag inside the selection moves the selection; a plain click selects the child.
-      editor.startDrag('move', sel, p, { clickId: id });
+    if (adding) {
+      editor.toggleSelected(id);
+      return;
+    }
+    // A press inside a selected object drags the whole selection; a plain click (no drag)
+    // selects what's under the pointer alone.
+    let owner: string | null = id;
+    while (owner !== null && !state.selected.includes(owner))
+      owner = getInstance(doc, owner)?.parent ?? null;
+    const ownerInst = owner === null ? undefined : getInstance(doc, owner);
+    if (ownerInst && isGui(ownerInst) && (owner !== id || state.selected.length > 1)) {
+      editor.startDrag('move', ownerInst.id, p, { clickId: id });
     } else {
-      if (sel !== id) editor.select(id);
+      if (state.selection !== id || state.selected.length > 1) editor.select(id);
       editor.startDrag('move', id, p);
     }
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    const pn = pan.current;
+    const cv = canvasRef.current;
+    if (pn && cv) {
+      cv.scrollLeft = pn.left - (e.clientX - pn.x);
+      cv.scrollTop = pn.top - (e.clientY - pn.y);
+      return;
+    }
     if (!deviceRef.current) return;
+    if (marquee) {
+      const now = toDevice(e.clientX, e.clientY, dragFrame.current ?? deviceRef.current);
+      const far = Math.hypot(now.x - marquee.start.x, now.y - marquee.start.y) * z >= 3;
+      const active = marquee.active || far;
+      setMarquee({ ...marquee, now, active });
+      setMouse(now);
+      if (active) {
+        const r = boxOf(marquee.start, now);
+        editor.selectInRect(r, marquee.base);
+      }
+      return;
+    }
     if (editor.dragging) {
       const p = toDevice(e.clientX, e.clientY, dragFrame.current ?? deviceRef.current);
       setMouse(p);
@@ -232,7 +341,14 @@ export function Viewport() {
     setMouse(el && el !== deviceRef.current ? null : toDevice(e.clientX, e.clientY));
     if (!state.preview) editor.setHover(targetAt(e.target));
   };
-  const onPointerUp = () => editor.endDrag();
+  const onPointerUp = () => {
+    if (pan.current) {
+      pan.current = null;
+      setPanning(false);
+    }
+    setMarquee(null);
+    editor.endDrag();
+  };
   const onPointerLeave = () => {
     if (editor.dragging) return;
     setMouse(null);
@@ -246,7 +362,7 @@ export function Viewport() {
   const onClick = (e: MouseEvent) => {
     if (state.preview) follow(e.target);
   };
-  const onKeyDown = (e: KeyboardEvent) => {
+  const onKeyDown = (e: ReactKeyboardEvent) => {
     // In preview, Enter on a focused link follows it; Space too, on a button.
     const el = e.target as HTMLElement;
     if (!state.preview || !el.matches('.gui[role]')) return;
@@ -371,7 +487,13 @@ export function Viewport() {
           middleY={scene.view.kind === 'screens'}
         />
         <div
-          className={state.preview ? 'canvas preview' : 'canvas'}
+          className={[
+            'canvas',
+            state.preview && 'preview',
+            panning ? 'panning' : spaceHeld && 'grab',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           ref={canvasRef}
           // Focusable, so the keyboard can scroll it; the arrow keys nudge the selection.
           tabIndex={0}
@@ -380,6 +502,13 @@ export function Viewport() {
           aria-label={state.preview ? 'Preview' : 'Canvas'}
           aria-describedby="canvas-hint"
           onKeyDown={onKeyDown}
+          onMouseDown={(e) => {
+            // No autoscroll circle for the middle button: it pans.
+            if (e.button === 1) e.preventDefault();
+          }}
+          onAuxClick={(e) => {
+            if (e.button === 1) e.preventDefault();
+          }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -387,7 +516,38 @@ export function Viewport() {
           onPointerLeave={onPointerLeave}
           onClick={onClick}
           onContextMenu={(e) => {
-            if (!state.preview) e.preventDefault();
+            if (state.preview) return;
+            e.preventDefault();
+            // The press already selected what's under the pointer; the menu opens on it.
+            if (targetAt(e.target) !== null) setMenu({ x: e.clientX, y: e.clientY });
+          }}
+          onDragOver={(e) => {
+            if (state.preview) return;
+            // A component from the drawer, or image and SVG files, which become ImageLabels.
+            const types = [...e.dataTransfer.types];
+            if (!types.includes(COMPONENT_MIME) && !types.includes('Files')) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }}
+          onDrop={(e) => {
+            if (state.preview) return;
+            if (e.dataTransfer.types.includes(COMPONENT_MIME)) {
+              const drag = decodeComponentDrag(e.dataTransfer.getData(COMPONENT_MIME));
+              if (!drag) return;
+              e.preventDefault();
+              // Into the object dropped on, or else what the viewport shows.
+              const el = frameAt(e.target);
+              if (el && el.dataset.device !== device.id) editor.setDevice(el.dataset.device!);
+              editor.addComponent(drag.def, drag.options, guiIdAt(e.target));
+              return;
+            }
+            if (!hasPictures(e.dataTransfer)) return;
+            e.preventDefault();
+            picturesIn(e.dataTransfer).then(
+              (pics) => pics.forEach((pic) => editor.insertPicture(pic)),
+              (err: unknown) =>
+                editor.toast(err instanceof Error ? err.message : 'That file couldn’t be added.'),
+            );
           }}
         >
           <div
@@ -445,6 +605,17 @@ export function Viewport() {
                   </div>
                   <div className="overlay" style={{ left: x, top }} aria-hidden="true">
                     <Overlay state={state} scene={s} zoom={z} passive={!editing} />
+                    {editing && marquee?.active && (
+                      <div
+                        className="marquee"
+                        style={(({ x: mx, y: my, w, h }) => ({
+                          left: mx * z,
+                          top: my * z,
+                          width: w * z,
+                          height: h * z,
+                        }))(boxOf(marquee.start, marquee.now))}
+                      />
+                    )}
                   </div>
                 </Fragment>
               );
@@ -453,6 +624,9 @@ export function Viewport() {
         </div>
       </div>
       <StatusLine mouse={mouse} />
+      {menu && !state.preview && state.selection !== null && (
+        <ObjectMenu x={menu.x} y={menu.y} onClose={closeMenu} />
+      )}
     </main>
   );
 }
@@ -465,10 +639,12 @@ function StatusLine({ mouse }: { mouse: Point | null }) {
   const inst = sel === null ? undefined : getInstance(state.doc, sel);
   const hint = state.preview
     ? 'Preview: buttons react, text boxes take input and links work. Press P or Preview to go back to editing.'
-    : 'Drag to move · handles resize · Shift keeps proportions · arrows nudge · Ctrl+D duplicates · F6 moves between panels';
+    : 'Drag to move · Shift+click adds · handles resize · middle button pans · Ctrl+G groups · F6 moves between panels';
   return (
     <div className="statusline">
-      {inst && isGui(inst) && box ? (
+      {state.selected.length > 1 ? (
+        <span>{state.selected.length} objects selected</span>
+      ) : inst && isGui(inst) && box ? (
         <>
           <span>
             AbsolutePosition {Math.round(box.x)}, {Math.round(box.y)}

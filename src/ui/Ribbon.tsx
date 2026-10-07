@@ -2,6 +2,7 @@
  * The ribbon: insert objects and modifiers, choose what dragging writes, and convert units.
  * The first tool follows the view: ScreenGui for the Roblox screens, Page for the website.
  */
+import { useState } from 'react';
 import type { UnitMode } from '../editor/geometry.ts';
 import { insertParent } from '../editor/insert.ts';
 import { OBJECT_CLASSES, type ClassName } from '../model/classes.ts';
@@ -10,6 +11,7 @@ import { isGui } from '../export/html.ts';
 import { useEditor, useEditorState } from './editor-context.ts';
 import { ClassIcon, Icon } from './icons.tsx';
 import { Checkbox } from './properties/fields.tsx';
+import { ShapesMenu } from './ShapesMenu.tsx';
 
 const MODIFIERS: readonly (readonly [ClassName, string])[] = [
   ['UICorner', 'Corner'],
@@ -18,6 +20,8 @@ const MODIFIERS: readonly (readonly [ClassName, string])[] = [
   ['UIPadding', 'Padding'],
   ['UIListLayout', 'List'],
   ['UIAspectRatioConstraint', 'Aspect'],
+  // Web only: listed when the viewport shows a page.
+  ['UIHover', 'Hover'],
 ];
 
 const UNITS: readonly (readonly [UnitMode, string, string | undefined])[] = [
@@ -34,7 +38,8 @@ const UNIT_HINTS: Record<UnitMode, string> = {
 
 export function Ribbon() {
   const editor = useEditor();
-  const { doc, selection, view, preview, unit, snap } = useEditorState();
+  const { doc, selection, view, preview, unit, snap, components } = useEditorState();
+  const [shapes, setShapes] = useState<HTMLElement | null>(null);
   const sel = selection === null ? undefined : getInstance(doc, selection);
   const layer: ClassName = view.kind === 'page' ? 'Page' : 'ScreenGui';
   const convertible =
@@ -57,26 +62,52 @@ export function Ribbon() {
               {c}
             </button>
           ))}
+          <button
+            className={shapes ? 'tool is-pressed' : 'tool'}
+            type="button"
+            data-insert="shapes"
+            title="Insert a shape"
+            aria-haspopup="dialog"
+            aria-expanded={!!shapes}
+            onClick={(e) => setShapes(shapes ? null : e.currentTarget)}
+          >
+            <Icon name="shapes" />
+            Shapes
+          </button>
+          {shapes && <ShapesMenu anchor={shapes} onClose={() => setShapes(null)} />}
+          <button
+            className={components ? 'tool on' : 'tool'}
+            type="button"
+            data-components
+            title="Pre-made components: navbars, pricing tables, hotbars and more"
+            aria-pressed={components}
+            onClick={() => editor.setComponentsOpen(!components)}
+          >
+            <Icon name="components" />
+            Components
+          </button>
         </div>
         <div className="cap">Insert object</div>
       </div>
       <div className={group} role="group" aria-label="Add modifier">
         <div className="items">
           <div className="stools">
-            {MODIFIERS.map(([c, label]) => (
-              <button
-                key={c}
-                className="stool"
-                type="button"
-                data-insert={c}
-                title={`Add ${c} to the selection`}
-                disabled={!insertParent(doc, c, selection)}
-                onClick={() => editor.insert(c)}
-              >
-                <ClassIcon className={c} />
-                {label}
-              </button>
-            ))}
+            {MODIFIERS.filter(([c]) => view.kind === 'page' || c !== 'UIHover').map(
+              ([c, label]) => (
+                <button
+                  key={c}
+                  className="stool"
+                  type="button"
+                  data-insert={c}
+                  title={`Add ${c} to the selection`}
+                  disabled={!insertParent(doc, c, selection)}
+                  onClick={() => editor.insert(c)}
+                >
+                  <ClassIcon className={c} />
+                  {label}
+                </button>
+              ),
+            )}
           </div>
         </div>
         <div className="cap">Add modifier</div>

@@ -24,6 +24,12 @@ const PATHS = {
   toScale: '<path d="M5 15 15 5"/><circle cx="6" cy="6" r="2"/><circle cx="14" cy="14" r="2"/>',
   toOffset:
     '<rect x="2.5" y="6.5" width="15" height="7" rx="1.5"/><path d="M6 6.5v3M9.5 6.5v2M13 6.5v3"/>',
+  rename: '<path d="M12.5 4.5l3 3L7 16H4v-3z"/><path d="M11 6l3 3"/>',
+  cut: '<circle cx="5.5" cy="14.5" r="2.5"/><circle cx="14.5" cy="14.5" r="2.5"/><path d="M7.3 12.7 15 3M12.7 12.7 5 3"/>',
+  paste:
+    '<rect x="4" y="4" width="12" height="13.5" rx="1.5"/><rect x="7" y="2.5" width="6" height="3" rx="1"/><path d="M7.5 10h5M7.5 13h3"/>',
+  group:
+    '<rect x="2.5" y="2.5" width="15" height="15" rx="2" stroke-dasharray="2.5 2"/><rect x="5.5" y="5.5" width="5" height="4" rx="1"/><rect x="9.5" y="11" width="5" height="3.5" rx="1"/>',
   trash: '<path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/>',
   duplicate:
     '<rect x="7" y="7" width="10" height="10" rx="2"/><path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-7A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13H7"/>',
@@ -43,6 +49,10 @@ const PATHS = {
   reset: '<path d="M4 10a6 6 0 1 0 2-4.5"/><path d="M4 3.5V7h3.5"/>',
   upload: '<path d="M10 13V3.5M6.5 7 10 3.5 13.5 7"/><path d="M4 13v4h12v-4"/>',
   download: '<path d="M10 3v9.5M6.5 9 10 12.5 13.5 9"/><path d="M4 14.5V17h12v-2.5"/>',
+  shapes:
+    '<circle cx="6.5" cy="6.5" r="3.5"/><rect x="10.5" y="10.5" width="7" height="7" rx="1"/><path d="M6.5 11 10 17.5H3z"/><path d="M14 2.5 17.5 8h-7z"/>',
+  components:
+    '<path d="M10 2.5 13 5.5 10 8.5 7 5.5zM5.5 7 8.5 10 5.5 13 2.5 10zM14.5 7 17.5 10 14.5 13 11.5 10zM10 11.5 13 14.5 10 17.5 7 14.5z"/>',
   link: '<path d="M8.5 11.5a3.5 3.5 0 0 0 5 0l2.5-2.5a3.5 3.5 0 0 0-5-5L10 5"/><path d="M11.5 8.5a3.5 3.5 0 0 0-5 0L4 11a3.5 3.5 0 0 0 5 5l1-1"/>',
   DataModel: '<circle cx="10" cy="10" r="7"/>',
   StarterGui:
@@ -52,6 +62,8 @@ const PATHS = {
   ScreenGui:
     '<rect x="2.5" y="3.5" width="15" height="10" rx="1.5"/><path d="M7 17h6M10 13.5V17"/>',
   Page: '<path d="M5 2.5h6.5L15 6v11.5H5z"/><path d="M11.5 2.5V6H15M7.5 10h5M7.5 13h5"/>',
+  Folder:
+    '<path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h3.5l1.5 2H16a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M2.5 8.5h15"/>',
   Frame: '<rect x="3.5" y="3.5" width="13" height="13" rx="1.5"/>',
   TextLabel: '<path d="M5 5h10M10 5v10" stroke-width="2"/>',
   TextButton: '<rect x="2.5" y="5.5" width="15" height="9" rx="4.5"/><path d="M7.5 10h5"/>',
@@ -73,6 +85,7 @@ const PATHS = {
     '<rect x="3.5" y="3.5" width="13" height="3" rx="1"/><rect x="3.5" y="8.5" width="13" height="3" rx="1"/><rect x="3.5" y="13.5" width="13" height="3" rx="1"/>',
   UIAspectRatioConstraint:
     '<rect x="2.5" y="5" width="15" height="10" rx="1.5"/><path d="M6 12.5V7.5h3M14 7.5v5h-3"/>',
+  UIHover: '<path d="M11 3.5H4.5a1 1 0 0 0-1 1V11"/><path d="M9 9l7.5 2.8-3.2 1.3-1.3 3.2z"/>',
 } satisfies Record<string, string> & Record<ClassName, string>;
 
 export type IconName = keyof typeof PATHS;
@@ -100,6 +113,7 @@ const KIND_CLASS = {
   container: 'container',
   gui: 'obj',
   modifier: 'mod',
+  folder: 'container',
 } as const;
 
 /** A class's icon, in its kind's color. */

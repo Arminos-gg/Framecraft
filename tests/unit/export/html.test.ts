@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { exportHtml, googleFontsHref } from '../../../src/export/html.ts';
+import { exportHtml } from '../../../src/export/html.ts';
+import {
+  googleFontsHref,
+  type FontName,
+  type FontStyle,
+  type FontWeight,
+} from '../../../src/model/fonts.ts';
 import { calcU, rgba } from '../../../src/export/format.ts';
 import { addAsset } from '../../../src/model/assets.ts';
 import type { ClassName, PropsOf } from '../../../src/model/classes.ts';
@@ -53,17 +59,41 @@ describe('CSS values', () => {
   });
 
   it('asks Google Fonts for every family and weight once', () => {
-    expect(googleFontsHref(['GothamBold', 'Gotham', 'GothamBold', 'LuckiestGuy'])).toBe(
+    const face = (font: FontName, weight: FontWeight = 'Regular', style: FontStyle = 'Normal') => ({
+      font,
+      weight,
+      style,
+    });
+    expect(
+      googleFontsHref([
+        face('Gotham', 'Bold'),
+        face('Gotham'),
+        face('Gotham', 'Bold'),
+        face('LuckiestGuy'),
+      ]),
+    ).toBe(
       'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Luckiest+Guy&display=swap',
     );
-    expect(googleFontsHref(['SourceSansItalic', 'SourceSans'])).toBe(
+    expect(googleFontsHref([face('SourceSans', 'Regular', 'Italic'), face('SourceSans')])).toBe(
       'https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;1,400&display=swap',
+    );
+    // A weight the font doesn't have asks for its nearest; a font without italics stays upright.
+    expect(googleFontsHref([face('Oswald', 'Heavy', 'Italic'), face('Inter', 'SemiBold')])).toBe(
+      'https://fonts.googleapis.com/css2?family=Oswald:wght@700&family=Inter:wght@600&display=swap',
     );
     expect(googleFontsHref([])).toBeNull();
   });
 });
 
 describe('HTML export', () => {
+  it('leaves out letter spacing, which Roblox doesn’t have', () => {
+    const s = scene();
+    s.add(s.screen, 'TextLabel', { Font: 'Inter', FontWeight: 'Medium', LetterSpacing: 3 });
+    const html = exportHtml(s.doc);
+    expect(html).toContain('font-family:"Inter", system-ui, sans-serif;font-weight:500;');
+    expect(html).not.toContain('letter-spacing');
+  });
+
   it('shows an image preview from the library, or a placeholder', () => {
     const s = scene();
     const img = s.add(s.screen, 'ImageLabel', { Image: 'rbxassetid://42', ScaleType: 'Fit' });
@@ -71,11 +101,26 @@ describe('HTML export', () => {
     const { assets, id } = addAsset({}, PNG);
     s.edit((d) => applyCommand(d, setPreview(img, id)).doc);
     const html = exportHtml(s.doc, { assets });
-    expect(html).toContain(
-      `<img class="img" src="${PNG}" alt="" style="object-fit:contain;opacity:1">`,
-    );
+    expect(html).toMatch(new RegExp(`<img class="img (e\\d+i)" src="${PNG}" alt="">`));
+    const cls = /<img class="img (e\d+i)"/.exec(html)![1]!;
+    expect(html).toContain(`.${cls}{object-fit:contain;}`);
+    expect(html).not.toContain('fc-tint');
     // Without the library the picture can't be found, so the placeholder shows.
     expect(exportHtml(s.doc)).toContain('<div class="ph" aria-hidden="true">rbxassetid://42</div>');
+  });
+
+  it('tints a picture by ImageColor3 with one color filter per color', () => {
+    const s = scene();
+    const { assets, id } = addAsset({}, PNG);
+    const a = s.add(s.screen, 'ImageLabel', { ImageColor3: [255, 0, 51], ImageTransparency: 0.25 });
+    const b = s.add(s.screen, 'ImageButton', { ImageColor3: [255, 0, 51] });
+    s.edit((d) => applyCommand(applyCommand(d, setPreview(a, id)).doc, setPreview(b, id)).doc);
+    const html = exportHtml(s.doc, { assets });
+    expect(html.match(/<filter /g)).toHaveLength(1);
+    expect(html).toContain(
+      '<filter id="fc-tint-ff0033" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0 0 0 0 0 0 0 0 0.2 0 0 0 0 0 1 0"/></filter>',
+    );
+    expect(html).toMatch(/\.e\d+i\{object-fit:fill;opacity:0\.75;filter:url\(#fc-tint-ff0033\);\}/);
   });
 
   it('adds the fitting script only when something needs the real box', () => {

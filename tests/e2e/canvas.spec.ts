@@ -160,6 +160,16 @@ test.describe('Roblox screens', () => {
     await page.keyboard.press('Delete');
     expect(await count()).toBe(n);
     expect(await selectedName(page)).toBe('MainMenu');
+    // The toast says what went, and its Undo brings it back selected.
+    const toast = page.getByRole('status');
+    await expect(toast).toContainText('Deleted Coins');
+    await expect(toast).toContainText('Frame and 7 objects inside it');
+    await toast.getByRole('button', { name: 'Undo' }).click();
+    expect(await count()).toBe(n + 8);
+    expect(await page.evaluate(() => window.framecraft!.state.selection)).toBe(copy);
+    await expect(toast).toContainText('Coins is back');
+    await page.keyboard.press('Delete');
+    expect(await count()).toBe(n);
 
     await selectByName(page, 'Coins');
     await page.keyboard.press('Control+c');

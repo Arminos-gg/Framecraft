@@ -8,7 +8,7 @@
  * On a page shown at Tablet or Phone, edits change that breakpoint's values.
  */
 import { slug } from '../export/site.ts';
-import { isGui, type Backdrop } from '../export/html.ts';
+import { isGui, isTinted, type Backdrop } from '../export/html.ts';
 import {
   ancestorAngle,
   layoutContainer,
@@ -19,17 +19,23 @@ import {
 } from '../layout/layout.ts';
 import { textVersion } from '../layout/text.ts';
 import { addAsset, type Assets } from '../model/assets.ts';
-import { canParent, classDef, isOverridable, type ClassName } from '../model/classes.ts';
+import { canParent, classDef, isOverridable, propSpec, type ClassName } from '../model/classes.ts';
+import { FONT_WEIGHTS, type FontStyle, type FontWeight } from '../model/fonts.ts';
 import { batch, insert, move, remove, setPreview, type Command } from '../model/commands.ts';
 import {
   childOfClass,
   childrenOf,
+  drawnChildren,
+  drawnParent,
   extractSubtree,
   getInstance,
+  isAncestor,
   ModelError,
+  newId,
   reIdSubtree,
   resolveProps,
   serviceOf,
+  single,
   subtreeIds,
   type AnyInstance,
   type Doc,
@@ -48,6 +54,12 @@ import {
   type Device,
 } from './devices.ts';
 import { hasModifier, insertParent, newSubtree } from './insert.ts';
+import { finishShape, shapeById, shapeClass, shapePicture, shapeProps } from './shapes.ts';
+import {
+  componentSubtree,
+  type ComponentDef,
+  type ComponentOptions,
+} from '../model/components/index.ts';
 import {
   moveRect,
   positionFor,
@@ -90,11 +102,28 @@ export interface Gesture {
   readonly guides: readonly Guide[];
 }
 
+/** A picture to place: a data URL, with its size in pixels for a new object. */
+export interface Picture {
+  readonly dataUrl: string;
+  readonly width: number;
+  readonly height: number;
+  /** A one-color SVG made white, so ImageColor3 colors it (it starts black). */
+  readonly recolor?: boolean;
+  /** The new object's Name, such as the file's name. */
+  readonly name?: string;
+}
+
 export interface Toast {
   readonly id: number;
   readonly text: string;
+  /** A second, quieter line, such as what a deleted object held. */
+  readonly detail?: string;
+  /** Sets its icon and color: `delete` red with a bin, `done` green with a tick. */
+  readonly tone?: 'delete' | 'done';
   /** A button in the toast, such as Undo after opening another project. */
   readonly action?: { readonly label: string; readonly run: () => void };
+  /** How long it stays, in milliseconds, unless the pointer rests on it. */
+  readonly duration: number;
 }
 
 /** Autosave, as the app bar shows it. `idle` until something saves the project. */
@@ -103,7 +132,10 @@ export type SaveStatus = 'idle' | 'pending' | 'saved' | 'off';
 export interface EditorState {
   readonly doc: Doc;
   readonly assets: Assets;
+  /** The selected object Properties shows and the handles resize: the last one picked. */
   readonly selection: InstanceId | null;
+  /** Everything selected, `selection` included; empty when it's null. */
+  readonly selected: readonly InstanceId[];
   readonly hover: InstanceId | null;
   readonly view: View;
   /** The device for Roblox screens, from SCREEN_DEVICES. */
@@ -130,6 +162,8 @@ export interface EditorState {
   /** The Explorer row whose name is being edited. */
   readonly renaming: InstanceId | null;
   readonly saveStatus: SaveStatus;
+  /** The Components drawer is open. */
+  readonly components: boolean;
 }
 
 export const LIST_PLACES = 'A UIListLayout places this object. Change LayoutOrder to reorder it.';
@@ -158,8 +192,19 @@ interface Drag {
   readonly targets: SnapTargets;
   /** A click (no drag) selects this object instead: the child under the cursor. */
   readonly clickId: InstanceId | undefined;
+  /** The rest of the selection, which a move takes along. */
+  readonly followers: readonly Follower[];
   active: boolean;
   warned: boolean;
+}
+
+/** Another selected object moving with the one dragged. */
+interface Follower {
+  readonly id: InstanceId;
+  readonly box: Box;
+  readonly position: UDim2;
+  readonly anchor: readonly [number, number];
+  readonly parentAngle: number;
 }
 
 const edit = (
@@ -297,8 +342,11 @@ export class Editor {
   #state: EditorState;
   #listeners = new Set<() => void>();
   #drag: Drag | null = null;
-  #clipboard: Subtree | null = null;
+  #clipboard: Subtree[] | null = null;
   #toastTimer: ReturnType<typeof setTimeout> | undefined;
+  /** When the toast goes, or while it's held, how long it has left. */
+  #toastEnds = 0;
+  #toastLeft: number | null = null;
   #seq = 0;
 
   constructor(doc: Doc, options: EditorOptions = {}) {
@@ -308,6 +356,7 @@ export class Editor {
       doc,
       assets: options.assets ?? {},
       selection: null,
+      selected: [],
       hover: null,
       view: options.view ?? (firstPage ? { kind: 'page', pageId: firstPage.id } : SCREENS),
       screenDevice: SCREEN_DEVICES[0]!.id,
@@ -326,6 +375,7 @@ export class Editor {
       expanded: initialExpanded(doc),
       renaming: null,
       saveStatus: 'idle',
+      components: false,
     };
     this.history.subscribe(() => this.#onDocChange());
   }
@@ -367,9 +417,11 @@ export class Editor {
   #onDocChange() {
     const doc = this.history.doc;
     const alive = (id: InstanceId | null) => (id !== null && getInstance(doc, id) ? id : null);
+    const selected = this.#state.selected.filter((id) => alive(id) !== null);
     this.#update({
       doc,
-      selection: alive(this.#state.selection),
+      selection: alive(this.#state.selection) ?? selected.at(-1) ?? null,
+      selected: selected.length === this.#state.selected.length ? this.#state.selected : selected,
       hover: alive(this.#state.hover),
       renaming: alive(this.#state.renaming),
     });
@@ -392,16 +444,35 @@ export class Editor {
     return id === null ? undefined : getInstance(this.doc, id);
   }
 
-  toast(text: string, action?: Toast['action']) {
-    const toast: Toast = action ? { id: ++this.#seq, text, action } : { id: ++this.#seq, text };
+  toast(
+    text: string,
+    action?: Toast['action'],
+    more: { readonly detail?: string; readonly tone?: Toast['tone'] } = {},
+  ) {
+    const duration = action ? 6000 : 2600;
+    const toast: Toast = { id: ++this.#seq, text, duration, ...more, ...(action && { action }) };
     this.#update({ toast });
+    this.#toastLeft = null;
+    this.#timeToast(toast, duration);
+  }
+  #timeToast(toast: Toast, ms: number) {
     clearTimeout(this.#toastTimer);
-    this.#toastTimer = setTimeout(
-      () => {
-        if (this.#state.toast === toast) this.#update({ toast: null });
-      },
-      action ? 6000 : 2600,
-    );
+    this.#toastEnds = Date.now() + ms;
+    this.#toastTimer = setTimeout(() => {
+      if (this.#state.toast === toast) this.#update({ toast: null });
+    }, ms);
+  }
+  /** Keeps the toast while the pointer rests on it; `false` lets it go with the time it had left. */
+  holdToast(hold: boolean) {
+    const toast = this.#state.toast;
+    if (!toast) return;
+    if (hold && this.#toastLeft === null) {
+      clearTimeout(this.#toastTimer);
+      this.#toastLeft = Math.max(0, this.#toastEnds - Date.now());
+    } else if (!hold && this.#toastLeft !== null) {
+      this.#timeToast(toast, Math.max(1200, this.#toastLeft));
+      this.#toastLeft = null;
+    }
   }
   dismissToast() {
     if (this.#state.toast) this.#update({ toast: null });
@@ -412,19 +483,91 @@ export class Editor {
    * the Explorer.
    */
   select(id: InstanceId | null) {
+    this.selectMany(id === null ? [] : [id]);
+  }
+
+  /**
+   * Selects several objects; `primary` (the last one by default) is the one Properties shows
+   * first. Shows the primary's view and opens everyone's ancestors in the Explorer.
+   */
+  selectMany(ids: readonly InstanceId[], primary?: InstanceId) {
     const doc = this.doc;
-    const target = id !== null && getInstance(doc, id) ? id : null;
+    const selected = [...new Set(ids)].filter((id) => getInstance(doc, id));
+    const target =
+      primary !== undefined && selected.includes(primary) ? primary : (selected.at(-1) ?? null);
     const view = target === null ? undefined : viewOf(doc, target);
     let expanded = this.#state.expanded;
-    for (let p = target === null ? null : getInstance(doc, target)!.parent; p !== null;) {
-      if (!expanded.has(p)) expanded = new Set(expanded).add(p);
-      p = getInstance(doc, p)?.parent ?? null;
-    }
+    for (const id of selected)
+      for (let p = getInstance(doc, id)!.parent; p !== null;) {
+        if (!expanded.has(p)) expanded = new Set(expanded).add(p);
+        p = getInstance(doc, p)?.parent ?? null;
+      }
     this.#update({
       selection: target,
+      selected,
       expanded,
       view: view && !sameView(view, this.#state.view) ? view : this.#state.view,
     });
+  }
+
+  /** Adds an object to the selection, or takes it out (Ctrl or Shift and click). */
+  toggleSelected(id: InstanceId) {
+    const { selected } = this.#state;
+    if (!selected.includes(id)) return this.selectMany([...selected, id], id);
+    const rest = selected.filter((s) => s !== id);
+    const primary = this.#state.selection === id ? rest.at(-1) : this.#state.selection;
+    this.selectMany(rest, primary ?? undefined);
+  }
+
+  /**
+   * Selects every object beside the selected one, or with nothing selected, every object on
+   * the page or the Roblox screens shown (Ctrl+A).
+   */
+  selectAll() {
+    const doc = this.doc;
+    const inst = this.#selected();
+    const parent = inst && isGui(inst) && inst.parent !== null && drawnParent(doc, inst.parent);
+    const scene = this.scene;
+    const roots = parent ? [parent.id] : scene.roots;
+    const ids = roots.flatMap((r) =>
+      drawnChildren(doc, r)
+        .filter(isGui)
+        .map((c) => c.id),
+    );
+    if (ids.length) this.selectMany(ids, inst && ids.includes(inst.id) ? inst.id : undefined);
+  }
+
+  /**
+   * Selects the objects drawn entirely inside a rectangle of the device shown (a box drawn on
+   * empty space), leaving out those inside another one picked, added to `base`.
+   */
+  selectInRect(
+    r: { x: number; y: number; w: number; h: number },
+    base: readonly InstanceId[] = [],
+  ) {
+    const doc = this.doc;
+    const { layout } = this.scene;
+    const inside = new Set<InstanceId>();
+    const drawn = (id: InstanceId): boolean => {
+      for (let p: InstanceId | null = id; p !== null; p = getInstance(doc, p)?.parent ?? null) {
+        const b = layout.get(p);
+        if (!b) return true;
+        if (!b.visible) return false;
+      }
+      return true;
+    };
+    for (const id of layout.keys()) {
+      const inst = getInstance(doc, id);
+      const q = inst && isGui(inst) && drawn(id) ? screenQuad(doc, layout, id) : undefined;
+      if (!q) continue;
+      const a = (q.angle * Math.PI) / 180;
+      const hw = (Math.abs(q.w * Math.cos(a)) + Math.abs(q.h * Math.sin(a))) / 2;
+      const hh = (Math.abs(q.w * Math.sin(a)) + Math.abs(q.h * Math.cos(a))) / 2;
+      if (q.cx - hw >= r.x && q.cx + hw <= r.x + r.w && q.cy - hh >= r.y && q.cy + hh <= r.y + r.h)
+        inside.add(id);
+    }
+    const picked = [...inside].filter((id) => ![...inside].some((o) => isAncestor(doc, o, id)));
+    this.selectMany([...base.filter((id) => !picked.includes(id)), ...picked]);
   }
 
   /** Opens or closes an Explorer row; without `open`, toggles it. */
@@ -448,10 +591,14 @@ export class Editor {
   /** Shows the screens or a page. A selection that isn't drawn there is cleared. */
   setView(view: View) {
     if (sameView(view, this.#state.view)) return;
+    const shown = (id: InstanceId) => {
+      const v = viewOf(this.doc, id);
+      return v !== undefined && sameView(v, view);
+    };
+    const selected = this.#state.selected.filter(shown);
     const sel = this.#state.selection;
-    const selView = sel === null ? undefined : viewOf(this.doc, sel);
-    const keep = selView !== undefined && sameView(selView, view);
-    this.#update({ view, hover: null, selection: keep ? sel : null, zoom: null });
+    const selection = sel !== null && shown(sel) ? sel : (selected.at(-1) ?? null);
+    this.#update({ view, hover: null, selection, selected, zoom: null });
   }
 
   /**
@@ -486,6 +633,9 @@ export class Editor {
   setSnap(snap: boolean) {
     this.#update({ snap });
   }
+  setComponentsOpen(components: boolean) {
+    if (components !== this.#state.components) this.#update({ components });
+  }
   setBackdrop(backdrop: Backdrop) {
     this.#update({ backdrop });
   }
@@ -517,12 +667,28 @@ export class Editor {
     const box = scene.layout.get(id);
     if (!inst || !isGui(inst) || !box || (kind === 'resize' && !opts.handle)) return;
     const p = resolveProps(doc, inst, scene.breakpoint);
-    const siblings =
-      inst.parent === null
-        ? []
-        : childrenOf(doc, inst.parent).flatMap((s) =>
-            s.id !== id && isGui(s) ? (scene.layout.get(s.id) ?? []) : [],
-          );
+    // A move takes the rest of the selection along, when it's drawn here and not in a list.
+    const followers: Follower[] = [];
+    if (kind === 'move' && this.#state.selected.includes(id))
+      for (const t of this.#targets()) {
+        const b = scene.layout.get(t.id);
+        if (t.id === id || !isGui(t) || !b || b.listItem) continue;
+        const tp = resolveProps(doc, t, scene.breakpoint);
+        followers.push({
+          id: t.id,
+          box: b,
+          position: tp.Position,
+          anchor: tp.AnchorPoint,
+          parentAngle: ancestorAngle(doc, scene.layout, t.id),
+        });
+      }
+    const moving = new Set([id, ...followers.map((f) => f.id)]);
+    const parent = inst.parent === null ? undefined : drawnParent(doc, inst.parent);
+    const siblings = !parent
+      ? []
+      : drawnChildren(doc, parent.id).flatMap((s) =>
+          !moving.has(s.id) && isGui(s) ? (scene.layout.get(s.id) ?? []) : [],
+        );
     this.#drag = {
       kind,
       id,
@@ -537,6 +703,7 @@ export class Editor {
       angle: screenQuad(doc, scene.layout, id)?.angle ?? 0,
       targets: snapTargets(box.area, siblings),
       clickId: opts.clickId,
+      followers,
       active: false,
       warned: false,
     };
@@ -567,6 +734,7 @@ export class Editor {
     const snap = this.#state.snap && !mods.alt;
     const threshold = SNAP_REACH / mods.zoom;
     const props: Record<string, unknown> = {};
+    const follow: Command[] = [];
     let guides: readonly Guide[];
     if (d.kind === 'move') {
       if (d.parentAngle) [dx, dy] = rotate(dx, dy, -d.parentAngle);
@@ -574,6 +742,15 @@ export class Editor {
       const m = moveRect(d.box, dx, dy, canSnap ? d.targets : null, threshold);
       props.Position = positionFor(d.position, d.anchor, d.box.area, m.rect, unit);
       guides = m.guides;
+      // The others move as far on screen as the dragged one, snapping included.
+      let [sx, sy] = [m.rect.x - d.box.x, m.rect.y - d.box.y];
+      if (d.parentAngle) [sx, sy] = rotate(sx, sy, d.parentAngle);
+      for (const f of d.followers) {
+        const [fx, fy] = f.parentAngle ? rotate(sx, sy, -f.parentAngle) : [sx, sy];
+        const rect = { x: f.box.x + fx, y: f.box.y + fy, w: f.box.w, h: f.box.h };
+        const Position = positionFor(f.position, f.anchor, f.box.area, rect, unit);
+        follow.push(edit(f.id, { Position }, d.breakpoint));
+      }
     } else {
       if (d.angle) [dx, dy] = rotate(dx, dy, -d.angle);
       const m = resizeRect(d.box, d.handle!, dx, dy, {
@@ -586,7 +763,8 @@ export class Editor {
         props.Position = positionFor(d.position, d.anchor, d.box.area, m.rect, unit);
       guides = m.guides;
     }
-    this.#execute(edit(d.id, props, d.breakpoint));
+    const own = edit(d.id, props, d.breakpoint);
+    this.#execute(follow.length ? batch(own, ...follow) : own);
     this.#update({ gesture: { id: d.id, kind: d.kind, guides } });
   }
 
@@ -602,85 +780,229 @@ export class Editor {
 
   /** Moves the selection by whole pixels, as the arrow keys do. */
   nudge(dx: number, dy: number) {
-    const inst = this.#selected();
     const scene = this.scene;
-    const box = inst && scene.layout.get(inst.id);
-    if (!inst || !isGui(inst) || !box) return;
-    if (box.listItem) return this.toast(LIST_PLACES);
-    const p = resolveProps(this.doc, inst, scene.breakpoint);
-    const rect = { x: box.x + dx, y: box.y + dy, w: box.w, h: box.h };
-    const Position = positionFor(p.Position, p.AnchorPoint, box.area, rect, this.#state.unit);
-    this.#execute(edit(inst.id, { Position }, scene.breakpoint));
+    const cmds: Command[] = [];
+    let listed = false;
+    for (const inst of this.#targets()) {
+      const box = scene.layout.get(inst.id);
+      if (!isGui(inst) || !box) continue;
+      if (box.listItem) {
+        listed = true;
+        continue;
+      }
+      const p = resolveProps(this.doc, inst, scene.breakpoint);
+      const rect = { x: box.x + dx, y: box.y + dy, w: box.w, h: box.h };
+      const Position = positionFor(p.Position, p.AnchorPoint, box.area, rect, this.#state.unit);
+      cmds.push(edit(inst.id, { Position }, scene.breakpoint));
+    }
+    if (cmds.length) this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds));
+    else if (listed) this.toast(LIST_PLACES);
   }
 
-  /** Objects, layers and modifiers can be copied and deleted; services and the root can't. */
+  /**
+   * Objects, folders, layers and modifiers can be copied and deleted; services and the root
+   * can't.
+   */
   #editable(inst: AnyInstance | undefined): inst is AnyInstance {
     if (!inst) return false;
     const kind = classDef(inst.className).kind;
-    return kind === 'gui' || kind === 'container' || kind === 'modifier';
+    return kind === 'gui' || kind === 'container' || kind === 'modifier' || kind === 'folder';
+  }
+
+  /**
+   * What the selection's actions work on: the selected objects that can be edited, without
+   * those inside another selected one, in Explorer order.
+   */
+  #targets(): AnyInstance[] {
+    const doc = this.doc;
+    const { selected } = this.#state;
+    const order = new Map(subtreeIds(doc, doc.rootId).map((id, i) => [id, i]));
+    return selected
+      .filter((id) => !selected.some((o) => o !== id && isAncestor(doc, o, id)))
+      .map((id) => getInstance(doc, id))
+      .filter((inst) => this.#editable(inst))
+      .sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+  }
+
+  /** The selected objects the selection's actions work on, in Explorer order. */
+  get targetIds(): InstanceId[] {
+    return this.#targets().map((t) => t.id);
+  }
+  get targetCount(): number {
+    return this.#targets().length;
+  }
+
+  /** Whether something was copied, so Paste has something to put in. */
+  get canPaste(): boolean {
+    return this.#clipboard !== null;
+  }
+
+  /** "Button" for one object, "3 objects" for more. */
+  #what(list: readonly AnyInstance[]) {
+    return list.length === 1 ? list[0]!.props.Name : `${list.length} objects`;
   }
 
   deleteSelection() {
-    const inst = this.#selected();
-    if (!this.#editable(inst)) return;
-    const parent = inst.parent === null ? undefined : getInstance(this.doc, inst.parent);
-    const name = inst.props.Name;
-    if (!this.#execute(remove(inst.id))) return;
+    const targets = this.#targets();
+    if (!targets.length) return;
+    const doc = this.doc;
+    const inst = targets.find((t) => t.id === this.#state.selection) ?? targets[0]!;
+    const parent = inst.parent === null ? undefined : getInstance(doc, inst.parent);
+    const inside =
+      targets.reduce((n, t) => n + Object.keys(extractSubtree(doc, t.id).instances).length, 0) -
+      targets.length;
+    const cmds = targets.map((t) => remove(t.id));
+    if (!this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds))) return;
+    const after = this.doc;
     const kind = parent && classDef(parent.className).kind;
-    this.select(parent && (kind === 'gui' || kind === 'container') ? parent.id : null);
-    this.toast(`Deleted ${name}`);
+    const keep = parent && (kind === 'gui' || kind === 'container' || kind === 'folder');
+    this.select(keep ? parent.id : null);
+    const what = this.#what(targets);
+    const undo = () => {
+      // Only while the delete is still the last change; otherwise Undo would take back
+      // something else.
+      if (this.doc !== after) return this.toast('You’ve changed things since. Use Undo (Ctrl+Z).');
+      this.undo();
+      this.selectMany(
+        targets.map((t) => t.id),
+        inst.id,
+      );
+      this.toast(`${what} ${targets.length === 1 ? 'is' : 'are'} back`, undefined, {
+        tone: 'done',
+      });
+    };
+    const objects = (n: number) => `${n} ${n === 1 ? 'object' : 'objects'}`;
+    const detail =
+      targets.length === 1
+        ? inside
+          ? `${inst.className} and ${objects(inside)} inside it`
+          : inst.className
+        : targets.map((t) => t.props.Name).join(', ') +
+          (inside ? `, with ${objects(inside)} inside` : '');
+    this.toast(`Deleted ${what}`, { label: 'Undo', run: undo }, { tone: 'delete', detail });
   }
 
   duplicateSelection() {
-    const inst = this.#selected();
-    if (!this.#editable(inst) || inst.parent === null) return;
+    const targets = this.#targets().filter((t) => t.parent !== null);
+    if (!targets.length) return;
     const doc = this.doc;
-    const parent = getInstance(doc, inst.parent)!;
-    const copy = reIdSubtree(extractSubtree(doc, inst.id));
-    const cmds: Command[] = [insert(parent.id, copy, parent.children.indexOf(inst.id) + 1)];
-    // Offset the copy a little so it doesn't hide the original.
     const scene = this.scene;
-    const box = scene.layout.get(inst.id);
-    if (isGui(inst) && box && !box.listItem) {
-      const pos = resolveProps(doc, inst, scene.breakpoint).Position;
-      const Position = [pos[0], pos[1] + 12, pos[2], pos[3] + 12];
-      cmds.push(edit(copy.rootId, { Position }, scene.breakpoint));
+    const cmds: Command[] = [];
+    const copies = new Map<InstanceId, InstanceId>();
+    // Last first, so each copy lands right after its original.
+    for (const inst of [...targets].reverse()) {
+      const parent = getInstance(doc, inst.parent!)!;
+      const copy = reIdSubtree(extractSubtree(doc, inst.id));
+      copies.set(inst.id, copy.rootId);
+      cmds.push(insert(parent.id, copy, parent.children.indexOf(inst.id) + 1));
+      // Offset the copy a little so it doesn't hide the original.
+      const box = scene.layout.get(inst.id);
+      if (isGui(inst) && box && !box.listItem) {
+        const pos = resolveProps(doc, inst, scene.breakpoint).Position;
+        const Position = [pos[0], pos[1] + 12, pos[2], pos[3] + 12];
+        cmds.push(edit(copy.rootId, { Position }, scene.breakpoint));
+      }
     }
     if (!this.#execute(batch(...cmds))) return;
-    this.select(copy.rootId);
-    this.toast(`Duplicated ${inst.props.Name}`);
+    const primary = this.#state.selection;
+    this.selectMany(
+      targets.map((t) => copies.get(t.id)!),
+      primary === null ? undefined : copies.get(primary),
+    );
+    this.toast(`Duplicated ${this.#what(targets)}`);
   }
 
   copySelection(cut = false) {
-    const inst = this.#selected();
-    if (!this.#editable(inst)) return;
-    this.#clipboard = extractSubtree(this.doc, inst.id);
+    const targets = this.#targets();
+    if (!targets.length) return;
+    this.#clipboard = targets.map((t) => extractSubtree(this.doc, t.id));
     if (cut) this.deleteSelection();
-    else this.toast(`Copied ${inst.props.Name}`);
+    else this.toast(`Copied ${this.#what(targets)}`);
   }
 
-  /** Pastes into the selection, or the nearest ancestor that can hold the copy. */
+  /** Pastes into the selection, or the nearest ancestor that can hold each copy. */
   paste() {
     if (!this.#clipboard) return this.toast('Copy something first (Ctrl+C).');
     const doc = this.doc;
-    const copy = reIdSubtree(this.#clipboard);
-    const className = copy.instances[copy.rootId]!.className;
-    let parent = this.#selected();
-    while (parent && !canParent(className, parent.className))
-      parent = parent.parent === null ? undefined : getInstance(doc, parent.parent);
-    if (!parent) {
-      const scene = this.scene;
-      const fallback = [
-        serviceOf(doc, 'StarterGui').id,
-        serviceOf(doc, 'Site').id,
-        scene.view.kind === 'page' ? scene.view.pageId : scene.roots[0],
-      ];
-      parent = fallback
-        .flatMap((id) => (id === undefined ? [] : (getInstance(doc, id) ?? [])))
-        .find((p) => canParent(className, p.className));
+    const scene = this.scene;
+    const cmds: Command[] = [];
+    const ids: InstanceId[] = [];
+    for (const subtree of this.#clipboard) {
+      const copy = reIdSubtree(subtree);
+      const className = copy.instances[copy.rootId]!.className;
+      let parent = this.#selected();
+      while (parent && !canParent(className, parent.className))
+        parent = parent.parent === null ? undefined : getInstance(doc, parent.parent);
+      if (!parent) {
+        const fallback = [
+          serviceOf(doc, 'StarterGui').id,
+          serviceOf(doc, 'Site').id,
+          scene.view.kind === 'page' ? scene.view.pageId : scene.roots[0],
+        ];
+        parent = fallback
+          .flatMap((id) => (id === undefined ? [] : (getInstance(doc, id) ?? [])))
+          .find((p) => canParent(className, p.className));
+      }
+      if (!parent) continue;
+      cmds.push(insert(parent.id, copy));
+      ids.push(copy.rootId);
     }
-    if (!parent) return this.toast('Add a ScreenGui first.');
-    if (this.#execute(insert(parent.id, copy))) this.select(copy.rootId);
+    if (!cmds.length) return this.toast('Add a ScreenGui first.');
+    if (this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds))) this.selectMany(ids);
+  }
+
+  /**
+   * Puts the selected objects in a new Folder where the first of them was, as Ctrl+G does in
+   * Studio. They must share a parent.
+   */
+  groupSelection() {
+    const doc = this.doc;
+    const targets = this.#targets().filter((t) => {
+      const kind = classDef(t.className).kind;
+      return kind === 'gui' || kind === 'folder';
+    });
+    if (!targets.length) return this.toast('Select objects to put in a Folder.');
+    const parentId = targets[0]!.parent;
+    const parent = parentId === null ? undefined : getInstance(doc, parentId);
+    if (!parent || targets.some((t) => t.parent !== parentId))
+      return this.toast('Pick objects that sit in the same parent to group them.');
+    if (!canParent('Folder', parent.className)) return this.toast('A Folder can’t go there.');
+    const folder = newSubtree(doc, 'Folder', parent, rectOf(this.scene));
+    const index = Math.min(...targets.map((t) => parent.children.indexOf(t.id)));
+    const cmds = [
+      insert(parent.id, folder, index),
+      ...targets.map((t) => move(t.id, folder.rootId)),
+    ];
+    if (!this.#execute(batch(...cmds))) return;
+    this.select(folder.rootId);
+    this.setExpanded(folder.rootId, true);
+    const listed = childOfClass(doc, drawnParent(doc, parent.id)?.id ?? parent.id, 'UIListLayout');
+    this.toast(
+      listed
+        ? `Grouped ${this.#what(targets)} in a Folder. The UIListLayout doesn’t arrange objects in a Folder, as in Roblox.`
+        : `Grouped ${this.#what(targets)} in a Folder`,
+    );
+  }
+
+  /** Takes everything out of the selected Folders and deletes them (Ctrl+Shift+G). */
+  ungroupSelection() {
+    const doc = this.doc;
+    const folders = this.#targets().filter((t) => t.className === 'Folder' && t.parent !== null);
+    if (!folders.length) return this.toast('Select a Folder to ungroup.');
+    const cmds: Command[] = [];
+    const freed: InstanceId[] = [];
+    for (const f of folders) {
+      const parent = getInstance(doc, f.parent!)!;
+      // Index among the parent's other children: the folder's place, kept until it goes.
+      let at = parent.children.indexOf(f.id);
+      for (const c of f.children) {
+        cmds.push(move(c, parent.id, at++));
+        freed.push(c);
+      }
+      cmds.push(remove(f.id));
+    }
+    if (!this.#execute(batch(...cmds))) return;
+    this.selectMany(freed);
   }
 
   /** The breakpoint edits to an object go to: the one shown, when the object is on the page shown. */
@@ -704,11 +1026,57 @@ export class Editor {
     return this.#execute(edit(id, { [key]: value }, here));
   }
 
+  /**
+   * Ctrl+B and Ctrl+I: turns the selected text bold (or back to Regular) or italic (or back
+   * to Normal). Returns false when the selection has no text.
+   */
+  toggleTextStyle(which: 'bold' | 'italic'): boolean {
+    const id = this.#state.selection;
+    const inst = id === null ? undefined : getInstance(this.doc, id);
+    if (!inst || !classDef(inst.className).text) return false;
+    // The last picked object decides, and every selected text object follows it.
+    const p = inst.props as { FontWeight: FontWeight; FontStyle: FontStyle };
+    if (which === 'italic')
+      return this.setSelectedProp('FontStyle', p.FontStyle === 'Italic' ? 'Normal' : 'Italic');
+    const bold = FONT_WEIGHTS[p.FontWeight] >= FONT_WEIGHTS.SemiBold;
+    return this.setSelectedProp('FontWeight', bold ? 'Regular' : 'Bold');
+  }
+
   /** Drops the shown breakpoint's own value, so the property inherits again. */
   resetProp(id: InstanceId, key: string) {
     const bp = this.breakpointFor(id);
     if (bp !== undefined)
       this.#execute({ type: 'setProps', id, props: {}, breakpoint: bp, clear: [key] });
+  }
+
+  /** The selected objects that have a property, which Properties edits all at once. */
+  #withProp(key: string): AnyInstance[] {
+    return this.#state.selected.flatMap((id) => {
+      const inst = getInstance(this.doc, id);
+      return inst && propSpec(inst.className, key) ? [inst] : [];
+    });
+  }
+
+  /** Sets one property on every selected object that has it, as one step; see setProp. */
+  setSelectedProp(key: string, value: unknown): boolean {
+    const cmds = this.#withProp(key).map((inst) => {
+      const bp = this.breakpointFor(inst.id);
+      const here = bp !== undefined && isOverridable(inst.className, key) ? bp : undefined;
+      return edit(inst.id, { [key]: value }, here);
+    });
+    if (!cmds.length) return false;
+    return this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds));
+  }
+
+  /** resetProp for every selected object that has the property. */
+  resetSelectedProp(key: string) {
+    const cmds = this.#withProp(key).flatMap((inst): Command[] => {
+      const bp = this.breakpointFor(inst.id);
+      return bp === undefined
+        ? []
+        : [{ type: 'setProps', id: inst.id, props: {}, breakpoint: bp, clear: [key] }];
+    });
+    if (cmds.length) this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds));
   }
 
   /** Edits between these (a slider, the color picker) are one undo step. */
@@ -719,11 +1087,14 @@ export class Editor {
     if (this.history.inGroup && !this.#drag) this.history.commit();
   }
 
-  /** Objects, layers, modifiers and breakpoints can be renamed; services and the root can't. */
+  /**
+   * Objects, folders, layers, modifiers and breakpoints can be renamed; services and the root
+   * can't.
+   */
   canRename(id: InstanceId): boolean {
     const inst = getInstance(this.doc, id);
     const kind = inst && classDef(inst.className).kind;
-    return kind === 'gui' || kind === 'container' || kind === 'modifier' || kind === 'setting';
+    return !!kind && kind !== 'root' && kind !== 'service';
   }
   startRename(id: InstanceId | null = this.#state.selection) {
     if (id !== null && this.canRename(id)) this.#update({ renaming: id });
@@ -744,6 +1115,55 @@ export class Editor {
    * into what the viewport shows. A modifier goes on `parentId` itself.
    */
   insert(className: ClassName, parentId: InstanceId | null = this.#state.selection) {
+    return this.#insertNew(className, parentId);
+  }
+
+  /**
+   * Inserts a shape from the Shapes menu, where an object would go. Picture shapes add their
+   * white SVG to the image library.
+   */
+  insertShape(shapeId: string, parentId: InstanceId | null = this.#state.selection) {
+    const shape = shapeById(shapeId);
+    if (!shape) return null;
+    const picture = shapePicture(shape);
+    if (picture !== undefined && this.#addPicture(picture) === null) return null;
+    return this.#insertNew(shapeClass(shape), parentId, shapeProps(shape), (root) =>
+      finishShape(shape, root, newId),
+    );
+  }
+
+  /**
+   * Inserts an ImageLabel showing a picture, as big as the picture up to 400 px a side: a
+   * pasted or dropped SVG or image.
+   */
+  insertPicture(pic: Picture, parentId: InstanceId | null = this.#state.selection) {
+    const preview = this.#addPicture(pic.dataUrl);
+    if (preview === null) return null;
+    const fit = Math.min(1, 400 / Math.max(pic.width, pic.height, 1));
+    const w = Math.max(1, Math.round(pic.width * fit));
+    const h = Math.max(1, Math.round(pic.height * fit));
+    const props: Record<string, unknown> = {
+      Size: [0, w, 0, h],
+      BackgroundTransparency: 1,
+    };
+    const name = pic.name?.trim();
+    if (name) props.Name = name;
+    if (pic.recolor) props.ImageColor3 = [0, 0, 0];
+    return this.#insertNew('ImageLabel', parentId, props, (root) => single({ ...root, preview }));
+  }
+
+  /**
+   * Inserts a new object, layer, page or modifier and selects it. An object goes into
+   * `parentId` (the selection by default) or its nearest ancestor that can hold it, or else
+   * into what the viewport shows. A modifier goes on `parentId` itself. `start` and `finish`
+   * shape the new object: properties it starts with, and what goes with it.
+   */
+  #insertNew(
+    className: ClassName,
+    parentId: InstanceId | null,
+    start?: Readonly<Record<string, unknown>>,
+    finish?: (root: AnyInstance) => Subtree,
+  ) {
     const doc = this.doc;
     const scene = this.scene;
     const kind = classDef(className).kind;
@@ -752,7 +1172,9 @@ export class Editor {
       this.toast(
         className === 'UIListLayout'
           ? 'Select a ScreenGui, page or object to lay out its children.'
-          : 'Select a Frame, label, button or image first.',
+          : classDef(className).web
+            ? `${className} works on the website. Select an object on a page first.`
+            : 'Select a Frame, label, button or image first.',
       );
       return null;
     }
@@ -784,16 +1206,121 @@ export class Editor {
     let area = box?.content ?? rectOf(scene);
     // On a long page, center in the first screen rather than halfway down.
     if (parent.className === 'Page') area = { ...area, h: Math.min(area.h, scene.device.height) };
-    const subtree = newSubtree(this.doc, className, parent, area);
+    let subtree = newSubtree(this.doc, className, parent, area, newId, start);
+    if (finish) subtree = finish(subtree.instances[subtree.rootId]!);
     cmds.push(insert(parent.id, subtree));
     if (!this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds))) return null;
     this.select(subtree.rootId);
     return subtree.rootId;
   }
 
+  /**
+   * Where a component lands: a block in the selection or its nearest ancestor that can hold
+   * it, a website section in that object's page, and otherwise what the viewport shows.
+   * Undefined when the Roblox screens have no ScreenGui yet.
+   */
+  #componentParent(def: ComponentDef, parentId: InstanceId | null): AnyInstance | undefined {
+    const doc = this.doc;
+    const scene = this.scene;
+    let parent = insertParent(doc, 'Frame', parentId);
+    if (def.place === 'section') {
+      const view = parent ? viewOf(doc, parent.id) : scene.view;
+      if (view?.kind === 'page') parent = getInstance(doc, view.pageId);
+    }
+    return (
+      parent ??
+      getInstance(doc, scene.view.kind === 'page' ? scene.view.pageId : (scene.roots[0] ?? ''))
+    );
+  }
+
+  /** The name of the object a component would land in now, for the Add button. */
+  componentParentName(def: ComponentDef): string {
+    return this.#componentParent(def, this.#state.selection)?.props.Name ?? 'a new ScreenGui';
+  }
+
+  /**
+   * Adds a copy of a pre-made component and selects it. A block lands inside the selection, or
+   * its nearest ancestor that can hold it, like Insert; a website section goes into the page.
+   * Straight on a page, a block gets a section of its own. Returns the new component's id.
+   */
+  addComponent(
+    def: ComponentDef,
+    options: ComponentOptions,
+    parentId: InstanceId | null = this.#state.selection,
+  ): InstanceId | null {
+    const doc = this.doc;
+    const scene = this.scene;
+    let parent = this.#componentParent(def, parentId);
+    const cmds: Command[] = [];
+    if (!parent) {
+      // Roblox screens with no ScreenGui yet: make one to hold the component.
+      const starterGui = serviceOf(doc, 'StarterGui');
+      const layer = newSubtree(doc, 'ScreenGui', starterGui, rectOf(scene));
+      cmds.push(insert(starterGui.id, layer));
+      parent = layer.instances[layer.rootId]!;
+    }
+    const onPage = parent.className === 'Page';
+    const copy = componentSubtree(doc, def, options, onPage ? 'page' : 'other');
+    const outer = copy.instances[copy.rootId]!;
+    const siblings = childrenOf(doc, parent.id).filter(isGui);
+    let place: Record<string, unknown> = {};
+    if (childOfClass(doc, parent.id, 'UIListLayout')) {
+      // Last in the list.
+      const last = Math.max(0, ...siblings.map((c) => resolveProps(doc, c).LayoutOrder));
+      place = { LayoutOrder: last + 1 };
+    } else if (def.place === 'block') {
+      const nudge = (12 * siblings.length) % 96;
+      place = { AnchorPoint: [0.5, 0.5], Position: [0.5, nudge, 0.5, nudge] };
+    }
+    const subtree: Subtree = {
+      ...copy,
+      instances: {
+        ...copy.instances,
+        [outer.id]: { ...outer, props: { ...outer.props, ...place } } as AnyInstance,
+      },
+    };
+    cmds.push(insert(parent.id, subtree));
+    if (!this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds))) return null;
+    // On a page, a block's section holds it; select the component itself.
+    const rootId =
+      onPage && def.place !== 'section'
+        ? (outer.children.find((id) => {
+            const c = copy.instances[id]!;
+            return isGui(c);
+          }) ?? outer.id)
+        : outer.id;
+    this.select(rootId);
+    this.toast(`${def.name} added to ${parent.props.Name}`, {
+      label: 'Undo',
+      run: () => this.undo(),
+    });
+    return rootId;
+  }
+
   /** Reparents or reorders: `index` is the place among the new parent's other children. */
   moveTo(id: InstanceId, parentId: InstanceId, index?: number) {
     if (this.#execute(move(id, parentId, index))) this.select(id);
+  }
+
+  /**
+   * Moves several objects, in Explorer order, into a parent: `index` is where they go among the
+   * parent's children that aren't moving (the end by default). One undo step.
+   */
+  moveManyTo(ids: readonly InstanceId[], parentId: InstanceId, index?: number) {
+    const doc = this.doc;
+    const parent = getInstance(doc, parentId);
+    if (!parent) return;
+    const order = new Map(subtreeIds(doc, doc.rootId).map((id, i) => [id, i]));
+    const moving = [...ids].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+    const others = parent.children.filter((c) => !moving.includes(c));
+    const at = index ?? others.length;
+    const final = [...others.slice(0, at), ...moving, ...others.slice(at)];
+    // Each to the end first, then to its place: every index then counts only what's settled.
+    const cmds = [
+      ...moving.map((id) => move(id, parentId)),
+      ...moving.map((id) => move(id, parentId, final.indexOf(id))),
+    ];
+    if (this.#execute(batch(...cmds))) this.selectMany(moving, this.#state.selection ?? undefined);
   }
 
   /** The Explorer's eye: Visible for an object (at the breakpoint shown), Enabled for a ScreenGui. */
@@ -807,6 +1334,16 @@ export class Editor {
     }
   }
 
+  /** Shows or hides every selected object, as the Explorer's eye does for one. */
+  setSelectedVisible(visible: boolean) {
+    const cmds = this.#state.selected.flatMap((id): Command[] => {
+      const inst = getInstance(this.doc, id);
+      if (inst?.className === 'ScreenGui') return [edit(id, { Enabled: visible }, undefined)];
+      return inst && isGui(inst) ? [edit(id, { Visible: visible }, this.breakpointFor(id))] : [];
+    });
+    if (cmds.length) this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds));
+  }
+
   /**
    * Rewrites Position and Size of the selection and everything inside it as pure Scale or pure
    * Offset, keeping every object where it is on the device shown.
@@ -814,11 +1351,12 @@ export class Editor {
   convertUnits(toScale: boolean) {
     const doc = this.doc;
     const scene = this.scene;
-    const inst = this.#selected();
-    if (!inst || !(isGui(inst) || inst.className === 'ScreenGui' || inst.className === 'Page'))
-      return this.toast('Select an object to convert.');
+    const roots = this.#targets().filter(
+      (inst) => isGui(inst) || ['ScreenGui', 'Page', 'Folder'].includes(inst.className),
+    );
+    if (!roots.length) return this.toast('Select an object to convert.');
     const cmds: Command[] = [];
-    for (const id of subtreeIds(doc, inst.id)) {
+    for (const id of roots.flatMap((r) => subtreeIds(doc, r.id))) {
       const c = getInstance(doc, id);
       const b = scene.layout.get(id);
       if (!c || !isGui(c) || !b || (toScale && (b.area.w <= 0 || b.area.h <= 0))) continue;
@@ -853,11 +1391,26 @@ export class Editor {
     }
   }
 
-  /** Shows a picture in an ImageLabel or ImageButton, or removes it with null. The export keeps the Image id. */
-  setImagePreview(id: InstanceId, dataUrl: string | null) {
-    const asset = dataUrl === null ? null : this.#addPicture(dataUrl);
-    if (dataUrl !== null && asset === null) return;
-    this.#execute(setPreview(id, asset));
+  /**
+   * Shows a picture in an ImageLabel or ImageButton, or removes it with null. The export keeps
+   * the Image id. A one-color SVG comes in white, so an ImageColor3 still at white turns
+   * black to keep it looking as it did.
+   */
+  setImagePreview(id: InstanceId, picture: string | Pick<Picture, 'dataUrl' | 'recolor'> | null) {
+    const pic: Pick<Picture, 'dataUrl' | 'recolor'> | null =
+      typeof picture === 'string' ? { dataUrl: picture } : picture;
+    const asset = pic === null ? null : this.#addPicture(pic.dataUrl);
+    if (pic !== null && asset === null) return;
+    const inst = getInstance(this.doc, id);
+    const recolor =
+      pic?.recolor &&
+      (inst?.className === 'ImageLabel' || inst?.className === 'ImageButton') &&
+      !isTinted(inst.props.ImageColor3);
+    this.#execute(
+      recolor
+        ? batch(setPreview(id, asset), edit(id, { ImageColor3: [0, 0, 0] }, undefined))
+        : setPreview(id, asset),
+    );
   }
 
   /** Sets a picture property such as a page's SocialImage, or clears it with null. */
@@ -889,6 +1442,7 @@ export class Editor {
     this.#update({
       assets: project.assets,
       selection: null,
+      selected: [],
       hover: null,
       renaming: null,
       gesture: null,
