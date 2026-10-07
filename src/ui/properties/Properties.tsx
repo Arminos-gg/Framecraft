@@ -2,7 +2,8 @@
  * The Properties panel: the selected object's properties by category, with an editor for
  * each value type, and the Code tab. On a page shown at a breakpoint, properties that may
  * differ per breakpoint change there only; a dot marks the ones changed there, and clicking
- * it goes back to the inherited value.
+ * it goes back to the inherited value. With several objects selected, it shows the properties
+ * they all have, with the values of the one picked last, and an edit changes all of them.
  */
 import { useMemo, useState, type ReactNode } from 'react';
 import { docColors } from '../../editor/color.ts';
@@ -50,7 +51,7 @@ import { notesFor } from './notes.ts';
 type Tab = 'props' | 'code';
 
 export function Properties({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { selection } = useEditorState();
+  const { selected } = useEditorState();
   const [tab, setTab] = useState<Tab>('props');
   // What stays open or closed as the selection changes.
   const [closed, setClosed] = useState<ReadonlySet<Category>>(new Set());
@@ -86,7 +87,7 @@ export function Properties({ open, onClose }: { open: boolean; onClose: () => vo
       {tab === 'props' ? (
         <div className="pbody" role="tabpanel" aria-label="Properties">
           <PropsBody
-            key={selection ?? 'none'}
+            key={selected.join(' ') || 'none'}
             closed={closed}
             onToggleCategory={(c) => setClosed((s) => toggle(s, c))}
           />
@@ -124,6 +125,14 @@ function Help() {
         </dt>
         <dd>Duplicate</dd>
         <dt>
+          <kbd>Ctrl</kbd> or <kbd>Shift</kbd> + click
+        </dt>
+        <dd>Select several</dd>
+        <dt>
+          <kbd>Ctrl</kbd> <kbd>G</kbd>
+        </dt>
+        <dd>Group into a Folder</dd>
+        <dt>
           <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd>
         </dt>
         <dd>Nudge 1 px, 10 px with Shift</dd>
@@ -139,6 +148,8 @@ function Help() {
           <kbd>P</kbd>
         </dt>
         <dd>Preview</dd>
+        <dt>Middle button</dt>
+        <dd>Drag to pan</dd>
       </dl>
     </div>
   );
@@ -160,6 +171,8 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
   const [filter, setFilter] = useState('');
   const { doc, selection } = state;
   const inst = selection === null ? undefined : getInstance(doc, selection);
+  const all = state.selected.flatMap((id) => getInstance(doc, id) ?? []);
+  const many = all.length > 1;
   const gesture = useMemo<Gesture>(
     () => ({ begin: () => editor.beginGesture(), end: () => editor.endGesture() }),
     [editor],
@@ -190,6 +203,9 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
   const keys = propNames(inst.className).filter((k) => {
     const spec = propSpec(inst.className, k)!;
     if (def.kind === 'service' && k === 'Name') return false;
+    // Several objects: the properties they all have. Pictures stay one object's.
+    if (many && (spec.type === 'image' || spec.type === 'asset')) return false;
+    if (many && !all.every((o) => propSpec(o.className, k))) return false;
     // Links and HTML tags only mean something on the website.
     if (spec.web && !onSite) return false;
     return !q || k.toLowerCase().includes(q);
@@ -200,7 +216,18 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
     byCategory.set(c, [...(byCategory.get(c) ?? []), k]);
   }
 
-  const set = (key: string) => (v: unknown) => editor.setProp(inst.id, key, v);
+  const set = (key: string) => (v: unknown) =>
+    many ? editor.setSelectedProp(key, v) : editor.setProp(inst.id, key, v);
+  /** Whether the selected objects differ in a property. */
+  const mixed = (key: string, v: unknown) =>
+    many &&
+    all.some(
+      (o) =>
+        !valueEquals(
+          (resolveProps(doc, o, editor.breakpointFor(o.id)) as Record<string, unknown>)[key],
+          v,
+        ),
+    );
   const upload = async (apply: (pic: Picture) => void) => {
     const file = await pickFile(PICTURE_TYPES);
     if (!file) return;
@@ -223,6 +250,8 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
     if (!valueEquals(v, spec.default) || (spec.type === 'image' && inst.preview)) cls.push('chg');
     if (dim) cls.push('dim');
     if (spec.type === 'udim2') cls.push('two');
+    const differs = mixed(key, v);
+    if (differs) cls.push('mixed');
     const marker =
       bpInst && isOverridable(inst.className, key) ? (
         here ? (
@@ -231,7 +260,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
             type="button"
             aria-label={`${key} is changed for ${bpInst.props.Name}. Use the inherited value`}
             title={`Changed for ${bpInst.props.Name}. Click to use the inherited value.`}
-            onClick={() => editor.resetProp(inst.id, key)}
+            onClick={() => (many ? editor.resetSelectedProp(key) : editor.resetProp(inst.id, key))}
           />
         ) : (
           <span className="bpdot" title={`Changes here apply to ${bpInst.props.Name} only`} />
@@ -242,7 +271,14 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
     return (
       <div key={key}>
         <div className={cls.join(' ')}>
-          <label htmlFor={spec.type === 'udim2' ? `${id}-X` : id} title={key}>
+          <label
+            htmlFor={spec.type === 'udim2' ? `${id}-X` : id}
+            title={
+              differs
+                ? `${key} differs between the selected objects; this is ${inst.props.Name}’s`
+                : key
+            }
+          >
             {key}
           </label>
           {editorFor(spec, key, id, v)}
@@ -411,7 +447,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
 
   return (
     <>
-      <SelHead inst={inst} />
+      {many ? <ManyHead list={all} primary={inst} /> : <SelHead inst={inst} />}
       {bpInst?.className === 'Breakpoint' && (
         <div className="bpbar">
           <b>{bpInst.props.Name}</b>: layout, size, visibility, text size and colors change for{' '}
@@ -461,13 +497,60 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
   );
 }
 
+/** Several objects selected: how many, of which classes, and their actions. */
+function ManyHead({ list, primary }: { list: readonly AnyInstance[]; primary: AnyInstance }) {
+  const editor = useEditor();
+  const classes = [...new Set(list.map((i) => i.className))];
+  return (
+    <div className="selhead">
+      <div className="who">
+        <ClassIcon className={classes.length === 1 ? classes[0]! : 'Folder'} />
+        <b>{list.length} objects</b>
+        <span className="cls">{classes.length === 1 ? classes[0] : 'Mixed'}</span>
+        <span className="acts">
+          <button
+            className="ibtn sm"
+            type="button"
+            aria-label="Group into a Folder"
+            title="Group into a Folder (Ctrl+G)"
+            onClick={() => editor.groupSelection()}
+          >
+            <Icon name="group" />
+          </button>
+          <button
+            className="ibtn sm"
+            type="button"
+            aria-label="Duplicate"
+            title="Duplicate (Ctrl+D)"
+            onClick={() => editor.duplicateSelection()}
+          >
+            <Icon name="duplicate" />
+          </button>
+          <button
+            className="ibtn sm"
+            type="button"
+            aria-label="Delete"
+            title="Delete (Del)"
+            onClick={() => editor.deleteSelection()}
+          >
+            <Icon name="trash" />
+          </button>
+        </span>
+      </div>
+      <div className="parentline">
+        Edits change all of them. Values shown are {primary.props.Name}’s.
+      </div>
+    </div>
+  );
+}
+
 /** The selection's name and class, its actions, and its modifiers as chips. */
 function SelHead({ inst }: { inst: AnyInstance }) {
   const editor = useEditor();
   const { doc } = useEditorState();
   const [adding, setAdding] = useState<HTMLElement | null>(null);
   const def = classDef(inst.className);
-  const editable = def.kind === 'gui' || def.kind === 'container' || def.kind === 'modifier';
+  const editable = ['gui', 'container', 'modifier', 'folder'].includes(def.kind);
   const mods = inst.children
     .map((c) => getInstance(doc, c)!)
     .filter((c) => classDef(c.className).kind === 'modifier');

@@ -134,18 +134,20 @@
       walk(c);
     }
     function need(el, c, y) {
-      var cs = getComputedStyle(c), n = 0, items = 0;
+      var cs = getComputedStyle(c), n = 0, items = 0, free = 0;
       var pad = y ? px(cs.top) + px(cs.bottom) : px(cs.left) + px(cs.right);
       var list = cs.display === 'flex', along = list && (cs.flexDirection === 'column') === !!y;
       for (var k = c.firstElementChild; k; k = k.nextElementSibling) {
         var ks = getComputedStyle(k);
         if (!k.classList.contains('g') || ks.display === 'none') continue;
         var len = px(y ? ks.height : ks.width);
-        if (along) { n += len; items++; }
-        else n = Math.max(n, (list ? 0 : start(ks, y)) + len);
+        // Objects in a Folder are placed by their own Position, even in a list.
+        if (ks.position === 'absolute') free = Math.max(free, start(ks, y) + len);
+        else if (along) { n += len; items++; }
+        else n = Math.max(n, len);
       }
       if (items > 1) n += (items - 1) * px(y ? cs.rowGap : cs.columnGap);
-      n += pad;
+      n = Math.max(n, free) + pad;
       var t = el.querySelector(':scope > .t');
       if (t && t.firstElementChild && !t.hasAttribute('data-fit')) {
         var tn = text(t.firstElementChild, y) + pad;
