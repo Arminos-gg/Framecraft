@@ -33,6 +33,7 @@ import { faceOf, fontCss } from '../../model/fonts.ts';
 import {
   childOfClass,
   childrenOf,
+  drawnChildren,
   getInstance,
   resolveProps,
   subtreeIds,
@@ -54,7 +55,8 @@ interface Ctx extends StageProps {
   props<I extends AnyInstance>(inst: I): I['props'];
 }
 
-const guiChildren = (doc: Doc, id: InstanceId): Gui[] => childrenOf(doc, id).filter(isGui);
+/** The objects drawn inside `id`, those in its Folders included. */
+const guiChildren = (doc: Doc, id: InstanceId): Gui[] => drawnChildren(doc, id).filter(isGui);
 
 export const Stage = memo(function Stage({ doc, scene, assets, preview }: StageProps) {
   const ref = useRef<HTMLDivElement>(null);

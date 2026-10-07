@@ -2886,3 +2886,51 @@ button.bpdot.on:hover {
   background: var(--accent-faint);
   box-shadow: inset 2px 0 var(--accent);
 }
+
+/* the right-click menu for objects */
+.ctxmenu {
+  width: 240px;
+  transform-origin: top left;
+  animation: ctxmenu-in 120ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.ctxmenu .mi.danger,
+.ctxmenu .mi.danger > svg {
+  color: var(--danger);
+}
+.ctxmenu .mi.danger:hover,
+.ctxmenu .mi.danger:focus-visible {
+  background: var(--danger-soft);
+}
+@keyframes ctxmenu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ctxmenu {
+    animation: none;
+  }
+}
+
+/* a box drawn from empty space selects what's inside it */
+.marquee {
+  position: absolute;
+  border: 1px solid var(--ov);
+  background: color-mix(in srgb, var(--ov) 10%, transparent);
+}
+/* panning with the middle button, or Space and drag */
+.canvas.grab,
+.canvas.grab * {
+  cursor: grab !important;
+}
+.canvas.panning,
+.canvas.panning * {
+  cursor: grabbing !important;
+}
+
+/* several objects selected: a property whose values differ */
+.prow.mixed > label::after {
+  content: ' ≠';
+  color: var(--faint);
+}

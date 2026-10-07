@@ -309,7 +309,7 @@ export function exportLuauSubtree(doc: Doc, id: InstanceId): string {
   const inst = getInstance(doc, id);
   const def = inst && classDef(inst.className);
   // The root, services, breakpoints and pages have no Roblox code of their own.
-  if (!inst || !def || def.web || !['container', 'gui', 'modifier'].includes(def.kind))
+  if (!inst || !def || def.web || !['container', 'gui', 'modifier', 'folder'].includes(def.kind))
     return exportLuau(doc, 'command');
   const lines = [
     `-- Code that builds ${inst.props.Name} and everything inside it.`,
