@@ -91,7 +91,14 @@ export function Properties({ open, onClose }: { open: boolean; onClose: () => vo
       }
     >
       {tab === 'props' ? (
-        <div className="pbody" role="tabpanel" id="tabpanel-props" aria-labelledby="tab-props">
+        <div
+          className="pbody"
+          role="tabpanel"
+          id="tabpanel-props"
+          aria-labelledby="tab-props"
+          // It scrolls, so the keyboard can reach it even with no fields in it.
+          tabIndex={0}
+        >
           <PropsBody
             key={selected.join(' ') || 'none'}
             closed={closed}

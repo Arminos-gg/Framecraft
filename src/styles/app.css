@@ -872,8 +872,11 @@ svg {
   color: var(--fg);
   font-weight: 500;
 }
-.prow.dim {
-  opacity: 0.45;
+/* ignored here (under a UIListLayout, or by TextScaled): quieter, but still readable */
+.prow.dim > label,
+.prow.dim input,
+.prow.dim .fv {
+  color: var(--faint);
 }
 /* a UDim2: one length per axis, stacked, with the property's name beside the first */
 .prow.two > label {
@@ -1891,7 +1894,8 @@ button.bpdot.on:hover {
   transform-origin: left;
   animation: toast-life var(--life) linear both;
 }
-.toast:hover .tlife {
+.toast:hover .tlife,
+.toast:focus-within .tlife {
   animation-play-state: paused;
 }
 @keyframes toast-in {
@@ -2136,14 +2140,14 @@ button.bpdot.on:hover {
   border-top: 1px solid var(--line-soft);
   padding-top: 10px;
 }
-.cpswatches h4 {
+.cpswatches .cpcap {
   margin: 0 0 7px;
   font: 600 10.5px/1 var(--font-ui);
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--faint);
 }
-.cpswatches > div {
+.cpswatches > [role='group'] {
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 6px;

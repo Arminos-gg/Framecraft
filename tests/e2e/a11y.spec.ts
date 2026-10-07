@@ -55,6 +55,31 @@ for (const scheme of ['light', 'dark'] as const)
     expect(await axe(page)).toEqual([]);
     await page.keyboard.press('Escape');
 
+    // The color picker, the right-click menu, several objects at once and the delete popup.
+    await page.getByRole('button', { name: 'TextColor3 picker' }).click();
+    await expect(page.getByRole('slider', { name: 'Saturation and brightness' })).toBeVisible();
+    expect(await axe(page)).toEqual([]);
+    await page.keyboard.press('Escape');
+    await page.getByRole('treeitem', { name: 'Headline' }).click({ button: 'right' });
+    await expect(page.getByRole('menu', { name: 'Object actions' })).toBeVisible();
+    expect(await axe(page)).toEqual([]);
+    await page.keyboard.press('Escape');
+    await page.getByRole('treeitem', { name: 'Hero' }).click({ modifiers: ['Shift'] });
+    expect(await axe(page)).toEqual([]);
+    await page.keyboard.press('Delete');
+    await expect(page.getByRole('status').getByRole('button', { name: 'Undo' })).toBeVisible();
+    // Once it has slid in, as axe reads colors mid-fade.
+    await page
+      .locator('.toast')
+      .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+    expect(await axe(page)).toEqual([]);
+    await page.getByRole('status').getByRole('button', { name: 'Undo' }).click();
+
+    await page.getByRole('button', { name: 'Components', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Components' })).toBeVisible();
+    expect(await axe(page)).toEqual([]);
+    await page.getByRole('button', { name: 'Close components' }).click();
+
     await page.keyboard.press('p');
     expect(await axe(page)).toEqual([]);
   });
@@ -108,6 +133,54 @@ test('says what got selected on the canvas', async ({ page }) => {
   await page.goto('/');
   await select(page, 'Headline');
   await expect(page.getByTestId('announcer')).toHaveText('Selected Headline, TextLabel');
+  await page.keyboard.press('Control+a');
+  await expect(page.getByTestId('announcer')).toHaveText(/^Selected \d+ objects$/);
+});
+
+test('Shift and the arrows select several rows in the Explorer', async ({ page }) => {
+  await page.goto('/');
+  await select(page, 'Headline');
+  const headline = page.getByRole('treeitem', { name: 'Headline' });
+  await headline.click();
+  await page.keyboard.press('Shift+ArrowDown');
+  const selected = page.locator('[role="treeitem"][aria-selected="true"]');
+  await expect(selected).toHaveCount(2);
+  // One Tab stop: the row Properties shows.
+  await expect(page.locator('[role="treeitem"][tabindex="0"]')).toHaveCount(1);
+  await expect(page.locator('[role="treeitem"][tabindex="0"]')).toBeFocused();
+  await page.keyboard.press('Shift+ArrowUp');
+  await expect(selected).toHaveCount(1);
+  await expect(headline).toBeFocused();
+});
+
+test('opens the right-click menu from the keyboard', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/');
+  await select(page, 'Headline');
+  // On the canvas.
+  const canvas = page.getByRole('group', { name: 'Canvas' });
+  await canvas.focus();
+  await page.keyboard.press('Shift+F10');
+  const menu = page.getByRole('menu', { name: 'Object actions' });
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('menuitem').first()).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(canvas).toBeFocused();
+
+  // In the Explorer; Delete there shows the popup, which stays while focus is on it.
+  await page.getByRole('treeitem', { name: 'Headline' }).focus();
+  await page.keyboard.press('Shift+F10');
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('End');
+  await expect(menu.getByRole('menuitem', { name: /Delete/ })).toBeFocused();
+  await page.keyboard.press('Enter');
+  const undo = page.getByRole('status').getByRole('button', { name: 'Undo' });
+  await undo.focus();
+  await page.clock.runFor(10_000);
+  await expect(undo).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('treeitem', { name: 'Headline' })).toBeVisible();
 });
 
 test('tabs and the insert menu work from the keyboard', async ({ page }) => {
@@ -173,4 +246,30 @@ test('follows a link from the keyboard in preview', async ({ page }) => {
     return v.kind === 'page' ? ed.doc.instances[v.pageId]!.props.Name : null;
   });
   expect(shown).toBe('Pricing');
+});
+
+test('the color picker and the Components drawer work from the keyboard', async ({ page }) => {
+  await page.goto('/');
+  await select(page, 'Headline');
+  const swatch = page.getByRole('button', { name: 'TextColor3 picker' });
+  await swatch.focus();
+  await page.keyboard.press('Enter');
+  const area = page.getByRole('slider', { name: 'Saturation and brightness' });
+  await area.focus();
+  const before = await swatch.getAttribute('title');
+  await page.keyboard.press('Shift+ArrowDown');
+  await expect(swatch).not.toHaveAttribute('title', before!);
+  await page.keyboard.press('Escape');
+  await expect(area).toBeHidden();
+  await expect(swatch).toBeFocused();
+
+  // The drawer takes the Explorer's place, so F6 goes there from the ribbon.
+  const toggle = page.getByRole('button', { name: 'Components', exact: true });
+  await toggle.click();
+  await toggle.focus();
+  await page.keyboard.press('F6');
+  const drawer = page.getByRole('region', { name: 'Components' });
+  await expect(drawer.locator(':focus')).toHaveCount(1);
+  await drawer.getByRole('searchbox', { name: 'Search components' }).fill('navbar');
+  await expect(drawer.getByRole('button', { name: /Navbar/ }).first()).toBeVisible();
 });

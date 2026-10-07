@@ -160,15 +160,19 @@ function Shell() {
  * other than the Explorer (whose focused row already says it): the canvas, a shortcut, a check.
  */
 function SelectionAnnouncer() {
-  const { doc, selection } = useEditorState();
-  const [said, setSaid] = useState({ selection, text: '' });
-  if (said.selection !== selection) {
-    const inst = selection === null ? undefined : doc.instances[selection];
+  const { doc, selected } = useEditorState();
+  const key = selected.join();
+  const [said, setSaid] = useState({ key, text: '' });
+  if (said.key !== key) {
+    const inst = selected.length === 1 ? doc.instances[selected[0]!] : undefined;
     const fromTree = !!document.activeElement?.closest('[role="tree"]');
-    setSaid({
-      selection,
-      text: inst && !fromTree ? `Selected ${inst.props.Name}, ${inst.className}` : '',
-    });
+    const text =
+      fromTree || !selected.length
+        ? ''
+        : inst
+          ? `Selected ${inst.props.Name}, ${inst.className}`
+          : `Selected ${selected.length} objects`;
+    setSaid({ key, text });
   }
   return (
     <div className="sr" aria-live="polite" data-testid="announcer">
@@ -178,7 +182,7 @@ function SelectionAnnouncer() {
 }
 
 /** The editor's regions in order, for F6 and Shift+F6. */
-const REGIONS = ['.topbar', '.ribbon', '.explorer', '.canvas', '.props'];
+const REGIONS = ['.topbar', '.ribbon', '.explorer', '.drawerwrap', '.canvas', '.props'];
 
 /** Moves keyboard focus to the next (or previous) region that's showing. */
 function cycleRegion(back: boolean) {
