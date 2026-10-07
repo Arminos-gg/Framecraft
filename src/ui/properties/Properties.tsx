@@ -206,6 +206,9 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
     if (many && !all.every((o) => propSpec(o.className, k))) return false;
     // Links and HTML tags only mean something on the website.
     if (spec.web && !onSite) return false;
+    // Only objects straight on a page can be pinned to the window.
+    if ((k as string) === 'Pinned' && getInstance(doc, inst.parent ?? '')?.className !== 'Page')
+      return false;
     return !q || k.toLowerCase().includes(q);
   });
   const byCategory = new Map<Category, string[]>();

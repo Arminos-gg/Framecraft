@@ -84,6 +84,7 @@ const PATHS = {
     '<rect x="3.5" y="3.5" width="13" height="3" rx="1"/><rect x="3.5" y="8.5" width="13" height="3" rx="1"/><rect x="3.5" y="13.5" width="13" height="3" rx="1"/>',
   UIAspectRatioConstraint:
     '<rect x="2.5" y="5" width="15" height="10" rx="1.5"/><path d="M6 12.5V7.5h3M14 7.5v5h-3"/>',
+  UIHover: '<path d="M11 3.5H4.5a1 1 0 0 0-1 1V11"/><path d="M9 9l7.5 2.8-3.2 1.3-1.3 3.2z"/>',
 } satisfies Record<string, string> & Record<ClassName, string>;
 
 export type IconName = keyof typeof PATHS;

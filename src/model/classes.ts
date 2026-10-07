@@ -24,9 +24,11 @@ export const CATEGORY_ORDER = [
   'Image',
   'Scrolling',
   'Behavior',
+  'Animation',
   'Corner',
   'Stroke',
   'Gradient',
+  'Hover',
   'Padding',
   'Layout',
   'Constraint',
@@ -185,10 +187,28 @@ export const HTML_TAGS = [
   'p',
 ] as const;
 
+/** How an object on a web page comes in the first time it scrolls into view. */
+export const APPEAR_STYLES = [
+  'None',
+  'Fade',
+  'SlideUp',
+  'SlideLeft',
+  'SlideRight',
+  'Zoom',
+] as const;
+export type AppearStyle = (typeof APPEAR_STYLES)[number];
+
 /** Web-only properties every object has, last in its list. */
 const webProps = () => ({
   Link: spec('link', 'Web', null, WEB),
   HtmlTag: enumSpec('Web', HTML_TAGS, 'Auto', WEB),
+  /** Straight on a page: stays on screen while the page scrolls. */
+  Pinned: spec('bool', 'Web', false, WEB),
+  /** Blurs whatever is behind the object, in pixels: frosted glass. */
+  BackgroundBlur: spec('int', 'Appearance', 0, { min: 0, max: 100, ...OV, ...WEB }),
+  Appear: enumSpec('Animation', APPEAR_STYLES, 'None', WEB),
+  /** Seconds to wait before appearing, to stagger objects that come in together. */
+  AppearDelay: spec('number', 'Animation', 0, { min: 0, max: 10, step: 0.1, ...WEB }),
 });
 const altText = () => ({ AltText: spec('string', 'Web', '', WEB) });
 
@@ -342,6 +362,11 @@ export const CLASSES = {
       Thickness: spec('number', 'Stroke', 1, { min: 0, step: 0.5, ...OV }),
       Transparency: spec('alpha', 'Stroke', 0, OV),
       ApplyStrokeMode: enumSpec('Stroke', ['Contextual', 'Border'], 'Contextual', OV),
+      // Which sides of the box the outline draws on, for the website. Roblox draws all four.
+      Top: spec('bool', 'Stroke', true, { ...OV, ...WEB }),
+      Right: spec('bool', 'Stroke', true, { ...OV, ...WEB }),
+      Bottom: spec('bool', 'Stroke', true, { ...OV, ...WEB }),
+      Left: spec('bool', 'Stroke', true, { ...OV, ...WEB }),
     },
   },
   UIGradient: {
@@ -380,6 +405,23 @@ export const CLASSES = {
       SortOrder: enumSpec('Layout', ['LayoutOrder', 'Name'], 'LayoutOrder'),
     },
   },
+  UIHover: {
+    kind: 'modifier',
+    web: true,
+    parents: ON_OBJECTS,
+    props: {
+      Name: name('UIHover'),
+      BackgroundColor3: spec('color', 'Hover', [255, 255, 255], { ...OV, ...WEB }),
+      BackgroundTransparency: spec('alpha', 'Hover', 0, { ...OV, ...WEB }),
+      TextColor3: spec('color', 'Hover', [0, 0, 0], { ...OV, ...WEB }),
+      /** How much bigger the object gets, 1 for no change. */
+      Scale: spec('number', 'Hover', 1.05, { min: 0.5, max: 2, step: 0.01, ...OV, ...WEB }),
+      /** How many pixels the object moves up. */
+      Lift: spec('int', 'Hover', 0, { min: -100, max: 100, ...OV, ...WEB }),
+      /** Seconds the change takes. */
+      Duration: spec('number', 'Hover', 0.2, { min: 0, max: 2, step: 0.05, ...WEB }),
+    },
+  },
   UIAspectRatioConstraint: {
     kind: 'modifier',
     parents: ON_OBJECTS,
@@ -415,6 +457,7 @@ export const MODIFIER_CLASSES = [
   'UIPadding',
   'UIListLayout',
   'UIAspectRatioConstraint',
+  'UIHover',
 ] as const satisfies readonly ClassName[];
 
 export const isClassName = (s: unknown): s is ClassName =>

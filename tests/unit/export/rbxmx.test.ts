@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ENUM_TOKENS, exportRbxmx, fontFace, xmlText } from '../../../src/export/rbxmx.ts';
 import {
   CLASSES,
+  classDef,
   MODIFIER_CLASSES,
   OBJECT_CLASSES,
   propNames,
@@ -108,7 +109,10 @@ describe('Roblox model file export', () => {
     for (const c of MODIFIER_CLASSES) s.add(frame, c);
     const xml = s.xml();
     expectWellFormed(xml);
-    for (const c of ['ScreenGui', ...OBJECT_CLASSES, ...MODIFIER_CLASSES] as ClassName[]) {
+    // Web-only modifiers such as UIHover are left out of the file.
+    expect(xml).not.toContain('UIHover');
+    const roblox = MODIFIER_CLASSES.filter((c) => !classDef(c).web);
+    for (const c of ['ScreenGui', ...OBJECT_CLASSES, ...roblox] as ClassName[]) {
       const props = propsOf(xml, c);
       for (const prop of propNames(c) as string[]) {
         // FontWeight and FontStyle go into the FontFace that Font writes.

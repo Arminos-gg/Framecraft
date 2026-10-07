@@ -20,6 +20,8 @@ const MODIFIERS: readonly (readonly [ClassName, string])[] = [
   ['UIPadding', 'Padding'],
   ['UIListLayout', 'List'],
   ['UIAspectRatioConstraint', 'Aspect'],
+  // Web only: listed when the viewport shows a page.
+  ['UIHover', 'Hover'],
 ];
 
 const UNITS: readonly (readonly [UnitMode, string, string | undefined])[] = [
@@ -90,20 +92,22 @@ export function Ribbon() {
       <div className={group} role="group" aria-label="Add modifier">
         <div className="items">
           <div className="stools">
-            {MODIFIERS.map(([c, label]) => (
-              <button
-                key={c}
-                className="stool"
-                type="button"
-                data-insert={c}
-                title={`Add ${c} to the selection`}
-                disabled={!insertParent(doc, c, selection)}
-                onClick={() => editor.insert(c)}
-              >
-                <ClassIcon className={c} />
-                {label}
-              </button>
-            ))}
+            {MODIFIERS.filter(([c]) => view.kind === 'page' || c !== 'UIHover').map(
+              ([c, label]) => (
+                <button
+                  key={c}
+                  className="stool"
+                  type="button"
+                  data-insert={c}
+                  title={`Add ${c} to the selection`}
+                  disabled={!insertParent(doc, c, selection)}
+                  onClick={() => editor.insert(c)}
+                >
+                  <ClassIcon className={c} />
+                  {label}
+                </button>
+              ),
+            )}
           </div>
         </div>
         <div className="cap">Add modifier</div>

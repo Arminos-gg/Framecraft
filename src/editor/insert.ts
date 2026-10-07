@@ -58,6 +58,7 @@ export const CLASS_HINTS: Partial<Record<ClassName, string>> = {
   UIPadding: 'Adds inner spacing',
   UIListLayout: 'Stacks the children',
   UIAspectRatioConstraint: 'Keeps the shape',
+  UIHover: 'Changes on mouse over',
 };
 
 const isModifier = (c: ClassName) => classDef(c).kind === 'modifier';
@@ -71,8 +72,22 @@ export function insertableInto(doc: Doc, parentId: InstanceId) {
   if (!parent) return { objects: [], modifiers: [] };
   const fits = (c: ClassName) => canParent(c, parent.className);
   const objects = (['ScreenGui', 'Page', ...OBJECT_CLASSES, 'Folder'] as ClassName[]).filter(fits);
-  const modifiers = (MODIFIER_CLASSES as readonly ClassName[]).filter(fits);
+  const web = onPage(doc, parentId);
+  const modifiers = (MODIFIER_CLASSES as readonly ClassName[]).filter(
+    (c) => fits(c) && (web || !classDef(c).web),
+  );
   return { objects, modifiers };
+}
+
+/** Whether an instance is on a web page, where web-only modifiers such as UIHover work. */
+export function onPage(doc: Doc, id: InstanceId): boolean {
+  for (
+    let p = getInstance(doc, id);
+    p;
+    p = p.parent === null ? undefined : getInstance(doc, p.parent)
+  )
+    if (p.className === 'Page') return true;
+  return false;
 }
 
 /** Whether the instance already has a modifier of a class it can only have one of. */
@@ -91,7 +106,10 @@ export function insertParent(
   from: InstanceId | null,
 ): AnyInstance | undefined {
   let p = from === null ? undefined : getInstance(doc, from);
-  if (isModifier(className)) return p && canParent(className, p.className) ? p : undefined;
+  if (isModifier(className))
+    return p && canParent(className, p.className) && (!classDef(className).web || onPage(doc, p.id))
+      ? p
+      : undefined;
   while (p && !canParent(className, p.className))
     p = p.parent === null ? undefined : getInstance(doc, p.parent);
   return p;
@@ -125,6 +143,7 @@ export function newSubtree(
   start: Readonly<Record<string, unknown>> = {},
 ): Subtree {
   if (className === 'Page') return pageSubtree(newPageProps(doc, parent.id), makeId);
+  if (className === 'UIHover') return single(newHover(parent, makeId()));
   if (isModifier(className))
     return single(
       createInstance(className, MODIFIER_DEFAULTS[className] ?? {}, makeId()) as AnyInstance,
@@ -155,4 +174,22 @@ export function newSubtree(
     ];
   }
   return single(createInstance(className, props, makeId()) as AnyInstance);
+}
+
+/** The colors a UIHover copies from its object, so a new one only grows it until edited. */
+const HOVER_COPIES = ['BackgroundColor3', 'BackgroundTransparency', 'TextColor3'] as const;
+
+/** A new UIHover that starts with its object's own colors, at every breakpoint. */
+function newHover(parent: AnyInstance, id: InstanceId): AnyInstance {
+  const own = parent.props as Readonly<Record<string, unknown>>;
+  const props: Record<string, unknown> = {};
+  for (const k of HOVER_COPIES) if (k in own) props[k] = own[k];
+  const hover = createInstance('UIHover', props, id);
+  const overrides: Record<InstanceId, Record<string, unknown>> = {};
+  for (const [bp, values] of Object.entries(parent.overrides ?? {})) {
+    const o = values as Readonly<Record<string, unknown>>;
+    const copied = Object.fromEntries(HOVER_COPIES.filter((k) => k in o).map((k) => [k, o[k]]));
+    if (Object.keys(copied).length) overrides[bp] = copied;
+  }
+  return (Object.keys(overrides).length ? { ...hover, overrides } : hover) as AnyInstance;
 }

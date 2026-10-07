@@ -8,11 +8,16 @@ import { rgb, rgba, roundTo } from '../../export/format.ts';
 import {
   ALIGN_X,
   ALIGN_Y,
+  APPEAR_CSS,
+  APPEAR_KEYFRAMES,
   gradientCss,
+  hoverTransition,
   isGui,
   isTinted,
   maskCss,
   OBJECT_FIT,
+  PIN_Z,
+  strokeShadows,
   strokesText,
   textRing,
   tintId,
@@ -31,6 +36,7 @@ import {
   drawnChildren,
   getInstance,
   resolveProps,
+  subtreeIds,
   type AnyInstance,
   type Doc,
   type Instance,
@@ -70,6 +76,8 @@ export const Stage = memo(function Stage({ doc, scene, assets, preview }: StageP
   useLayoutEffect(() => {
     if (ref.current) fitTexts(ref.current);
   });
+  usePinned(ref, preview, doc, scene);
+  useAppear(ref, preview);
 
   const ctx: Ctx = {
     doc,
@@ -97,6 +105,7 @@ export const Stage = memo(function Stage({ doc, scene, assets, preview }: StageP
         }}
       >
         <TintDefs ctx={ctx} />
+        {preview && <style>{webPreviewCss(ctx, page.id)}</style>}
         {guiChildren(doc, page.id).map((c) => (
           <GuiView key={c.id} inst={c} origin={origin} ctx={ctx} />
         ))}
@@ -131,12 +140,15 @@ function GuiView({ inst, origin, ctx }: { inst: Gui; origin: Rect; ctx: Ctx }) {
   if (!b) return null;
   const p = ctx.props(inst);
   const def = classDef(inst.className);
+  // Web-only properties show on pages only, as in the Properties panel.
+  const web = scene.view.kind === 'page';
+  const pinned = web && inst.parent === scene.view.pageId && p.Pinned;
   const style: CSSProperties = {
     left: b.x - origin.x,
     top: b.y - origin.y,
     width: b.w,
     height: b.h,
-    zIndex: p.ZIndex,
+    zIndex: pinned ? PIN_Z + p.ZIndex : p.ZIndex,
   };
   if (!b.visible) style.display = 'none';
   if (b.rotation) style.transform = `rotate(${b.rotation}deg)`;
@@ -167,11 +179,18 @@ function GuiView({ inst, origin, ctx }: { inst: Gui; origin: Rect; ctx: Ctx }) {
     shadows.push(`0 0 0 ${p.BorderSizePixel}px ${rgba(p.BorderColor3, p.BackgroundTransparency)}`);
   for (const s of strokes) {
     const sp = ctx.props(s);
-    if (sp.Thickness > 0 && !strokesText(inst, s))
-      shadows.push(`0 0 0 ${sp.Thickness}px ${rgba(sp.Color, sp.Transparency)}`);
+    // Leaving sides out is for the website; Roblox draws all four.
+    const sides = web ? sp : { ...sp, Top: true, Right: true, Bottom: true, Left: true };
+    if (sp.Thickness > 0 && !strokesText(inst, s)) shadows.push(...strokeShadows(sides));
   }
   if (shadows.length) style.boxShadow = shadows.join(', ');
   if (p.ClipsDescendants || def.scroll) style.overflow = 'hidden';
+  if (web && p.BackgroundBlur > 0)
+    style.backdropFilter = style.WebkitBackdropFilter = `blur(${p.BackgroundBlur}px)`;
+  const appear = web && p.Appear !== 'None' ? p.Appear : undefined;
+  if (appear && p.AppearDelay) style.animationDelay = `${p.AppearDelay}s`;
+  const hover = web ? childOfClass(doc, inst.id, 'UIHover') : undefined;
+  if (hover) style.transition = hoverTransition(hover.props.Duration);
 
   const classes = ['gui'];
   if (
@@ -222,7 +241,13 @@ function GuiView({ inst, origin, ctx }: { inst: Gui; origin: Rect; ctx: Ctx }) {
   }
 
   return (
-    <div className={classes.join(' ')} data-id={inst.id} style={style}>
+    <div
+      className={classes.join(' ')}
+      data-id={inst.id}
+      data-pin={pinned ? (b.listItem ? 'list' : 'free') : undefined}
+      data-appear={appear}
+      style={style}
+    >
       {(inst.className === 'ImageLabel' || inst.className === 'ImageButton') && (
         <ImageView inst={inst} ctx={ctx} />
       )}
@@ -306,6 +331,8 @@ function TextView({
     // Letter spacing is web only, so it shows on pages only.
     letterSpacing: ctx.scene.view.kind === 'page' && p.LetterSpacing ? p.LetterSpacing : undefined,
   };
+  const hover = ctx.scene.view.kind === 'page' && childOfClass(ctx.doc, inst.id, 'UIHover');
+  if (hover) span.transition = `color ${hover.props.Duration}s`;
   if (strokes.length)
     span.textShadow = strokes
       .map(({ sp }) =>
@@ -339,4 +366,101 @@ function TextView({
       </span>
     </div>
   );
+}
+
+/** CSS for a page in preview: each UIHover's look under the mouse, and the Appear animations. */
+function webPreviewCss(ctx: Ctx, pageId: InstanceId): string {
+  const out = [
+    '.gui[data-pin] { translate: 0 var(--pin, 0px); }',
+    '.fc-pre { opacity: 0; }',
+    '.fc-in { animation: 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }',
+    ...Object.entries(APPEAR_KEYFRAMES).map(
+      ([style, name]) => `.fc-in[data-appear="${style}"] { animation-name: ${name}; }`,
+    ),
+    APPEAR_CSS,
+  ];
+  for (const id of subtreeIds(ctx.doc, pageId)) {
+    const hover = ctx.doc.instances[id]!;
+    if (hover.className !== 'UIHover' || hover.parent === null) continue;
+    const inst = getInstance(ctx.doc, hover.parent);
+    if (!inst || !isGui(inst)) continue;
+    const h = ctx.props(hover);
+    // Inline styles hold the object's own colors, so the hover ones need !important.
+    const sel = `.preview .gui[data-id="${inst.id}"]`;
+    out.push(
+      `${sel}:hover { background-color: ${rgba(h.BackgroundColor3, h.BackgroundTransparency)} !important; scale: ${h.Scale}; translate: 0 calc(var(--pin, 0px) - ${h.Lift}px); filter: none; }`,
+    );
+    if (inst.className === 'TextButton' || inst.className === 'ImageButton')
+      out.push(`${sel}:active { filter: brightness(0.75); }`);
+    if (classDef(inst.className).text) {
+      const tp = ctx.props(inst as Instance<'TextLabel'> & AnyInstance);
+      out.push(
+        `${sel}:hover > .txt > span { color: ${rgba(h.TextColor3, tp.TextTransparency)} !important; }`,
+      );
+    }
+  }
+  return out.join('\n');
+}
+
+/**
+ * In preview, pinned objects stay in view as the canvas scrolls: one placed freely stays put
+ * on the window, one in a list sticks to the top once the page scrolls past it.
+ */
+function usePinned(
+  ref: React.RefObject<HTMLDivElement | null>,
+  preview: boolean,
+  doc: Doc,
+  scene: Scene,
+) {
+  useEffect(() => {
+    const root = ref.current;
+    const canvas = root?.closest('.canvas');
+    if (!preview || !root || !canvas) return;
+    const pins = [...root.querySelectorAll<HTMLElement>(':scope > .gui[data-pin]')];
+    if (!pins.length) return;
+    const place = () => {
+      const zoom = root.getBoundingClientRect().height / root.offsetHeight || 1;
+      const seen = (canvas.getBoundingClientRect().top - root.getBoundingClientRect().top) / zoom;
+      for (const el of pins) {
+        const y = el.offsetTop;
+        const end = Math.max(0, root.offsetHeight - y - el.offsetHeight);
+        const by = el.dataset.pin === 'list' ? seen - y : seen;
+        el.style.setProperty('--pin', `${Math.min(end, Math.max(0, by))}px`);
+      }
+    };
+    place();
+    canvas.addEventListener('scroll', place, { passive: true });
+    return () => {
+      canvas.removeEventListener('scroll', place);
+      for (const el of pins) el.style.removeProperty('--pin');
+    };
+  }, [ref, preview, doc, scene]);
+}
+
+/** In preview, objects with Appear play it the first time they scroll into view. */
+function useAppear(ref: React.RefObject<HTMLDivElement | null>, preview: boolean) {
+  useEffect(() => {
+    const root = ref.current;
+    if (!preview || !root || typeof IntersectionObserver === 'undefined') return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const items = [...root.querySelectorAll<HTMLElement>('[data-appear]')];
+    const seen = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          e.target.classList.replace('fc-pre', 'fc-in');
+          seen.unobserve(e.target);
+        }
+      },
+      { rootMargin: '0px 0px -8% 0px' },
+    );
+    for (const el of items) {
+      el.classList.add('fc-pre');
+      seen.observe(el);
+    }
+    return () => {
+      seen.disconnect();
+      for (const el of items) el.classList.remove('fc-pre', 'fc-in');
+    };
+  }, [ref, preview]);
 }

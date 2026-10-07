@@ -6,7 +6,12 @@
  * writer for pages, once per breakpoint. See .claude/rules/exporters.md.
  */
 import type { Assets } from '../model/assets.ts';
-import { automaticSizeOf, classDef, type AutomaticSize } from '../model/classes.ts';
+import {
+  automaticSizeOf,
+  classDef,
+  type AppearStyle,
+  type AutomaticSize,
+} from '../model/classes.ts';
 import {
   breakpointsOf,
   childOfClass,
@@ -103,6 +108,38 @@ export function textRing(thickness: number, color: string): string {
   }
   return out.join(', ');
 }
+
+/**
+ * A UIStroke around the box as box-shadows, drawn outside it as Roblox does. On the website a
+ * stroke can leave sides out: each side is its own shadow, and a corner between two drawn
+ * sides is filled in.
+ */
+export function strokeShadows(stroke: Instance<'UIStroke'>['props']): string[] {
+  const t = fmtNum(stroke.Thickness);
+  const color = rgba(stroke.Color, stroke.Transparency);
+  const { Top, Right, Bottom, Left } = stroke;
+  if (Top && Right && Bottom && Left) return [`0 0 0 ${t}px ${color}`];
+  const out: string[] = [];
+  const side = (x: number, y: number) => {
+    const px = (n: number) => (n ? `${n < 0 ? '-' : ''}${t}px` : '0');
+    out.push(`${px(x)} ${px(y)} 0 0 ${color}`);
+  };
+  if (Top) side(0, -1);
+  if (Right) side(1, 0);
+  if (Bottom) side(0, 1);
+  if (Left) side(-1, 0);
+  if (Top && Right) side(1, -1);
+  if (Right && Bottom) side(1, 1);
+  if (Bottom && Left) side(-1, 1);
+  if (Left && Top) side(-1, -1);
+  return out;
+}
+
+/** The CSS transition for an object with a UIHover. */
+export const hoverTransition = (duration: number) =>
+  ['background-color', 'scale', 'translate', 'filter']
+    .map((k) => `${k} ${fmtNum(duration)}s`)
+    .join(', ');
 
 /** A {Scale, Offset} pair on a page's vertical axis, where Scale is a share of the window. */
 export function calcV(scale: number, offset: number): string {
@@ -292,6 +329,59 @@ interface EmitContext {
   readonly order?: number;
 }
 
+/** Pinned objects draw above everything else on the page, as they stay while it scrolls. */
+export const PIN_Z = 1000;
+
+/** The keyframes each Appear style plays, named in the exported CSS and the editor's. */
+export const APPEAR_KEYFRAMES: Record<Exclude<AppearStyle, 'None'>, string> = {
+  Fade: 'fc-fade',
+  SlideUp: 'fc-up',
+  SlideLeft: 'fc-left',
+  SlideRight: 'fc-right',
+  Zoom: 'fc-zoom',
+};
+
+/** What each Appear style starts from; the object ends where the layout puts it. */
+export const APPEAR_CSS = `@keyframes fc-fade { from { opacity: 0; } }
+  @keyframes fc-up { from { opacity: 0; translate: 0 40px; } }
+  @keyframes fc-left { from { opacity: 0; translate: 40px 0; } }
+  @keyframes fc-right { from { opacity: 0; translate: -40px 0; } }
+  @keyframes fc-zoom { from { opacity: 0; scale: 0.9; } }`;
+
+/** CSS for the Appear animations: hidden until the script sees them, then played once. */
+const APPEAR_PAGE_CSS = `  /* Appear: an object waits hidden (fc-pre) until it scrolls into view, then plays (fc-in). */
+  .fc-pre { opacity: 0; }
+  .fc-in { animation: 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+  ${Object.entries(APPEAR_KEYFRAMES)
+    .map(([style, name]) => `.fc-in[data-appear="${style}"] { animation-name: ${name}; }`)
+    .join('\n  ')}
+  ${APPEAR_CSS}`;
+
+/**
+ * Plays each object's Appear animation the first time it scrolls into view. Without the
+ * script, or for people who ask for less motion, everything simply shows.
+ */
+const APPEAR_SCRIPT = `
+${SCRIPT_OPEN}
+  (function () {
+    if (!('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var seen = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        e.target.classList.replace('fc-pre', 'fc-in');
+        seen.unobserve(e.target);
+      });
+    }, { rootMargin: '0px 0px -8% 0px' });
+    document.querySelectorAll('[data-appear]').forEach(function (el) {
+      el.classList.add('fc-pre');
+      seen.observe(el);
+    });
+  })();
+${SCRIPT_CLOSE}`;
+
+/** The CSS and script a page with Appear animations needs, for the website export. */
+export const APPEAR_EXPORT = { css: APPEAR_PAGE_CSS, script: APPEAR_SCRIPT };
+
 /**
  * Writes the elements and CSS rules for a tree of objects with the values at one breakpoint
  * (none for the base values). Elements come out in the base order whatever the breakpoint,
@@ -304,6 +394,10 @@ export class HtmlWriter {
   /** Every ImageColor3 tint the images use, by `tintKey`. */
   readonly tints = new Set<string>();
   needsScript = false;
+  /** Some object has an Appear animation. */
+  needsAppear = false;
+  /** Some object straight on the page is pinned outside a list. */
+  hasPinned = false;
   seq = 0;
   readonly doc: Doc;
   readonly breakpoint: InstanceId | undefined;
@@ -429,7 +523,19 @@ export class HtmlWriter {
     const r: Decl[] = [];
     const attrs: string[] = [];
     const v = ctx.onPage ? calcV : calcU;
-    if (inList) r.push(['position', 'relative'], ['flex', 'none']);
+    // Pinned, straight on a page: in a list it sticks to the window's top as the page scrolls
+    // past; placed freely it sits in a fixed layer the size of the page's content area.
+    const pinned = ctx.onPage && inst.props.Pinned;
+    if (inList)
+      r.push(
+        ...((pinned
+          ? [
+              ['position', 'sticky'],
+              ['top', '0'],
+            ]
+          : [['position', 'relative']]) as Decl[]),
+        ['flex', 'none'],
+      );
     else {
       r.push(
         ['left', calcU(p.Position[0], p.Position[1])],
@@ -455,7 +561,8 @@ export class HtmlWriter {
       attrs.push('data-canvas');
       this.needsScript = true;
     }
-    if (p.ZIndex !== 1) r.push(['z-index', String(p.ZIndex)]);
+    if (pinned && inList) r.push(['z-index', String(PIN_Z + p.ZIndex)]);
+    else if (p.ZIndex !== 1) r.push(['z-index', String(p.ZIndex)]);
     if (!p.Visible) r.push(['display', 'none']);
     const grad = childOfClass(doc, inst.id, 'UIGradient');
     const g = grad && this.props(grad);
@@ -491,10 +598,13 @@ export class HtmlWriter {
       );
     for (const s of strokes) {
       const sp = this.props(s);
-      if (sp.Thickness > 0 && !strokesText(inst, s))
-        shadows.push(`0 0 0 ${fmtNum(sp.Thickness)}px ${rgba(sp.Color, sp.Transparency)}`);
+      if (sp.Thickness > 0 && !strokesText(inst, s)) shadows.push(...strokeShadows(sp));
     }
     if (shadows.length) r.push(['box-shadow', shadows.join(', ')]);
+    if (p.BackgroundBlur > 0) {
+      const blur = `blur(${p.BackgroundBlur}px)`;
+      r.push(['-webkit-backdrop-filter', blur], ['backdrop-filter', blur]);
+    }
     if (p.ClipsDescendants) r.push(['overflow', 'hidden']);
     if (def.scroll) r.push(['overflow', 'auto']);
     const aspect = childOfClass(doc, inst.id, 'UIAspectRatioConstraint');
@@ -502,13 +612,20 @@ export class HtmlWriter {
       attrs.push(`data-ar="${fmtNum(aspect.props.AspectRatio)}"`);
       this.needsScript = true;
     }
-    if (
+    const darkens =
       (inst.className === 'TextButton' || inst.className === 'ImageButton') &&
-      inst.props.AutoButtonColor
-    )
-      attrs.push('data-btn');
+      inst.props.AutoButtonColor;
+    if (darkens) attrs.push('data-btn');
     if (ctx.order !== undefined) r.push(['order', String(ctx.order)]);
+    if (inst.props.Appear !== 'None') {
+      attrs.push(`data-appear="${inst.props.Appear}"`);
+      if (inst.props.AppearDelay) r.push(['animation-delay', `${fmtNum(inst.props.AppearDelay)}s`]);
+      this.needsAppear = true;
+    }
+    const hover = childOfClass(doc, inst.id, 'UIHover');
+    if (hover) r.push(['transition', hoverTransition(hover.props.Duration)]);
     this.rule(`.${cls}`, r);
+    if (hover) this.hoverRules(inst, cls, hover, darkens);
 
     // The element: a link, the chosen tag, or a div. Links and tags come from the base values.
     const href =
@@ -540,7 +657,26 @@ export class HtmlWriter {
     );
     const ind = '  '.repeat(depth + 2);
     const attrText = [...head, ...attrs].map((a) => ' ' + a).join('');
-    return `\n${ind}<${tag} class="g ${cls}"${attrText} data-name="${esc(p.Name)}">${inner}${inner ? '\n' + ind : ''}</${tag}>`;
+    const el = `\n${ind}<${tag} class="g ${cls}"${attrText} data-name="${esc(p.Name)}">${inner}${inner ? '\n' + ind : ''}</${tag}>`;
+    if (!pinned || inList) return el;
+    this.hasPinned = true;
+    return `\n${ind}<div class="pin">${el.replace(/\n/g, '\n  ')}\n${ind}</div>`;
+  }
+
+  /** A UIHover's look while the mouse is over the object. */
+  hoverRules(inst: Gui, cls: string, hover: Instance<'UIHover'>, darkens: boolean) {
+    const h = this.props(hover);
+    const r: Decl[] = [['background-color', rgba(h.BackgroundColor3, h.BackgroundTransparency)]];
+    if (h.Scale !== 1) r.push(['scale', fmtNum(h.Scale)]);
+    if (h.Lift) r.push(['translate', `0 ${-h.Lift}px`]);
+    // The hover colors replace AutoButtonColor's darkening; a press still darkens.
+    if (darkens) r.push(['filter', 'none']);
+    this.rule(`.${cls}:hover`, r);
+    if (darkens) this.rule(`.${cls}:active`, [['filter', 'brightness(0.75)']]);
+    if (classDef(inst.className).text) {
+      const tp = this.props(inst as Instance<'TextLabel'>);
+      this.rule(`.${cls}:hover > .t > *`, [['color', rgba(h.TextColor3, tp.TextTransparency)]]);
+    }
   }
 
   /** What goes inside an object's element: its picture, its text and its children. */
@@ -600,6 +736,8 @@ export class HtmlWriter {
       if (tp.LineHeight !== 1) ts.push(['line-height', fmtNum(tp.LineHeight)]);
       if (this.site && tp.LetterSpacing)
         ts.push(['letter-spacing', `${fmtNum(tp.LetterSpacing)}px`]);
+      const hover = childOfClass(doc, inst.id, 'UIHover');
+      if (hover) ts.push(['transition', `color ${fmtNum(hover.props.Duration)}s`]);
       if (textStrokes.length)
         ts.push([
           'text-shadow',

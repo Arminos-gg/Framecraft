@@ -1118,7 +1118,9 @@ export class Editor {
       this.toast(
         className === 'UIListLayout'
           ? 'Select a ScreenGui, page or object to lay out its children.'
-          : 'Select a Frame, label, button or image first.',
+          : classDef(className).web
+            ? `${className} works on the website. Select an object on a page first.`
+            : 'Select a Frame, label, button or image first.',
       );
       return null;
     }

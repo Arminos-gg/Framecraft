@@ -50,6 +50,7 @@ The exporters turn the document into Luau and a model file for Roblox Studio and
 - A page is as wide as the window and grows with its content. On a page, vertical Scale is a share of the window height less the page padding (`--vh`), as in the layout engine. Free-placed sections grow the page through `min-height`. A page's own UIPadding is CSS padding on `.page`, the one exception to the rule above, because the page's content box is in normal flow.
 - Elements come out in the base order. Each breakpoint is a media query with only the declarations that change, widest first, so Phone inherits Tablet's changes like `resolveProps`. A list whose order changes gets CSS `order`.
 - Links are relative and name `index.html` in full, so the folder also works when opened from disk. Never nest links, and keep headings and paragraphs free of divs (use spans inside them).
+- Web extras: a UIHover becomes `.eN:hover` rules plus a `transition` on the element (and `color` on its text); BackgroundBlur becomes `backdrop-filter`; Appear becomes `data-appear` with `animation-delay`, and the page gets the Appear CSS and script only when something uses it; a Pinned object straight on a page is `position: sticky; top: 0` in the page's list, or else wrapped in a `.pin` layer fixed to the window and inset like the page's content. A UIStroke that leaves sides out is one box-shadow per side (`strokeShadows`).
 - `tests/e2e/site-export.spec.ts` compares every exported box with the layout engine in Chromium. Keep it passing when either changes.
 
 ## Golden files
