@@ -101,7 +101,7 @@ export function CodePane() {
   };
 
   return (
-    <div className="pbody codepane" role="tabpanel" aria-label="Code">
+    <div className="pbody codepane" role="tabpanel" id="tabpanel-code" aria-labelledby="tab-code">
       <div className="codebar">
         <div className="seg" role="group" aria-label="Code language">
           {(['luau', 'html'] as const).map((l) => (

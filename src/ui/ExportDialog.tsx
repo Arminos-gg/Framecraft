@@ -3,6 +3,7 @@
  * for Studio or as a Roblox model file, and the project file.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { siteChecks, type Check } from '../editor/checks.ts';
 import { pagesOf } from '../editor/editor.ts';
 import { exportHtml } from '../export/html.ts';
 import { exportLuau, type LuauTarget } from '../export/luau.ts';
@@ -17,6 +18,7 @@ import { useEditor, useEditorState } from './editor-context.ts';
 import { copyText, download, selectText } from './files.ts';
 import { Icon } from './icons.tsx';
 import { PROJECT_FILE, saveProjectFile } from './project-actions.ts';
+import { onTabKeys } from './tabs.ts';
 
 export type ExportKind = 'site' | 'html' | 'luau' | 'rbxmx' | 'project';
 
@@ -63,6 +65,13 @@ export function ExportDialog({ kind, onClose }: { kind: ExportKind; onClose: () 
   }, []);
 
   const site = useMemo(() => (tab === 'site' ? exportSite(doc, assets) : []), [tab, doc, assets]);
+  const checks = useMemo(() => (tab === 'site' ? siteChecks(doc) : []), [tab, doc]);
+  /** Closes the dialog and shows the object a check is about, on the device it fails on. */
+  const show = (check: Check) => {
+    dialog.current?.close();
+    editor.select(check.id);
+    if (check.device) editor.setDevice(check.device);
+  };
   const screens = screensOf(doc);
   // A screen picked earlier may have been deleted since.
   const picked = screens.find((s) => s.id === screen);
@@ -127,13 +136,14 @@ export function ExportDialog({ kind, onClose }: { kind: ExportKind; onClose: () 
     >
       <header>
         <h2>Export</h2>
-        <div className="seg" role="tablist" aria-label="What to export">
+        <div className="seg" role="tablist" aria-label="What to export" onKeyDown={onTabKeys}>
           {TABS.map(([k, label]) => (
             <button
               key={k}
               type="button"
               role="tab"
               aria-selected={tab === k}
+              tabIndex={tab === k ? 0 : -1}
               className={tab === k ? 'on' : undefined}
               onClick={() => setTab(k)}
             >
@@ -161,6 +171,7 @@ export function ExportDialog({ kind, onClose }: { kind: ExportKind; onClose: () 
               as Vercel, Netlify or GitHub Pages.
             </p>
           </div>
+          {pages > 0 && <Checks checks={checks} onShow={show} />}
           {pages ? (
             <ul className="files" aria-label="Files">
               {site.map((f) => (
@@ -324,5 +335,45 @@ export function ExportDialog({ kind, onClose }: { kind: ExportKind; onClose: () 
         </>
       )}
     </dialog>
+  );
+}
+
+/** The site's accessibility checks, each with a button that shows the object. */
+function Checks({ checks, onShow }: { checks: readonly Check[]; onShow: (c: Check) => void }) {
+  const { doc } = useEditorState();
+  if (!checks.length)
+    return (
+      <p className="checks ok" role="status">
+        <Icon name="check" />
+        Text contrast, links and headings pass the accessibility checks.
+      </p>
+    );
+  return (
+    <section className="checks" aria-label="Accessibility checks">
+      <h3>
+        <Icon name="warn" />
+        {checks.length === 1 ? '1 thing' : `${checks.length} things`} to fix for people using screen
+        readers or with low vision
+      </h3>
+      <ul>
+        {checks.map((c, i) => {
+          const inst = doc.instances[c.id];
+          const page = doc.instances[c.page];
+          return (
+            <li key={i}>
+              <span>
+                <b>{inst?.props.Name}</b>
+                {c.page !== c.id && <span className="d"> on {page?.props.Name}</span>}
+                <br />
+                {c.text}
+              </span>
+              <button className="btn sm" type="button" onClick={() => onShow(c)}>
+                Show<span className="sr"> {inst?.props.Name}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

@@ -211,13 +211,16 @@ export function ColorPicker({
 
       {swatches.length > 0 && (
         <div className="cpswatches">
-          <h4>In this project</h4>
-          <div>
+          <div className="cpcap" id={`${idBase}-sw`}>
+            In this project
+          </div>
+          <div role="group" aria-labelledby={`${idBase}-sw`}>
             {swatches.map((c) => (
               <button
                 key={c.join()}
                 type="button"
                 className={valueEquals(c, value) ? 'on' : undefined}
+                aria-pressed={valueEquals(c, value)}
                 style={{ background: rgb(c) }}
                 aria-label={`Use ${hex(c).toUpperCase()}`}
                 title={hex(c).toUpperCase()}

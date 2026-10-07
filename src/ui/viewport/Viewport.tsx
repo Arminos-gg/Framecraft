@@ -13,6 +13,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
   type PointerEvent,
 } from 'react';
@@ -353,11 +354,44 @@ export function Viewport() {
     setMouse(null);
     editor.setHover(null);
   };
-  const onClick = (e: MouseEvent) => {
-    if (!state.preview) return;
-    const id = guiIdAt(e.target);
+  const follow = (target: EventTarget | null) => {
+    const id = guiIdAt(target);
     const out = id && editor.followLink(id);
     if (out) window.open(out.url, '_blank', 'noopener');
+  };
+  const onClick = (e: MouseEvent) => {
+    if (state.preview) follow(e.target);
+  };
+  /** Opens the right-click menu from the keyboard, beside the selected object. */
+  const menuAtSelection = () => {
+    const id = state.selection;
+    const canvas = canvasRef.current;
+    if (id === null || !canvas) return;
+    const el = canvas.querySelector(`.gui[data-id="${id}"]`);
+    const r = (el ?? canvas).getBoundingClientRect();
+    const c = canvas.getBoundingClientRect();
+    setMenu({
+      x: Math.max(c.left, Math.min(r.left + 8, c.right - 8)),
+      y: Math.max(c.top, Math.min(r.bottom + 4, c.bottom - 8)),
+    });
+  };
+  const onKeyDown = (e: ReactKeyboardEvent) => {
+    if (
+      !state.preview &&
+      e.target === e.currentTarget &&
+      (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey))
+    ) {
+      e.preventDefault();
+      menuAtSelection();
+      return;
+    }
+    // In preview, Enter on a focused link follows it; Space too, on a button.
+    const el = e.target as HTMLElement;
+    if (!state.preview || !el.matches('.gui[role]')) return;
+    if (e.key === 'Enter' || (e.key === ' ' && el.getAttribute('role') === 'button')) {
+      e.preventDefault();
+      follow(el);
+    }
   };
 
   const pages = pagesOf(doc);
@@ -445,9 +479,7 @@ export function Viewport() {
           <button type="button" aria-label="Zoom out" onClick={() => zoomTo(z / 1.25)}>
             <Icon name="minus" />
           </button>
-          <span className="zv" aria-label="Zoom">
-            {Math.round(z * 100)}%
-          </span>
+          <span className="zv">{Math.round(z * 100)}%</span>
           <button type="button" aria-label="Zoom in" onClick={() => zoomTo(z * 1.25)}>
             <Icon name="plus" />
           </button>
@@ -485,6 +517,13 @@ export function Viewport() {
             .filter(Boolean)
             .join(' ')}
           ref={canvasRef}
+          // Focusable, so the keyboard can scroll it; the arrow keys nudge the selection.
+          tabIndex={0}
+          role="group"
+          aria-roledescription="canvas"
+          aria-label={state.preview ? 'Preview' : 'Canvas'}
+          aria-describedby="canvas-hint"
+          onKeyDown={onKeyDown}
           onMouseDown={(e) => {
             // No autoscroll circle for the middle button: it pans.
             if (e.button === 1) e.preventDefault();
@@ -501,6 +540,9 @@ export function Viewport() {
           onContextMenu={(e) => {
             if (state.preview) return;
             e.preventDefault();
+            // From the keyboard, the event has no pointer position: open by the selection.
+            if (e.target === e.currentTarget && e.clientX === 0 && e.clientY === 0)
+              return menuAtSelection();
             // The press already selected what's under the pointer; the menu opens on it.
             if (targetAt(e.target) !== null) setMenu({ x: e.clientX, y: e.clientY });
           }}
@@ -586,7 +628,7 @@ export function Viewport() {
                   >
                     <Stage doc={doc} scene={s} assets={state.assets} preview={state.preview} />
                   </div>
-                  <div className="overlay" style={{ left: x, top }}>
+                  <div className="overlay" style={{ left: x, top }} aria-hidden="true">
                     <Overlay state={state} scene={s} zoom={z} passive={!editing} />
                     {editing && marquee?.active && (
                       <div
@@ -622,7 +664,7 @@ function StatusLine({ mouse }: { mouse: Point | null }) {
   const inst = sel === null ? undefined : getInstance(state.doc, sel);
   const hint = state.preview
     ? 'Preview: buttons react, text boxes take input and links work. Press P or Preview to go back to editing.'
-    : 'Drag to move · Shift+click adds · handles resize · middle button pans · Ctrl+G groups';
+    : 'Drag to move · Shift+click adds · handles resize · middle button pans · Ctrl+G groups · Shift+F10 opens the menu · F6 moves between panels';
   return (
     <div className="statusline">
       {state.selected.length > 1 ? (
@@ -647,7 +689,9 @@ function StatusLine({ mouse }: { mouse: Point | null }) {
           Mouse {Math.round(mouse.x)}, {Math.round(mouse.y)}
         </span>
       )}
-      <span className="hint">{hint}</span>
+      <span className="hint" id="canvas-hint">
+        {hint}
+      </span>
     </div>
   );
 }

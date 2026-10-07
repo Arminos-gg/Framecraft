@@ -59,10 +59,11 @@ function Shell() {
       className={['app', preview && 'preview', drawer && 'with-drawer'].filter(Boolean).join(' ')}
     >
       <header className="topbar">
-        <span className="brand">
+        <h1 className="brand">
           <Mark />
           <span className="wide-only">Framecraft</span>
-        </span>
+          <span className="sr narrow-only">Framecraft</span>
+        </h1>
         <span className="vsep wide-only" />
         <button
           className="projbtn"
@@ -149,8 +150,56 @@ function Shell() {
       {exporting && <ExportDialog kind={exporting} onClose={() => setExporting(null)} />}
       {picking && <TemplateDialog onClose={() => setPicking(false)} />}
       <Toasts />
+      <SelectionAnnouncer />
     </div>
   );
+}
+
+/**
+ * Says what got selected, for screen readers, when the selection changes from somewhere
+ * other than the Explorer (whose focused row already says it): the canvas, a shortcut, a check.
+ */
+function SelectionAnnouncer() {
+  const { doc, selected } = useEditorState();
+  const key = selected.join();
+  const [said, setSaid] = useState({ key, text: '' });
+  if (said.key !== key) {
+    const inst = selected.length === 1 ? doc.instances[selected[0]!] : undefined;
+    const fromTree = !!document.activeElement?.closest('[role="tree"]');
+    const text =
+      fromTree || !selected.length
+        ? ''
+        : inst
+          ? `Selected ${inst.props.Name}, ${inst.className}`
+          : `Selected ${selected.length} objects`;
+    setSaid({ key, text });
+  }
+  return (
+    <div className="sr" aria-live="polite" data-testid="announcer">
+      {said.text}
+    </div>
+  );
+}
+
+/** The editor's regions in order, for F6 and Shift+F6. */
+const REGIONS = ['.topbar', '.ribbon', '.explorer', '.drawerwrap', '.canvas', '.props'];
+
+/** Moves keyboard focus to the next (or previous) region that's showing. */
+function cycleRegion(back: boolean) {
+  const shown = REGIONS.map((r) => document.querySelector<HTMLElement>(r)).filter(
+    (el): el is HTMLElement => !!el && el.offsetParent !== null && !el.inert,
+  );
+  if (!shown.length) return;
+  const at = shown.findIndex((el) => el.contains(document.activeElement));
+  const next = shown[(at + (back ? -1 : 1) + shown.length) % shown.length]!;
+  // A region's own focusable spot: the canvas itself, the Explorer's current row, or the first
+  // control.
+  const target = next.matches('[tabindex]')
+    ? next
+    : next.querySelector<HTMLElement>(
+        '[role="treeitem"][tabindex="0"], button:not([disabled]), input, select, [tabindex="0"]',
+      );
+  target?.focus();
 }
 
 function SaveStatusText({ status }: { status: SaveStatus }) {
@@ -228,7 +277,11 @@ function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
   const mod = e.ctrlKey || e.metaKey;
   const k = e.key.toLowerCase();
   // Saving, opening and exporting work from inside a field too.
-  if (typing && !(mod && 'soe'.includes(k))) return;
+  if (typing && !(mod && 'soe'.includes(k)) && e.key !== 'F6') return;
+  if (e.key === 'F6') {
+    e.preventDefault();
+    return cycleRegion(e.shiftKey);
+  }
   const { preview, selection, doc } = editor.state;
   if (mod) {
     const action = {

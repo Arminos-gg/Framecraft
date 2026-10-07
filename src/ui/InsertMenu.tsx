@@ -2,7 +2,7 @@
  * Studio's insert menu: what can go into one object, with a search box. Arrow keys choose,
  * Enter inserts. A modifier the object already has is listed but can't be picked.
  */
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { CLASS_HINTS, hasModifier, insertableInto } from '../editor/insert.ts';
 import type { ClassName } from '../model/classes.ts';
 import { getInstance, type InstanceId } from '../model/document.ts';
@@ -30,6 +30,7 @@ export function InsertMenu({
   const { doc } = useEditorState();
   const [query, setQuery] = useState('');
   const [hi, setHi] = useState(0);
+  const listId = useId();
   const parent = getInstance(doc, parentId);
   if (!parent) return null;
 
@@ -68,6 +69,11 @@ export function InsertMenu({
         <Icon name="search" />
         <input
           type="search"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={current ? `${listId}-${current}` : undefined}
           placeholder={modifiersOnly ? 'Search modifiers' : 'Search objects'}
           autoComplete="off"
           autoFocus
@@ -89,18 +95,22 @@ export function InsertMenu({
           }}
         />
       </label>
-      <div className="poplist">
+      <div className="poplist" role="listbox" id={listId} aria-label="Objects you can insert">
         {groups.map(
           ([title, list]) =>
             list.length > 0 && (
               <div key={title} role="group" aria-label={title}>
-                <h4>{title}</h4>
+                <h4 aria-hidden="true">{title}</h4>
                 {list.map((c) => {
                   const taken = hasModifier(doc, parentId, c);
                   return (
                     <button
                       key={c}
+                      id={`${listId}-${c}`}
                       type="button"
+                      role="option"
+                      tabIndex={-1}
+                      aria-selected={c === current}
                       className={c === current ? 'mi hi' : 'mi'}
                       disabled={taken}
                       onClick={() => pick(c)}

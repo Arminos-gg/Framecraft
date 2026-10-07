@@ -26,18 +26,23 @@ export function Toasts() {
     const t = setTimeout(() => setLast(null), 220);
     return () => clearTimeout(t);
   }, [leaving]);
-  if (!last) return null;
+  // The live region is always there, so screen readers say the first toast as well.
+  if (!last) return <div className="toasts" role="status" />;
 
   const tone = last.tone ?? 'info';
   return (
-    <div className="toasts">
+    <div className="toasts" role="status">
       <div
         className={`toast ${tone}${leaving ? ' out' : ''}`}
-        role="status"
         key={last.id}
         style={{ '--life': `${last.duration}ms` } as CSSProperties}
         onPointerEnter={() => editor.holdToast(true)}
         onPointerLeave={() => editor.holdToast(false)}
+        // It waits while the keyboard is on its buttons too.
+        onFocus={() => editor.holdToast(true)}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) editor.holdToast(false);
+        }}
       >
         <span className="tico" aria-hidden="true">
           <Icon name={ICONS[tone]} />

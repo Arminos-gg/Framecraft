@@ -110,6 +110,16 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
   }, [selection, rows]);
 
   const go = (row: Row | undefined) => row && editor.select(row.id);
+  /** Shift+Up or Shift+Down grows the selection to the next row, or shrinks it back. */
+  const extend = (to: Row | undefined) => {
+    if (!to || selection === null) return go(to);
+    if (selected.includes(to.id))
+      return editor.selectMany(
+        selected.filter((id) => id !== selection),
+        to.id,
+      );
+    editor.selectMany([...selected, to.id], to.id);
+  };
 
   /** Ctrl or Cmd adds a row to the selection or takes it out; Shift selects a range. */
   const onRowClick = (e: MouseEvent, id: InstanceId) => {
@@ -137,10 +147,10 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
     const row = rows[i];
     switch (e.key) {
       case 'ArrowDown':
-        go(rows[Math.min(rows.length - 1, i + 1)]);
+        (e.shiftKey ? extend : go)(rows[Math.min(rows.length - 1, i + 1)]);
         break;
       case 'ArrowUp':
-        go(rows[Math.max(0, i - 1)]);
+        (e.shiftKey ? extend : go)(rows[Math.max(0, i - 1)]);
         break;
       case 'Home':
         go(rows[0]);
@@ -279,7 +289,8 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
             if (hover === row.id && !sel) cls.push('hov');
             if (insertFor?.id === row.id) cls.push('pin');
             if (drop?.id === row.id) cls.push('drop-' + drop.mode);
-            const focusable = sel || (selection === null && i === 0);
+            // One stop for the Tab key: the row shown in Properties.
+            const focusable = row.id === selection || (selection === null && i === 0);
             return (
               <div
                 key={row.id}

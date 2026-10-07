@@ -158,7 +158,7 @@ function addMenu(b: Builder) {
 
 const INK: Color3 = [28, 25, 23];
 const CREAM: Color3 = [250, 246, 240];
-const ACCENT: Color3 = [194, 98, 45];
+const ACCENT: Color3 = [182, 92, 42];
 
 /**
  * A two-page coffee shop website: Home and Pricing, each with the same nav bar. Phone hides
@@ -283,9 +283,23 @@ function addSite(b: Builder) {
 
   const pricing = page({ Name: 'Pricing', Path: '/pricing', Title: 'Pricing · Northwind Coffee' });
   nav(pricing);
+  const title = b.add(pricing, 'TextLabel', {
+    Name: 'Heading',
+    HtmlTag: 'h1',
+    LayoutOrder: 2,
+    Size: [1, 0, 0, 120],
+    BackgroundTransparency: 1,
+    Text: 'Pick your plan',
+    Font: 'Gotham',
+    FontWeight: 'Heavy',
+    TextSize: 44,
+    TextColor3: INK,
+    TextYAlignment: 'Bottom',
+  });
+  b.change(title, 'Phone', { Size: [1, 0, 0, 88], TextSize: 32 });
   const plans = b.add(pricing, 'Frame', {
     Name: 'Plans',
-    LayoutOrder: 2,
+    LayoutOrder: 3,
     Size: [1, 0, 0, 420],
     BackgroundTransparency: 1,
   });

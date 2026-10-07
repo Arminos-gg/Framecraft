@@ -699,7 +699,8 @@ export class HtmlWriter {
         }
         this.rule(`.${ic}`, d);
         inner += `\n${ind}  <img class="img ${ic}" src="${src}" alt="${esc(inst.props.AltText)}">`;
-      } else inner += `\n${ind}  <${box} class="ph">${esc(ip.Image || 'image')}</${box}>`;
+      } else
+        inner += `\n${ind}  <${box} class="ph" aria-hidden="true">${esc(ip.Image || 'image')}</${box}>`;
     }
     if (
       inst.className === 'TextLabel' ||
@@ -754,7 +755,7 @@ export class HtmlWriter {
       if (inst.props.TextScaled) this.needsScript = true;
       const input = inst.className === 'TextBox';
       const body = input
-        ? `<input value="${esc(tp.Text)}" placeholder="${esc(inst.props.PlaceholderText)}" aria-label="${esc(tp.Name)}">`
+        ? `<input value="${esc(tp.Text)}" placeholder="${esc(inst.props.PlaceholderText)}" aria-label="${esc(inst.props.PlaceholderText || tp.Name)}">`
         : `<span>${esc(tp.Text)}</span>`;
       inner += `\n${ind}  <${box} class="t ${tc}"${inst.props.TextScaled && !input ? ' data-fit' : ''}>${body}</${box}>`;
     }
@@ -828,6 +829,8 @@ ${COMMENT_OPEN} Built with Framecraft (prototype). Every object keeps its Roblox
   .t { display: flex; pointer-events: none; }
   .t > * { line-height: 1; }
   .t > input { pointer-events: auto; width: 100%; height: 100%; border: 0; background: transparent; outline: none; padding: 0; font-size: inherit; }
+  /* A clear ring around whatever the keyboard is on. */
+  a:focus-visible, input:focus-visible { outline: 2px solid #2f62ff; outline-offset: 2px; }
   .img { position: absolute; inset: 0; width: 100%; height: 100%; }
   .ph { position: absolute; inset: 0; display: grid; place-items: center; font: 12px monospace; color: #555;
         background: repeating-linear-gradient(45deg, #ddd 0 6px, #eee 6px 12px); }

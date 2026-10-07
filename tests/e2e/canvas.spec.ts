@@ -218,7 +218,7 @@ test.describe('Roblox screens', () => {
   });
 
   test('zooms, fits and switches devices', async ({ page }) => {
-    const zoom = page.getByLabel('Zoom', { exact: true });
+    const zoom = page.locator('.zoom .zv');
     const fit = await zoom.textContent();
     await page.getByRole('button', { name: 'Zoom in' }).click();
     expect(parseInt((await zoom.textContent())!)).toBeCloseTo(parseInt(fit!) * 1.25, -1);
@@ -446,8 +446,8 @@ test.describe('website pages', () => {
     const height = await page.evaluate(
       () => document.querySelector<HTMLElement>('[data-testid="screen"]')!.offsetHeight,
     );
-    // Nav 60 + plans 1000 on a phone.
-    expect(height).toBe(1060);
+    // Nav 60 + heading 88 + plans 1000 on a phone.
+    expect(height).toBe(1148);
     await expect(page.locator('.overlay .fold')).toHaveCount(1);
   });
 });

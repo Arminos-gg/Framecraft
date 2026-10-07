@@ -97,7 +97,7 @@ describe('HTML export', () => {
   it('shows an image preview from the library, or a placeholder', () => {
     const s = scene();
     const img = s.add(s.screen, 'ImageLabel', { Image: 'rbxassetid://42', ScaleType: 'Fit' });
-    expect(exportHtml(s.doc)).toContain('<div class="ph">rbxassetid://42</div>');
+    expect(exportHtml(s.doc)).toContain('<div class="ph" aria-hidden="true">rbxassetid://42</div>');
     const { assets, id } = addAsset({}, PNG);
     s.edit((d) => applyCommand(d, setPreview(img, id)).doc);
     const html = exportHtml(s.doc, { assets });
@@ -106,7 +106,7 @@ describe('HTML export', () => {
     expect(html).toContain(`.${cls}{object-fit:contain;}`);
     expect(html).not.toContain('fc-tint');
     // Without the library the picture can't be found, so the placeholder shows.
-    expect(exportHtml(s.doc)).toContain('<div class="ph">rbxassetid://42</div>');
+    expect(exportHtml(s.doc)).toContain('<div class="ph" aria-hidden="true">rbxassetid://42</div>');
   });
 
   it('tints a picture by ImageColor3 with one color filter per color', () => {
@@ -145,9 +145,13 @@ describe('HTML export', () => {
   it('turns a TextBox into an input and escapes text', () => {
     const s = scene();
     s.add(s.screen, 'TextBox', { Name: 'Search', Text: '<b>&', PlaceholderText: 'Find "it"' });
-    expect(exportHtml(s.doc)).toContain(
-      '<input value="&lt;b&gt;&amp;" placeholder="Find &quot;it&quot;" aria-label="Search">',
+    s.add(s.screen, 'TextBox', { Name: 'Email', Text: '', PlaceholderText: '' });
+    // Screen readers say the placeholder, or the name when there's none.
+    const html = exportHtml(s.doc);
+    expect(html).toContain(
+      '<input value="&lt;b&gt;&amp;" placeholder="Find &quot;it&quot;" aria-label="Find &quot;it&quot;">',
     );
+    expect(html).toContain('<input value="" placeholder="" aria-label="Email">');
   });
 
   it('keeps every object’s Roblox name in data-name', () => {

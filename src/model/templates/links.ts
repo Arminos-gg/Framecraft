@@ -59,7 +59,7 @@ export function linksTemplate(makeId: () => InstanceId = newId): Doc {
   corner(b, avatar, [0.5, 0]);
   stroke(b, avatar, WHITE, 4);
   b.add(avatar, 'UIGradient', {
-    Color: colorSequence([255, 138, 101], [155, 93, 229]),
+    Color: colorSequence([219, 119, 87], [155, 93, 229]),
     Rotation: 135,
   });
   label(b, avatar, {
@@ -155,7 +155,6 @@ export function linksTemplate(makeId: () => InstanceId = newId): Doc {
     Font: 'DMSans',
     TextSize: 13,
     TextColor3: MAUVE,
-    TextTransparency: 0.2,
     TextYAlignment: 'Bottom',
   });
   return b.doc;
