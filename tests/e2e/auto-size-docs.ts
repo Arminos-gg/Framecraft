@@ -240,6 +240,19 @@ export function screenDoc(): Doc {
     Size: [0, 120, 0, 32],
     AutomaticSize: 'X',
   });
+
+  // A list that grows to hold a badge in a Folder, which the list doesn't arrange.
+  const stack = b.add(sg, 'Frame', {
+    Name: 'Stack',
+    Position: [0.45, 0, 0.8, 0],
+    Size: [0, 160, 0, 20],
+    AutomaticSize: 'XY',
+  });
+  b.add(stack, 'UIListLayout', { Padding: [0, 6] });
+  b.add(stack, 'Frame', { Name: 'Item A', Size: [0, 100, 0, 30] });
+  b.add(stack, 'Frame', { Name: 'Item B', Size: [0, 100, 0, 30] });
+  const extras = b.add(stack, 'Folder', { Name: 'Extras' });
+  b.add(extras, 'Frame', { Name: 'Folder badge', Position: [0, 150, 0, 50], Size: [0, 40, 0, 40] });
   return b.doc;
 }
 

@@ -81,9 +81,11 @@ const WEB = { web: true } as const;
  * root: the hidden DataModel at the top. service: StarterGui (Roblox screens) and Site
  * (web pages), one of each. container: a ScreenGui or Page, a full-window layer.
  * gui: an object that draws. modifier: a child object that changes its parent (UICorner and
- * so on). setting: a project setting kept in the tree, such as a Breakpoint.
+ * so on). setting: a project setting kept in the tree, such as a Breakpoint. folder: a Folder,
+ * which only groups objects; they draw as if they sat in the Folder's parent.
  */
-export type ClassKind = 'root' | 'service' | 'container' | 'gui' | 'modifier' | 'setting';
+export type ClassKind =
+  'root' | 'service' | 'container' | 'gui' | 'modifier' | 'setting' | 'folder';
 
 export interface ClassDef {
   readonly kind: ClassKind;
@@ -105,7 +107,7 @@ export interface ClassDef {
 
 const name = (className: string) => spec('string', 'Data', className);
 
-const IN_LAYERS = { kinds: ['container', 'gui'] } as const;
+const IN_LAYERS = { kinds: ['container', 'gui', 'folder'] } as const;
 const ON_OBJECTS = { kinds: ['gui'] } as const;
 
 /** Which way an object grows to fit its text and children; Size is then its smallest size. */
@@ -245,6 +247,15 @@ export const CLASSES = {
       BackgroundColor3: spec('color', 'Appearance', [255, 255, 255], { ...OV, ...WEB }),
       BackgroundTransparency: spec('alpha', 'Appearance', 0, { ...OV, ...WEB }),
     },
+  },
+  /**
+   * Groups objects, as in Studio. Its objects draw and lay out as if they sat in the Folder's
+   * parent, placed by their own Position; a UIListLayout there doesn't arrange them.
+   */
+  Folder: {
+    kind: 'folder',
+    parents: IN_LAYERS,
+    props: { Name: name('Folder') },
   },
   Frame: {
     kind: 'gui',

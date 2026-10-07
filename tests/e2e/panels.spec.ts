@@ -292,7 +292,14 @@ test.describe('Properties', () => {
     // The Stage draws it at the grown size, and Properties says Size is now the smallest.
     const drawn = page.locator(`.screen .gui[data-id="${id}"]`);
     expect((await drawn.boundingBox())!.width).toBeGreaterThan(0);
-    expect(await drawn.evaluate((el) => parseFloat(el.style.width))).toBeCloseTo(grown.w, 3);
+    // Web fonts may arrive in the meantime and measure the text again, so compare with the
+    // layout as it is when the Stage is read.
+    await expect
+      .poll(async () => {
+        const w = await drawn.evaluate((el) => parseFloat(el.style.width));
+        return Math.abs(w - (await box()).w);
+      })
+      .toBeLessThan(0.001);
     await expect(page.getByText('Size is the smallest it gets')).toBeVisible();
 
     // Wrapped, it keeps its width and grows down instead.

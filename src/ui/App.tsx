@@ -253,13 +253,15 @@ function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
       d: () => editor.duplicateSelection(),
       c: () => copy(editor, false),
       x: () => copy(editor, true),
+      a: () => editor.selectAll(),
+      g: () => (e.shiftKey ? editor.ungroupSelection() : editor.groupSelection()),
       s: () => saveProjectFile(editor),
       o: () => void openProjectFile(editor),
       e: openExport,
       b: () => editor.toggleTextStyle('bold'),
       i: () => editor.toggleTextStyle('italic'),
     }[k];
-    if (action && !(preview && 'dcxvbi'.includes(k))) {
+    if (action && !(preview && 'dcxvbiag'.includes(k))) {
       e.preventDefault();
       action();
     } else if (k === 'v' && !preview) {

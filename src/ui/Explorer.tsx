@@ -1,10 +1,19 @@
 /**
  * The Explorer: the project's tree, as in Studio. StarterGui holds the Roblox screens, Site
- * holds the pages, and the breakpoints sit beside them. Click to select, double-click or F2 to
- * rename, drag a row onto another to move it in, or onto its top or bottom edge to reorder.
- * Arrow keys walk the tree.
+ * holds the pages, and the breakpoints sit beside them. Click to select (Ctrl or Cmd adds one,
+ * Shift a range), double-click or F2 to rename, right-click for the object menu, drag rows onto
+ * another to move them in, or onto its top or bottom edge to reorder. Arrow keys walk the tree.
  */
-import { useEffect, useMemo, useRef, useState, type DragEvent, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+  type MouseEvent,
+} from 'react';
 import { isGui } from '../export/html.ts';
 import { insertableInto } from '../editor/insert.ts';
 import { canParent, classDef } from '../model/classes.ts';
@@ -18,6 +27,7 @@ import {
 import { useEditor, useEditorState } from './editor-context.ts';
 import { ClassIcon, Icon } from './icons.tsx';
 import { InsertMenu } from './InsertMenu.tsx';
+import { ObjectMenu } from './ObjectMenu.tsx';
 import { SidePanel } from './Panel.tsx';
 
 interface Row {
@@ -62,17 +72,28 @@ function visibleRows(doc: Doc, expanded: ReadonlySet<InstanceId>, filter: string
 const movable = (doc: Doc, id: InstanceId) => {
   const inst = getInstance(doc, id);
   const kind = inst && classDef(inst.className).kind;
-  return kind === 'gui' || kind === 'container' || kind === 'modifier';
+  return kind === 'gui' || kind === 'container' || kind === 'modifier' || kind === 'folder';
 };
+
+/** The right-click menu, where it opened and for which row. */
+interface Menu {
+  readonly x: number;
+  readonly y: number;
+  readonly row: HTMLElement;
+  readonly id: InstanceId;
+}
 
 export function Explorer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const editor = useEditor();
   const state = useEditorState();
-  const { doc, selection, expanded, renaming, hover } = state;
+  const { doc, selection, selected, expanded, renaming, hover } = state;
   const [filter, setFilter] = useState('');
   const [insertFor, setInsertFor] = useState<{ id: InstanceId; anchor: HTMLElement } | null>(null);
   const [drop, setDrop] = useState<{ id: InstanceId; mode: DropMode } | null>(null);
-  const dragId = useRef<InstanceId | null>(null);
+  const [menu, setMenu] = useState<Menu | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  /** The rows being dragged: the one under the pointer, with the rest of the selection. */
+  const dragIds = useRef<readonly InstanceId[]>([]);
   const treeRef = useRef<HTMLDivElement>(null);
   const rows = useMemo(() => visibleRows(doc, expanded, filter), [doc, expanded, filter]);
 
@@ -89,6 +110,27 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
   }, [selection, rows]);
 
   const go = (row: Row | undefined) => row && editor.select(row.id);
+
+  /** Ctrl or Cmd adds a row to the selection or takes it out; Shift selects a range. */
+  const onRowClick = (e: MouseEvent, id: InstanceId) => {
+    if (e.ctrlKey || e.metaKey) return editor.toggleSelected(id);
+    if (e.shiftKey && selection !== null) {
+      const a = rows.findIndex((r) => r.id === selection);
+      const b = rows.findIndex((r) => r.id === id);
+      if (a >= 0 && b >= 0) {
+        const range = rows.slice(Math.min(a, b), Math.max(a, b) + 1).map((r) => r.id);
+        // The row picked first stays first; the clicked one is shown in Properties.
+        return editor.selectMany(a < b ? range : range.reverse(), id);
+      }
+    }
+    editor.select(id);
+  };
+
+  const openMenu = (row: HTMLElement, id: InstanceId, x: number, y: number) => {
+    if (!selected.includes(id)) editor.select(id);
+    setInsertFor(null);
+    setMenu({ x, y, row, id });
+  };
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || state.preview) return;
     const i = rows.findIndex((r) => r.id === selection);
@@ -120,6 +162,17 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
       case 'F2':
         editor.startRename();
         break;
+      case 'ContextMenu':
+      case 'F10': {
+        if (e.key === 'F10' && !e.shiftKey) return;
+        const el = treeRef.current?.querySelector<HTMLElement>(
+          `.row[data-id="${CSS.escape(selection ?? '')}"]`,
+        );
+        if (!el || selection === null) return;
+        const r = el.getBoundingClientRect();
+        openMenu(el, selection, r.left + 24, r.bottom);
+        break;
+      }
       default:
         return;
     }
@@ -128,33 +181,43 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
   };
 
   const dropMode = (e: DragEvent, targetId: InstanceId): DropMode | null => {
-    const moving = dragId.current === null ? undefined : getInstance(doc, dragId.current);
+    const moving = dragIds.current.flatMap((id) => getInstance(doc, id) ?? []);
     const target = getInstance(doc, targetId);
-    if (!moving || !target || moving.id === target.id || isAncestor(doc, moving.id, target.id))
+    if (
+      !moving.length ||
+      !target ||
+      moving.some((m) => m.id === target.id || isAncestor(doc, m.id, target.id))
+    )
       return null;
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const f = (e.clientY - r.top) / r.height;
     const parent = target.parent === null ? undefined : getInstance(doc, target.parent);
-    const besideOk = !!parent && canParent(moving.className, parent.className);
+    const fits = (p: { className: Parameters<typeof canParent>[1] }) =>
+      moving.every((m) => canParent(m.className, p.className));
+    const besideOk = !!parent && fits(parent);
     const openRow = expanded.has(target.id) && target.children.length > 0;
     if (f < 0.28 && besideOk) return 'before';
     if (f > 0.72 && besideOk && !openRow) return 'after';
-    if (canParent(moving.className, target.className)) return 'in';
+    if (fits(target)) return 'in';
     return besideOk ? (f < 0.5 ? 'before' : 'after') : null;
   };
   const onDrop = (e: DragEvent, targetId: InstanceId) => {
     const mode = dropMode(e, targetId);
-    const moving = dragId.current;
+    const moving = dragIds.current;
     setDrop(null);
-    if (!mode || moving === null) return;
+    if (!mode || !moving.length) return;
     e.preventDefault();
+    const many = moving.length > 1;
     if (mode === 'in') {
-      editor.moveTo(moving, targetId);
+      if (many) editor.moveManyTo(moving, targetId);
+      else editor.moveTo(moving[0]!, targetId);
       return;
     }
     const parentId = getInstance(doc, targetId)!.parent!;
-    const others = getInstance(doc, parentId)!.children.filter((c) => c !== moving);
-    editor.moveTo(moving, parentId, others.indexOf(targetId) + (mode === 'after' ? 1 : 0));
+    const others = getInstance(doc, parentId)!.children.filter((c) => !moving.includes(c));
+    const index = others.indexOf(targetId) + (mode === 'after' ? 1 : 0);
+    if (many) editor.moveManyTo(moving, parentId, index);
+    else editor.moveTo(moving[0]!, parentId, index);
   };
 
   const header = (
@@ -192,13 +255,14 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
           className="tree"
           role="tree"
           aria-label="Objects"
+          aria-multiselectable="true"
           onKeyDown={onKeyDown}
           onPointerLeave={() => editor.setHover(null)}
         >
           {rows.map((row, i) => {
             const inst = getInstance(doc, row.id)!;
             const name = inst.props.Name;
-            const sel = row.id === selection;
+            const sel = selected.includes(row.id);
             const inside = !sel && selection !== null && isAncestor(doc, selection, row.id);
             const kind = classDef(inst.className).kind;
             let hidden = false;
@@ -236,13 +300,19 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
                   } as CSSProperties
                 }
                 draggable={movable(doc, row.id) && renaming !== row.id}
-                onClick={() => editor.select(row.id)}
+                onClick={(e) => onRowClick(e, row.id)}
+                onContextMenu={(e) => {
+                  if (state.preview) return;
+                  e.preventDefault();
+                  openMenu(e.currentTarget, row.id, e.clientX, e.clientY);
+                }}
                 onDoubleClick={(e) => {
                   if ((e.target as Element).closest('.nm')) editor.startRename(row.id);
                 }}
                 onPointerEnter={() => editor.setHover(row.id)}
                 onDragStart={(e) => {
-                  dragId.current = row.id;
+                  const many = selected.includes(row.id) && selected.length > 1;
+                  dragIds.current = many ? editor.targetIds : [row.id];
                   e.dataTransfer.effectAllowed = 'move';
                   e.dataTransfer.setData('text/plain', name);
                 }}
@@ -257,7 +327,7 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
                 }}
                 onDrop={(e) => onDrop(e, row.id)}
                 onDragEnd={() => {
-                  dragId.current = null;
+                  dragIds.current = [];
                   setDrop(null);
                 }}
               >
@@ -323,6 +393,14 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
           {!rows.length && <p className="treeempty">No objects match “{filter}”.</p>}
         </div>
       </div>
+      {menu && getInstance(doc, menu.id) && (
+        <ObjectMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={closeMenu}
+          onInsert={() => setInsertFor({ id: menu.id, anchor: menu.row })}
+        />
+      )}
       {insertFor && getInstance(doc, insertFor.id) && (
         <InsertMenu
           parentId={insertFor.id}

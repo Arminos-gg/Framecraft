@@ -11,6 +11,7 @@ import {
   breakpointsOf,
   childOfClass,
   childrenOf,
+  folderObjects,
   resolveProps,
   serviceOf,
   type AnyInstance,
@@ -180,18 +181,20 @@ ${SCRIPT_OPEN}
       walk(c);
     }
     function need(el, c, y) {
-      var cs = getComputedStyle(c), n = 0, items = 0;
+      var cs = getComputedStyle(c), n = 0, items = 0, free = 0;
       var pad = y ? px(cs.top) + px(cs.bottom) : px(cs.left) + px(cs.right);
       var list = cs.display === 'flex', along = list && (cs.flexDirection === 'column') === !!y;
       for (var k = c.firstElementChild; k; k = k.nextElementSibling) {
         var ks = getComputedStyle(k);
         if (!k.classList.contains('g') || ks.display === 'none') continue;
         var len = px(y ? ks.height : ks.width);
-        if (along) { n += len; items++; }
-        else n = Math.max(n, (list ? 0 : start(ks, y)) + len);
+        // Objects in a Folder are placed by their own Position, even in a list.
+        if (ks.position === 'absolute') free = Math.max(free, start(ks, y) + len);
+        else if (along) { n += len; items++; }
+        else n = Math.max(n, len);
       }
       if (items > 1) n += (items - 1) * px(y ? cs.rowGap : cs.columnGap);
-      n += pad;
+      n = Math.max(n, free) + pad;
       var t = el.querySelector(':scope > .t');
       if (t && t.firstElementChild && !t.hasAttribute('data-fit')) {
         var tn = text(t.firstElementChild, y) + pad;
@@ -392,17 +395,30 @@ export class HtmlWriter {
     return order.map((o) => o.c);
   }
 
+  /** The objects in the instance's Folders, which draw as if they sat in the instance. */
+  folderChildren(id: InstanceId): Gui[] {
+    return folderObjects(this.doc, id).filter(isGui);
+  }
+
   /**
    * The children of `id` as HTML, in the base order. At a breakpoint whose list order differs,
-   * each item gets a CSS `order`.
+   * each item gets a CSS `order`. Objects in its Folders come last, placed by their own
+   * Position even in a list, as in Roblox.
    */
   emitChildren(id: InstanceId, inList: boolean, depth: number, ctx: EmitContext): string {
     const base = this.sortedChildren(id);
     const here = this.breakpoint === undefined ? base : this.sortedChildren(id, true);
     const reordered = here.some((c, i) => c !== base[i]);
-    return base
-      .map((c) => this.emit(c, inList, depth, reordered ? { ...ctx, order: here.indexOf(c) } : ctx))
-      .join('');
+    return (
+      base
+        .map((c) =>
+          this.emit(c, inList, depth, reordered ? { ...ctx, order: here.indexOf(c) } : ctx),
+        )
+        .join('') +
+      this.folderChildren(id)
+        .map((c) => this.emit(c, false, depth, ctx))
+        .join('')
+    );
   }
 
   emit(inst: Gui, inList: boolean, depth: number, ctx: EmitContext): string {
@@ -605,7 +621,9 @@ export class HtmlWriter {
       inner += `\n${ind}  <${box} class="t ${tc}"${inst.props.TextScaled && !input ? ' data-fit' : ''}>${body}</${box}>`;
     }
     // A box that grows always has a content box: the script reads its padding there.
-    if (this.sortedChildren(inst.id).length || this.grows(inst) || this.growsCanvas(inst)) {
+    const hasKids =
+      this.sortedChildren(inst.id).length > 0 || this.folderChildren(inst.id).length > 0;
+    if (hasKids || this.grows(inst) || this.growsCanvas(inst)) {
       const list = childOfClass(doc, inst.id, 'UIListLayout');
       const cc = cls + 'c';
       const scroll = inst.className === 'ScrollingFrame';

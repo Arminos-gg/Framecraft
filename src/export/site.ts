@@ -10,6 +10,8 @@ import {
   breakpointsOf,
   childOfClass,
   childrenOf,
+  drawnChildren,
+  folderObjects,
   serviceOf,
   subtreeIds,
   type AnyInstance,
@@ -27,6 +29,7 @@ import {
   isGui,
   ruleText,
   tintDefs,
+  type Gui,
   type Decl,
   type Rule,
   type WriterLinks,
@@ -195,13 +198,12 @@ function writePage(w: HtmlWriter, page: Page): string {
   // Free-placed sections grow the page through min-height; a list grows it by itself.
   const list = childOfClass(doc, page.id, 'UIListLayout');
   const bottoms: string[] = [];
-  if (!list)
-    for (const c of childrenOf(doc, page.id).filter(isGui)) {
-      const cp = w.props(c);
-      if (!cp.Visible) continue;
-      const below = 1 - cp.AnchorPoint[1];
-      bottoms.push(calcV(cp.Position[2] + below * cp.Size[2], cp.Position[3] + below * cp.Size[3]));
-    }
+  for (const c of freeSections(doc, page.id)) {
+    const cp = w.props(c);
+    if (!cp.Visible) continue;
+    const below = 1 - cp.AnchorPoint[1];
+    bottoms.push(calcV(cp.Position[2] + below * cp.Size[2], cp.Position[3] + below * cp.Size[3]));
+  }
   w.rule('.pc', [
     ['--vh', vh],
     ['min-height', bottoms.length ? `max(var(--vh), ${bottoms.join(', ')})` : 'var(--vh)'],
@@ -209,6 +211,16 @@ function writePage(w: HtmlWriter, page: Page): string {
   ]);
   return w.emitChildren(page.id, !!list, 1, { onPage: true, phrasing: false, linked: false });
 }
+
+/**
+ * The objects on a page placed by their own Position: all of them without a UIListLayout,
+ * and those in Folders either way.
+ */
+const freeSections = (doc: Doc, pageId: InstanceId): Gui[] =>
+  (childOfClass(doc, pageId, 'UIListLayout')
+    ? folderObjects(doc, pageId)
+    : drawnChildren(doc, pageId)
+  ).filter(isGui);
 
 /** Every link that points at a section, as the id its target object gets on its page. */
 function sectionAnchors(doc: Doc, pages: readonly Page[]): Map<InstanceId, string> {
@@ -288,7 +300,7 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
     // Free-placed boxes that grow push the page longer; the script works out how much.
     const grows =
       !childOfClass(doc, page.id, 'UIListLayout') &&
-      childrenOf(doc, page.id).some((c) => isGui(c) && base.grows(c));
+      freeSections(doc, page.id).some((c) => base.grows(c));
     let previous: readonly Rule[] = base.rules;
     const media: string[] = [];
     const tints = new Set(base.tints);
