@@ -1472,27 +1472,6 @@ kbd {
   border-top: 1px solid var(--line-soft);
   margin: 4px 2px;
 }
-.toast {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 8px 8px 14px;
-  border-radius: 8px;
-  background: var(--fg);
-  color: var(--panel);
-  font-size: 13px;
-  font-weight: 500;
-  box-shadow: var(--shadow-pop);
-  max-width: 100%;
-}
-.toast button {
-  color: var(--panel);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  padding: 3px 6px;
-  border-radius: 5px;
-}
 /* ---------- Beyond the design: what the running app adds ---------- */
 
 .narrow-only {
@@ -1596,17 +1575,6 @@ button.bpdot.on:hover {
 }
 
 /* fields: the native color picker sits invisibly on top of its swatch */
-.sw input,
-.stop input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-}
 .cfld .sw {
   cursor: pointer;
 }
@@ -1768,6 +1736,416 @@ button.bpdot.on:hover {
 }
 .toasts .toast {
   pointer-events: auto;
+}
+
+/* toast: slides up with a little spring, shows its time left, slides out */
+.toast {
+  --tone: var(--accent);
+  --tone-soft: var(--accent-soft);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 240px;
+  max-width: min(480px, 100%);
+  padding: 8px 6px 8px 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--raised);
+  color: var(--fg);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+  animation: toast-in 0.42s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.toast.out {
+  animation: toast-out 0.22s cubic-bezier(0.4, 0, 1, 1) both;
+}
+.toast.delete {
+  --tone: var(--danger);
+  --tone-soft: var(--danger-soft);
+}
+.toast.done {
+  --tone: var(--scale);
+  --tone-soft: var(--scale-soft);
+}
+.toast .tico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--tone-soft);
+  color: var(--tone);
+}
+.toast .tico svg {
+  width: 17px;
+  height: 17px;
+}
+.toast.delete .tico svg {
+  animation: toast-bin 0.5s 0.12s ease-out both;
+  transform-origin: 50% 30%;
+}
+.toast.done .tico svg {
+  animation: toast-pop 0.4s 0.08s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.toast .ttext {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.3;
+}
+.toast .ttext b {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.toast .ttext small {
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.toast .tact {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: var(--tone-soft);
+  color: var(--tone);
+  font-size: 12.5px;
+  font-weight: 600;
+  transition:
+    background 0.12s,
+    transform 0.12s;
+}
+.toast .tact svg {
+  width: 14px;
+  height: 14px;
+}
+.toast .tact:hover {
+  background: var(--tone);
+  color: var(--on-accent);
+}
+.toast .tact:active {
+  transform: scale(0.96);
+}
+.toast .tclose {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--faint);
+}
+.toast .tclose:hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+.toast .tclose svg {
+  width: 13px;
+  height: 13px;
+}
+.toast .tlife {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--tone);
+  opacity: 0.55;
+  transform-origin: left;
+  animation: toast-life var(--life) linear both;
+}
+.toast:hover .tlife {
+  animation-play-state: paused;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.94);
+  }
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+}
+@keyframes toast-life {
+  to {
+    transform: scaleX(0);
+  }
+}
+@keyframes toast-bin {
+  0% {
+    transform: rotate(0);
+  }
+  30% {
+    transform: rotate(-14deg);
+  }
+  60% {
+    transform: rotate(9deg);
+  }
+  100% {
+    transform: rotate(0);
+  }
+}
+@keyframes toast-pop {
+  from {
+    transform: scale(0.3);
+  }
+}
+
+/* color picker */
+.cfld .sw,
+.gseq .stop {
+  padding: 0;
+  border: 0;
+  transition:
+    transform 0.12s,
+    box-shadow 0.12s;
+}
+.cfld .sw:hover,
+.cfld .sw.open {
+  transform: scale(1.15);
+}
+.cfld .sw:focus-visible,
+.gseq .stop:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.cpop {
+  width: 256px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  border-radius: 12px;
+  transform-origin: top right;
+  animation: pop-in 0.2s cubic-bezier(0.2, 1.2, 0.4, 1) both;
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateX(6px) scale(0.96);
+  }
+}
+.cparea {
+  position: relative;
+  height: 150px;
+  border-radius: 8px;
+  background-image:
+    linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  cursor: crosshair;
+  touch-action: none;
+  outline: none;
+}
+.cparea:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 0 0 3px var(--accent-soft);
+}
+.cpthumb {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 3px rgba(0, 0, 0, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  transition: transform 0.12s;
+}
+.cparea:active .cpthumb {
+  transform: scale(1.2);
+}
+.cpbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cpdrop {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: var(--field);
+  color: var(--icon);
+}
+.cpdrop:hover {
+  background: var(--active);
+  color: var(--fg);
+}
+.cpdrop svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+.cphue {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    to right,
+    #f00 0%,
+    #ff0 16.67%,
+    #0f0 33.33%,
+    #0ff 50%,
+    #00f 66.67%,
+    #f0f 83.33%,
+    #f00 100%
+  );
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  outline: none;
+}
+.cphue::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--thumb);
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 3px rgba(0, 0, 0, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.cphue::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--thumb);
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 3px rgba(0, 0, 0, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.cphue:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+    0 0 0 3px var(--accent-soft);
+}
+.cprow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+.cpchips {
+  display: flex;
+  height: 28px;
+  border-radius: 7px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+.cpchips > * {
+  width: 24px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+}
+.cpchips button {
+  cursor: pointer;
+}
+.cphex {
+  position: relative;
+  display: block;
+}
+.cphex label {
+  position: absolute;
+  left: 8px;
+  top: 0;
+  font: 600 10.5px/28px var(--font-ui);
+  letter-spacing: 0.04em;
+  color: var(--faint);
+  pointer-events: none;
+}
+.cphex .fld {
+  height: 28px;
+  line-height: 26px;
+  padding-left: 36px;
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+}
+.cprgb {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.cprgb > span {
+  display: grid;
+  gap: 3px;
+  text-align: center;
+}
+.cprgb .fld {
+  text-align: center;
+}
+.cprgb label {
+  font: 600 10px/1 var(--font-ui);
+  letter-spacing: 0.06em;
+  color: var(--faint);
+}
+.cpswatches {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 10px;
+}
+.cpswatches h4 {
+  margin: 0 0 7px;
+  font: 600 10.5px/1 var(--font-ui);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.cpswatches > div {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+}
+.cpswatches button {
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+.cpswatches button:hover {
+  transform: scale(1.12);
+}
+.cpswatches button.on {
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.12),
+    0 0 0 2px var(--panel),
+    0 0 0 4px var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast.out,
+  .toast .tico svg,
+  .cpop {
+    animation-duration: 0.01ms !important;
+  }
 }
 
 /* export dialog */

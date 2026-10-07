@@ -12,6 +12,7 @@ import { ProjectMenu } from './ProjectMenu.tsx';
 import { Properties } from './properties/Properties.tsx';
 import { Ribbon } from './Ribbon.tsx';
 import { TemplateDialog } from './TemplateDialog.tsx';
+import { Toasts } from './Toasts.tsx';
 import { Viewport } from './viewport/Viewport.tsx';
 
 /** Which side panel is open as a sheet on narrow screens. Wide screens show both. */
@@ -51,7 +52,7 @@ function Shell() {
     };
   }, [editor, openExport]);
 
-  const { preview, saveStatus, toast } = state;
+  const { preview, saveStatus } = state;
   const drawer = state.components && !preview;
   return (
     <div
@@ -147,24 +148,7 @@ function Shell() {
       )}
       {exporting && <ExportDialog kind={exporting} onClose={() => setExporting(null)} />}
       {picking && <TemplateDialog onClose={() => setPicking(false)} />}
-      {toast && (
-        <div className="toasts">
-          <div className="toast" role="status" key={toast.id}>
-            <span>{toast.text}</span>
-            {toast.action && (
-              <button
-                type="button"
-                onClick={() => {
-                  editor.dismissToast();
-                  toast.action!.run();
-                }}
-              >
-                {toast.action.label}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      <Toasts />
     </div>
   );
 }

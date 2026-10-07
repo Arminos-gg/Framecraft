@@ -6,6 +6,7 @@
  * they all have, with the values of the one picked last, and an edit changes all of them.
  */
 import { useMemo, useState, type ReactNode } from 'react';
+import { docColors } from '../../editor/color.ts';
 import { pagesOf, sceneOf, viewOf, type Picture } from '../../editor/editor.ts';
 import { isGui, isTinted, tintId, tintKey } from '../../export/html.ts';
 import {
@@ -176,6 +177,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
     () => ({ begin: () => editor.beginGesture(), end: () => editor.endGesture() }),
     [editor],
   );
+  const projectColors = useMemo(() => () => docColors(editor.doc), [editor]);
   if (!inst) return <Help />;
   const help = SERVICE_HELP[inst.className];
   if (help)
@@ -394,6 +396,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
             value={v as never}
             onChange={onChange}
             gesture={gesture}
+            swatches={projectColors}
           />
         );
       case 'vec2':
@@ -412,7 +415,13 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
         return <UDim2Field id={id} label={key} value={v as never} onChange={onChange} />;
       case 'colorseq':
         return (
-          <ColorSeqField label={key} value={v as never} onChange={onChange} gesture={gesture} />
+          <ColorSeqField
+            label={key}
+            value={v as never}
+            onChange={onChange}
+            gesture={gesture}
+            swatches={projectColors}
+          />
         );
       case 'numseq':
         return <NumSeqField id={id} label={key} value={v as never} onChange={onChange} />;

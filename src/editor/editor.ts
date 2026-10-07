@@ -116,8 +116,14 @@ export interface Picture {
 export interface Toast {
   readonly id: number;
   readonly text: string;
+  /** A second, quieter line, such as what a deleted object held. */
+  readonly detail?: string;
+  /** Sets its icon and color: `delete` red with a bin, `done` green with a tick. */
+  readonly tone?: 'delete' | 'done';
   /** A button in the toast, such as Undo after opening another project. */
   readonly action?: { readonly label: string; readonly run: () => void };
+  /** How long it stays, in milliseconds, unless the pointer rests on it. */
+  readonly duration: number;
 }
 
 /** Autosave, as the app bar shows it. `idle` until something saves the project. */
@@ -338,6 +344,9 @@ export class Editor {
   #drag: Drag | null = null;
   #clipboard: Subtree[] | null = null;
   #toastTimer: ReturnType<typeof setTimeout> | undefined;
+  /** When the toast goes, or while it's held, how long it has left. */
+  #toastEnds = 0;
+  #toastLeft: number | null = null;
   #seq = 0;
 
   constructor(doc: Doc, options: EditorOptions = {}) {
@@ -435,16 +444,35 @@ export class Editor {
     return id === null ? undefined : getInstance(this.doc, id);
   }
 
-  toast(text: string, action?: Toast['action']) {
-    const toast: Toast = action ? { id: ++this.#seq, text, action } : { id: ++this.#seq, text };
+  toast(
+    text: string,
+    action?: Toast['action'],
+    more: { readonly detail?: string; readonly tone?: Toast['tone'] } = {},
+  ) {
+    const duration = action ? 6000 : 2600;
+    const toast: Toast = { id: ++this.#seq, text, duration, ...more, ...(action && { action }) };
     this.#update({ toast });
+    this.#toastLeft = null;
+    this.#timeToast(toast, duration);
+  }
+  #timeToast(toast: Toast, ms: number) {
     clearTimeout(this.#toastTimer);
-    this.#toastTimer = setTimeout(
-      () => {
-        if (this.#state.toast === toast) this.#update({ toast: null });
-      },
-      action ? 6000 : 2600,
-    );
+    this.#toastEnds = Date.now() + ms;
+    this.#toastTimer = setTimeout(() => {
+      if (this.#state.toast === toast) this.#update({ toast: null });
+    }, ms);
+  }
+  /** Keeps the toast while the pointer rests on it; `false` lets it go with the time it had left. */
+  holdToast(hold: boolean) {
+    const toast = this.#state.toast;
+    if (!toast) return;
+    if (hold && this.#toastLeft === null) {
+      clearTimeout(this.#toastTimer);
+      this.#toastLeft = Math.max(0, this.#toastEnds - Date.now());
+    } else if (!hold && this.#toastLeft !== null) {
+      this.#timeToast(toast, Math.max(1200, this.#toastLeft));
+      this.#toastLeft = null;
+    }
   }
   dismissToast() {
     if (this.#state.toast) this.#update({ toast: null });
@@ -820,12 +848,38 @@ export class Editor {
     const doc = this.doc;
     const inst = targets.find((t) => t.id === this.#state.selection) ?? targets[0]!;
     const parent = inst.parent === null ? undefined : getInstance(doc, inst.parent);
+    const inside =
+      targets.reduce((n, t) => n + Object.keys(extractSubtree(doc, t.id).instances).length, 0) -
+      targets.length;
     const cmds = targets.map((t) => remove(t.id));
     if (!this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds))) return;
+    const after = this.doc;
     const kind = parent && classDef(parent.className).kind;
     const keep = parent && (kind === 'gui' || kind === 'container' || kind === 'folder');
     this.select(keep ? parent.id : null);
-    this.toast(`Deleted ${this.#what(targets)}`);
+    const what = this.#what(targets);
+    const undo = () => {
+      // Only while the delete is still the last change; otherwise Undo would take back
+      // something else.
+      if (this.doc !== after) return this.toast('You’ve changed things since. Use Undo (Ctrl+Z).');
+      this.undo();
+      this.selectMany(
+        targets.map((t) => t.id),
+        inst.id,
+      );
+      this.toast(`${what} ${targets.length === 1 ? 'is' : 'are'} back`, undefined, {
+        tone: 'done',
+      });
+    };
+    const objects = (n: number) => `${n} ${n === 1 ? 'object' : 'objects'}`;
+    const detail =
+      targets.length === 1
+        ? inside
+          ? `${inst.className} and ${objects(inside)} inside it`
+          : inst.className
+        : targets.map((t) => t.props.Name).join(', ') +
+          (inside ? `, with ${objects(inside)} inside` : '');
+    this.toast(`Deleted ${what}`, { label: 'Undo', run: undo }, { tone: 'delete', detail });
   }
 
   duplicateSelection() {
