@@ -682,3 +682,21 @@ test.describe('export and project files', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   });
 });
+
+test('a popup grows to show all of a long message', async ({ page }) => {
+  const long = 'This message is far too long for one line of the popup, '.repeat(4).trim();
+  await page.evaluate((t) => window.framecraft!.toast(t, undefined, { detail: t }), long);
+  const toast = page.locator('.toast');
+  await expect(toast).toContainText(long);
+  const fits = await toast.evaluate((el) => {
+    const text = el.querySelector<HTMLElement>('.ttext')!;
+    const parts = [...text.children] as HTMLElement[];
+    const box = el.getBoundingClientRect();
+    return {
+      wrapped: parts.every((p) => p.scrollWidth <= p.clientWidth),
+      tall: parts[0]!.getBoundingClientRect().height > 30,
+      inside: text.scrollHeight <= text.clientHeight && box.top >= 0,
+    };
+  });
+  expect(fits).toEqual({ wrapped: true, tall: true, inside: true });
+});

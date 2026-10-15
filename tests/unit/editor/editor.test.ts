@@ -251,6 +251,15 @@ describe('keyboard actions', () => {
     expect(ed.state.toast?.text).toMatch(/changed things since/);
   });
 
+  it('keeps a long toast up longer, so there is time to read it', () => {
+    ed.toast('Short');
+    const short = ed.state.toast!.duration;
+    ed.toast('A much longer message that takes a while to read, '.repeat(3));
+    expect(ed.state.toast!.duration).toBeGreaterThan(short);
+    ed.toast('x'.repeat(5000));
+    expect(ed.state.toast!.duration).toBe(12_000);
+  });
+
   it('keeps a toast while the pointer rests on it', () => {
     vi.useFakeTimers();
     try {

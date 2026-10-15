@@ -485,7 +485,9 @@ export class Editor {
     action?: Toast['action'],
     more: { readonly detail?: string; readonly tone?: Toast['tone'] } = {},
   ) {
-    const duration = action ? 6000 : 2600;
+    // Long messages stay longer, so there's time to read them.
+    const extra = Math.max(0, text.length + (more.detail?.length ?? 0) - 40) * 50;
+    const duration = Math.min(12_000, (action ? 6000 : 2600) + extra);
     const toast: Toast = { id: ++this.#seq, text, duration, ...more, ...(action && { action }) };
     this.#update({ toast });
     this.#toastLeft = null;
