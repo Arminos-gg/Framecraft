@@ -569,6 +569,8 @@ export class HtmlWriter {
   /** The page has a Form. */
   needsForm = false;
   seq = 0;
+  /** The class each object's element got, such as `e7`, for the live code view. */
+  readonly classes = new Map<InstanceId, string>();
   readonly doc: Doc;
   readonly breakpoint: InstanceId | undefined;
   readonly links: WriterLinks;
@@ -690,6 +692,7 @@ export class HtmlWriter {
     const p = this.props(inst);
     const def = classDef(inst.className);
     const cls = 'e' + ++this.seq;
+    this.classes.set(inst.id, cls);
     const r: Decl[] = [];
     const attrs: string[] = [];
     const v = ctx.onPage ? calcV : calcU;
@@ -1031,6 +1034,14 @@ export class HtmlWriter {
 
 /** One standalone page with every ScreenGui in the project. */
 export function exportHtml(doc: Doc, options: HtmlOptions = {}): string {
+  return exportHtmlMapped(doc, options).text;
+}
+
+/** The HTML page for the Roblox screens, with the class each object's element got. */
+export function exportHtmlMapped(
+  doc: Doc,
+  options: HtmlOptions = {},
+): { text: string; classes: ReadonlyMap<InstanceId, string> } {
   const assets = options.assets ?? {};
   const w = new HtmlWriter(doc, undefined, { imageSrc: (id) => assets[id] });
   const screenGuis = childrenOf(doc, serviceOf(doc, 'StarterGui').id).filter(
@@ -1041,6 +1052,7 @@ export function exportHtml(doc: Doc, options: HtmlOptions = {}): string {
     .map((sg, i) => {
       const list = childOfClass(doc, sg.id, 'UIListLayout');
       const sc = 's' + (i + 1);
+      w.classes.set(sg.id, sc);
       w.rule(`.${sc}`, [
         ['z-index', String(i + 1)],
         ...(sg.props.Enabled ? [] : ([['display', 'none']] as Decl[])),
@@ -1053,7 +1065,7 @@ export function exportHtml(doc: Doc, options: HtmlOptions = {}): string {
   const fontsHref = w.fontsHref();
   const title = esc(screenGuis[0]?.props.Name ?? 'Framecraft export');
   const backdrop = BACKDROP_CSS[options.backdrop ?? 'game'];
-  return `<!doctype html>
+  const text = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -1085,4 +1097,5 @@ ${COMMENT_OPEN} Built with Framecraft (prototype). Every object keeps its Roblox
 </body>
 </html>
 `;
+  return { text, classes: w.classes };
 }
