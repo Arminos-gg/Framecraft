@@ -457,6 +457,17 @@ export function Viewport() {
           <Icon name="devices" />
           <span>Side by side</span>
         </button>
+        <button
+          type="button"
+          className="toggle"
+          aria-pressed={state.code}
+          aria-label="Code"
+          title="Show the code for what you’re editing, as it changes"
+          onClick={() => editor.setCodeOpen(!state.code)}
+        >
+          <Icon name="code" />
+          <span>Code</span>
+        </button>
         {breakpoint?.className === 'Breakpoint' && (
           <span
             className="bpchip"

@@ -197,6 +197,8 @@ export interface EditorState {
   readonly saveStatus: SaveStatus;
   /** The Components drawer is open. */
   readonly components: boolean;
+  /** The live code view is open under the viewport. */
+  readonly code: boolean;
 }
 
 export const LIST_PLACES = 'A UIListLayout places this object. Change LayoutOrder to reorder it.';
@@ -409,6 +411,7 @@ export class Editor {
       renaming: null,
       saveStatus: 'idle',
       components: false,
+      code: false,
     };
     this.history.subscribe(() => this.#onDocChange());
   }
@@ -668,6 +671,9 @@ export class Editor {
   }
   setComponentsOpen(components: boolean) {
     if (components !== this.#state.components) this.#update({ components });
+  }
+  setCodeOpen(code: boolean) {
+    if (code !== this.#state.code) this.#update({ code });
   }
   setBackdrop(backdrop: Backdrop) {
     this.#update({ backdrop });

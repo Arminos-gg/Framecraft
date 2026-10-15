@@ -35,9 +35,10 @@ for (const scheme of ['light', 'dark'] as const)
     await select(page, 'Headline');
     await page.getByRole('treeitem', { name: 'Headline' }).click();
     expect(await axe(page)).toEqual([]);
-    await page.getByRole('tab', { name: 'Code' }).click();
+    await page.getByRole('button', { name: 'Code', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Code' })).toBeVisible();
     expect(await axe(page)).toEqual([]);
-    await page.getByRole('tab', { name: 'Properties' }).click();
+    await page.getByRole('button', { name: 'Close code' }).click();
 
     await page.getByRole('button', { name: 'Project', exact: true }).click();
     expect(await axe(page)).toEqual([]);
@@ -192,13 +193,16 @@ test('opens the right-click menu from the keyboard', async ({ page }) => {
 
 test('tabs and the insert menu work from the keyboard', async ({ page }) => {
   await page.goto('/');
-  const props = page.getByRole('tab', { name: 'Properties' });
-  await props.focus();
+  await page.keyboard.press('Control+e');
+  const site = page.getByRole('tab', { name: 'Website' });
+  await site.focus();
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: 'Code' })).toBeFocused();
-  await expect(page.getByRole('tab', { name: 'Code' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('tabpanel', { name: 'Code' })).toBeVisible();
-  await page.keyboard.press('ArrowLeft');
+  await expect(page.getByRole('tab', { name: 'HTML page' })).toBeFocused();
+  await expect(page.getByRole('tab', { name: 'HTML page' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.keyboard.press('Escape');
 
   await select(page, 'Hero');
   await page.getByRole('treeitem', { name: 'Hero' }).click();

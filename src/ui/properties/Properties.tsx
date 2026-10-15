@@ -1,6 +1,6 @@
 /**
  * The Properties panel: the selected object's properties by category, with an editor for
- * each value type, and the Code tab. On a page shown at a breakpoint, properties that may
+ * each value type. On a page shown at a breakpoint, properties that may
  * differ per breakpoint change there only; a dot marks the ones changed there, and clicking
  * it goes back to the inherited value. With several objects selected, it shows the properties
  * they all have, with the values of the one picked last, and an edit changes all of them.
@@ -29,8 +29,6 @@ import { PICTURE_TYPES, pictureFromFile } from '../pictures.ts';
 import { ClassIcon, Icon } from '../icons.tsx';
 import { InsertMenu } from '../InsertMenu.tsx';
 import { SidePanel } from '../Panel.tsx';
-import { onTabKeys } from '../tabs.ts';
-import { CodePane } from './CodePane.tsx';
 import { FontField, FontWeightField } from './FontFields.tsx';
 import {
   AlphaField,
@@ -51,11 +49,8 @@ import {
 } from './fields.tsx';
 import { notesFor, showsProp } from './notes.ts';
 
-type Tab = 'props' | 'code';
-
 export function Properties({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { selected } = useEditorState();
-  const [tab, setTab] = useState<Tab>('props');
   // What stays open or closed as the selection changes.
   const [closed, setClosed] = useState<ReadonlySet<Category>>(new Set());
   const toggle = <T,>(set: ReadonlySet<T>, v: T) => {
@@ -63,51 +58,19 @@ export function Properties({ open, onClose }: { open: boolean; onClose: () => vo
     if (!next.delete(v)) next.add(v);
     return next;
   };
-  const tabButton = (t: Tab, label: string) => (
-    <button
-      type="button"
-      role="tab"
-      id={`tab-${t}`}
-      aria-selected={tab === t}
-      aria-controls={`tabpanel-${t}`}
-      tabIndex={tab === t ? 0 : -1}
-      className={tab === t ? 'tab on' : 'tab'}
-      onClick={() => setTab(t)}
-    >
-      {label}
-    </button>
-  );
   return (
-    <SidePanel
-      title="Properties"
-      className="props"
-      open={open}
-      onClose={onClose}
-      head={
-        <div className="tabs" role="tablist" aria-label="Properties or code" onKeyDown={onTabKeys}>
-          {tabButton('props', 'Properties')}
-          {tabButton('code', 'Code')}
-        </div>
-      }
-    >
-      {tab === 'props' ? (
-        <div
-          className="pbody"
-          role="tabpanel"
-          id="tabpanel-props"
-          aria-labelledby="tab-props"
-          // It scrolls, so the keyboard can reach it even with no fields in it.
-          tabIndex={0}
-        >
-          <PropsBody
-            key={selected.join(' ') || 'none'}
-            closed={closed}
-            onToggleCategory={(c) => setClosed((s) => toggle(s, c))}
-          />
-        </div>
-      ) : (
-        <CodePane />
-      )}
+    <SidePanel title="Properties" className="props" open={open} onClose={onClose}>
+      <div
+        className="pbody"
+        // It scrolls, so the keyboard can reach it even with no fields in it.
+        tabIndex={0}
+      >
+        <PropsBody
+          key={selected.join(' ') || 'none'}
+          closed={closed}
+          onToggleCategory={(c) => setClosed((s) => toggle(s, c))}
+        />
+      </div>
     </SidePanel>
   );
 }

@@ -3,6 +3,7 @@ import { Editor, type SaveStatus } from '../editor/editor.ts';
 import { sampleProject } from '../model/sample.ts';
 import { EditorContext, useEditor, useEditorState } from './editor-context.ts';
 import { ExportDialog, type ExportKind } from './ExportDialog.tsx';
+import { CodePanel } from './CodePanel.tsx';
 import { ComponentsDrawer } from './Components.tsx';
 import { Explorer } from './Explorer.tsx';
 import { Icon, Mark } from './icons.tsx';
@@ -54,9 +55,12 @@ function Shell() {
 
   const { preview, saveStatus } = state;
   const drawer = state.components && !preview;
+  const code = state.code && !preview;
   return (
     <div
-      className={['app', preview && 'preview', drawer && 'with-drawer'].filter(Boolean).join(' ')}
+      className={['app', preview && 'preview', drawer && 'with-drawer', code && 'with-code']
+        .filter(Boolean)
+        .join(' ')}
     >
       <header className="topbar">
         <h1 className="brand">
@@ -139,6 +143,7 @@ function Shell() {
       <Explorer open={sheet === 'explorer'} onClose={() => setSheet(null)} />
       {drawer && <ComponentsDrawer />}
       <Viewport />
+      {code && <CodePanel />}
       <Properties open={sheet === 'props'} onClose={() => setSheet(null)} />
       {menu && (
         <ProjectMenu
@@ -182,7 +187,15 @@ function SelectionAnnouncer() {
 }
 
 /** The editor's regions in order, for F6 and Shift+F6. */
-const REGIONS = ['.topbar', '.ribbon', '.explorer', '.drawerwrap', '.canvas', '.props'];
+const REGIONS = [
+  '.topbar',
+  '.ribbon',
+  '.explorer',
+  '.drawerwrap',
+  '.canvas',
+  '.codepanel',
+  '.props',
+];
 
 /** Moves keyboard focus to the next (or previous) region that's showing. */
 function cycleRegion(back: boolean) {
@@ -196,9 +209,11 @@ function cycleRegion(back: boolean) {
   // control.
   const target = next.matches('[tabindex]')
     ? next
-    : next.querySelector<HTMLElement>(
-        '[role="treeitem"][tabindex="0"], button:not([disabled]), input, select, [tabindex="0"]',
-      );
+    : [
+        ...next.querySelectorAll<HTMLElement>(
+          '[role="treeitem"][tabindex="0"], button:not([disabled]), input, select, [tabindex="0"]',
+        ),
+      ].find((el) => el.offsetParent !== null);
   target?.focus();
 }
 
