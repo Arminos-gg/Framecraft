@@ -191,6 +191,7 @@ const STATIC_CSS = `  html, body { margin: 0; }
 function writePage(w: HtmlWriter, page: Page): string {
   const doc = w.doc;
   const p = w.props(page);
+  w.classes.set(page.id, 'pc');
   const background = p.BackgroundTransparency
     ? rgba(p.BackgroundColor3, p.BackgroundTransparency)
     : rgb(p.BackgroundColor3);
@@ -291,6 +292,18 @@ function sectionAnchors(doc: Doc, pages: readonly Page[]): Map<InstanceId, strin
  * Site has no pages.
  */
 export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
+  return exportSiteMapped(doc, assets).files;
+}
+
+/**
+ * The website as files, with the class each object's element got (pages get `pc`), for the
+ * live code view. With `only`, just that page's file and the pictures it uses are written.
+ */
+export function exportSiteMapped(
+  doc: Doc,
+  assets: Assets = {},
+  only?: InstanceId,
+): { files: SiteFile[]; classes: ReadonlyMap<InstanceId, string> } {
   const site = serviceOf(doc, 'Site');
   const pages = childrenOf(doc, site.id).filter(
     (c): c is Page & AnyInstance => c.className === 'Page',
@@ -313,7 +326,9 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
     : '';
 
   const out: SiteFile[] = [];
+  const classes = new Map<InstanceId, string>();
   for (const page of pages) {
+    if (only !== undefined && page.id !== only) continue;
     const at = files.get(page.id)!;
     const up = '../'.repeat(at.depth);
     const links: WriterLinks = {
@@ -333,6 +348,7 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
 
     const base = new HtmlWriter(doc, undefined, links, true);
     const body = writePage(base, page);
+    for (const [id, cls] of base.classes) classes.set(id, cls);
     // Free-placed boxes that grow push the page longer; the script works out how much.
     const grows =
       !childOfClass(doc, page.id, 'UIListLayout') &&
@@ -400,7 +416,7 @@ ${STATIC_CSS}${smooth ? '\n' + SMOOTH_CSS : ''}${base.needsAppear ? '\n' + APPEA
   out.sort((a, b) => rank(a.path) - rank(b.path));
   for (const [id, path] of [...images].sort(([, a], [, b]) => (a < b ? -1 : 1)))
     out.push({ path, contents: dataUrlBytes(assets[id]!) });
-  return out;
+  return { files: out, classes };
 }
 
 const rank = (path: string) => (path === 'index.html' ? 0 : path === '404.html' ? 2 : 1);

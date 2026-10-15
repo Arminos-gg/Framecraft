@@ -197,6 +197,8 @@ export interface EditorState {
   readonly saveStatus: SaveStatus;
   /** The Components drawer is open. */
   readonly components: boolean;
+  /** The live code view is open under the viewport. */
+  readonly code: boolean;
 }
 
 export const LIST_PLACES = 'A UIListLayout places this object. Change LayoutOrder to reorder it.';
@@ -409,6 +411,7 @@ export class Editor {
       renaming: null,
       saveStatus: 'idle',
       components: false,
+      code: false,
     };
     this.history.subscribe(() => this.#onDocChange());
   }
@@ -482,7 +485,9 @@ export class Editor {
     action?: Toast['action'],
     more: { readonly detail?: string; readonly tone?: Toast['tone'] } = {},
   ) {
-    const duration = action ? 6000 : 2600;
+    // Long messages stay longer, so there's time to read them.
+    const extra = Math.max(0, text.length + (more.detail?.length ?? 0) - 40) * 50;
+    const duration = Math.min(12_000, (action ? 6000 : 2600) + extra);
     const toast: Toast = { id: ++this.#seq, text, duration, ...more, ...(action && { action }) };
     this.#update({ toast });
     this.#toastLeft = null;
@@ -668,6 +673,9 @@ export class Editor {
   }
   setComponentsOpen(components: boolean) {
     if (components !== this.#state.components) this.#update({ components });
+  }
+  setCodeOpen(code: boolean) {
+    if (code !== this.#state.code) this.#update({ code });
   }
   setBackdrop(backdrop: Backdrop) {
     this.#update({ backdrop });

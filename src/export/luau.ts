@@ -228,7 +228,7 @@ type ImageProps = Extract<AnyInstance, { className: 'ImageLabel' }>['props'];
 type ButtonProps = Extract<AnyInstance, { className: 'TextButton' }>['props'];
 
 /** Gives each instance a unique camelCase variable name. */
-function makeNamer() {
+function makeNamer(vars?: Map<string, InstanceId>) {
   const used = new Map<string, number>();
   return (inst: AnyInstance, parentVar: string | null): string => {
     const name = inst.props.Name;
@@ -241,7 +241,9 @@ function makeNamer() {
     if (LUA_KEYWORDS.has(base)) base += 'Gui';
     const k = used.get(base) ?? 0;
     used.set(base, k + 1);
-    return k ? base + (k + 1) : base;
+    const v = k ? base + (k + 1) : base;
+    vars?.set(v, inst.id);
+    return v;
   };
 }
 
@@ -273,7 +275,16 @@ function luauBlock(
 
 /** Code that builds every ScreenGui in the project. */
 export function exportLuau(doc: Doc, target: LuauTarget = 'command'): string {
-  const namer = makeNamer();
+  return exportLuauMapped(doc, target).text;
+}
+
+/** The Luau, with the object each variable holds, for the live code view. */
+export function exportLuauMapped(
+  doc: Doc,
+  target: LuauTarget = 'command',
+): { text: string; vars: ReadonlyMap<string, InstanceId> } {
+  const vars = new Map<string, InstanceId>();
+  const namer = makeNamer(vars);
   const cmd = target === 'command';
   const lines = cmd
     ? [
@@ -301,10 +312,10 @@ export function exportLuau(doc: Doc, target: LuauTarget = 'command'): string {
       '-- Select the new UI so it shows up in the Explorer',
       `game:GetService("Selection"):Set({ ${roots.join(', ')} })`,
     );
-  return lines.join('\n') + '\n';
+  return { text: lines.join('\n') + '\n', vars };
 }
 
-/** Code for one object and everything inside it, as the Code tab shows it. */
+/** Code for one object and everything inside it, as the live code view copies it. */
 export function exportLuauSubtree(doc: Doc, id: InstanceId): string {
   const inst = getInstance(doc, id);
   const def = inst && classDef(inst.className);

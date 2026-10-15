@@ -466,14 +466,59 @@ test.describe('Properties', () => {
     const overrides = (inst!.overrides ?? {}) as Record<string, Record<string, unknown>>;
     expect(overrides[phone]).not.toHaveProperty('TextSize');
   });
+});
 
-  test('shows the selection as code', async ({ page }) => {
+test.describe('live code view', () => {
+  test('shows the code for what is being edited, as it changes', async ({ page }) => {
+    await page.getByRole('button', { name: 'Code', exact: true }).click();
+    const panel = page.getByRole('region', { name: 'Code' });
+    const html = panel.getByLabel('HTML', { exact: true });
+    const css = panel.getByLabel('CSS', { exact: true });
+
+    // A page shows its HTML file beside its CSS, the selection's lines marked.
+    const headline = await selectByName(page, 'Headline');
+    await expect(panel).toContainText('index.html');
+    await expect(html.locator('.ln.hi').first()).toContainText('data-name="Headline"');
+    await expect(css.locator('.ln.hi').first()).toContainText('.e7 {');
+
+    // An edit shows up in the code at once.
+    await commit(page, '#p-TextSize', '40');
+    await expect(css.locator('.ln.hi', { hasText: 'font-size: 40px;' })).toBeVisible();
+
+    // Hovering a line outlines its object, and clicking selects it.
+    const subscribe = html.locator('.ln', { hasText: 'data-name="Subscribe"' });
+    await subscribe.hover();
+    const hover = () => page.evaluate(() => window.framecraft!.state.hover);
+    expect(await hover()).toBe(await idOf(page, 'Subscribe'));
+    await subscribe.click();
+    expect(await selection(page)).toBe(await idOf(page, 'Subscribe'));
+    expect(await selection(page)).not.toBe(headline);
+
+    // Luau for the Roblox screens, and a copy of one object's code.
+    await panel.getByRole('button', { name: 'Luau', exact: true }).click();
     await selectByName(page, 'Coins');
-    await page.getByRole('tab', { name: 'Code' }).click();
-    const code = page.getByLabel('Luau', { exact: true });
-    await expect(code).toContainText('local coins = Instance.new("Frame")');
-    await page.getByRole('button', { name: 'HTML', exact: true }).click();
-    await expect(page.locator('.code .ln.hi')).toContainText('data-name="Coins"');
+    const luau = panel.getByLabel('Luau', { exact: true });
+    await expect(luau.locator('.ln.hi').nth(1)).toContainText(
+      'local coins = Instance.new("Frame")',
+    );
+    await expect(panel.getByRole('button', { name: 'Copy Coins' })).toBeVisible();
+
+    await panel.getByRole('button', { name: 'Close code' }).click();
+    await expect(panel).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Code', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
+  test('resizes from the keyboard', async ({ page }) => {
+    await page.getByRole('button', { name: 'Code', exact: true }).click();
+    const panel = page.getByRole('region', { name: 'Code' });
+    const before = (await panel.boundingBox())!.height;
+    await page.getByRole('separator', { name: 'Code panel height' }).focus();
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowUp');
+    expect((await panel.boundingBox())!.height).toBe(before + 32);
   });
 });
 
@@ -636,4 +681,22 @@ test.describe('export and project files', () => {
     expect((await propsOf(page, id)).Text).toBe('Kept');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   });
+});
+
+test('a popup grows to show all of a long message', async ({ page }) => {
+  const long = 'This message is far too long for one line of the popup, '.repeat(4).trim();
+  await page.evaluate((t) => window.framecraft!.toast(t, undefined, { detail: t }), long);
+  const toast = page.locator('.toast');
+  await expect(toast).toContainText(long);
+  const fits = await toast.evaluate((el) => {
+    const text = el.querySelector<HTMLElement>('.ttext')!;
+    const parts = [...text.children] as HTMLElement[];
+    const box = el.getBoundingClientRect();
+    return {
+      wrapped: parts.every((p) => p.scrollWidth <= p.clientWidth),
+      tall: parts[0]!.getBoundingClientRect().height > 30,
+      inside: text.scrollHeight <= text.clientHeight && box.top >= 0,
+    };
+  });
+  expect(fits).toEqual({ wrapped: true, tall: true, inside: true });
 });

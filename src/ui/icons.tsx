@@ -15,6 +15,7 @@ const PATHS = {
   play: '<path d="M6.5 4.5v11l9-5.5z" fill="currentColor" stroke="none"/>',
   stop: '<rect x="5" y="5" width="10" height="10" rx="1.5" fill="currentColor" stroke="none"/>',
   export: '<path d="M10 3v9M6.5 6.5 10 3l3.5 3.5"/><path d="M4 11v5.5h12V11"/>',
+  code: '<path d="M7 6 3 10l4 4M13 6l4 4-4 4M11 4.5l-2 11"/>',
   copy: '<rect x="7" y="7" width="10" height="10" rx="2"/><path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-7A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13H7"/>',
   eye: '<path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z"/><circle cx="10" cy="10" r="2.5"/>',
   eyeOff:
