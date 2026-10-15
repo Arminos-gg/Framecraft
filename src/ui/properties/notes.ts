@@ -1,6 +1,34 @@
 /** Short notes under a Properties section, explaining how Roblox (or the web export) reads it. */
 import { classDef, type Category } from '../../model/classes.ts';
-import type { AnyInstance } from '../../model/document.ts';
+import { formOf, getInstance, type AnyInstance, type Doc } from '../../model/document.ts';
+
+/**
+ * Whether Properties shows a property that only means something in some places: a TextBox's
+ * form fields inside a Form, a gradient's ApplyTo on a text object, and the settings of the
+ * Embed kind picked.
+ */
+export function showsProp(
+  doc: Doc,
+  inst: AnyInstance,
+  key: string,
+  values: Readonly<Record<string, unknown>>,
+): boolean {
+  switch (key) {
+    case 'InputType':
+    case 'Required':
+      return inst.className !== 'TextBox' || !!formOf(doc, inst.id);
+    case 'ApplyTo': {
+      if (inst.className !== 'UIGradient') return true;
+      const parent = inst.parent === null ? undefined : getInstance(doc, inst.parent);
+      return !!parent && !!classDef(parent.className).text && parent.className !== 'TextBox';
+    }
+    case 'Autoplay':
+      return inst.className !== 'Embed' || values.Kind === 'YouTube';
+    case 'Zoom':
+      return inst.className !== 'Embed' || values.Kind === 'Map';
+  }
+  return true;
+}
 
 export function notesFor(
   inst: AnyInstance,
@@ -48,7 +76,19 @@ export function notesFor(
       break;
     case 'UIGradient':
       notes.Gradient =
-        'Multiplies the parent’s background color. Rotation 0 runs left to right, 90 top to bottom.';
+        values.ApplyTo === 'Text' && onSite
+          ? 'Colors the letters instead of the background, times TextColor3, so white text takes the gradient exactly. Rotation 0 runs left to right, 90 top to bottom. Gradient letters have no outline.'
+          : 'Multiplies the parent’s background color. Rotation 0 runs left to right, 90 top to bottom.';
+      break;
+    case 'Form':
+      notes.Form =
+        'Action is where the form sends what people type: a form service’s address, such as https://formspree.io/f/your-id from formspree.io, which emails it to you. Each TextBox is a field named by its Name, and its buttons send it. Then they say SentText.';
+      break;
+    case 'Embed':
+      notes.Embed =
+        values.Kind === 'Map'
+          ? 'Type an address or a place in Source. Zoom runs from 1 (the world) to 20 (a building). Try it in preview.'
+          : 'Paste a YouTube link in Source; a time in it (t=90) starts the video there. Autoplay starts it muted. Try it in preview.';
       break;
     case 'UIListLayout':
       notes.Layout = 'Stacks the parent’s children in LayoutOrder and ignores their Position.';
@@ -70,16 +110,28 @@ export function notesFor(
       break;
     case 'Site':
       notes.Web =
-        'With BaseUrl set to your site’s address, such as https://example.com, pages get canonical links and social previews.';
+        'With BaseUrl set to your site’s address, such as https://example.com, pages get canonical links and social previews. SmoothScroll makes links to a section of the same page glide there.';
       break;
     case 'Breakpoint':
       notes.Breakpoint =
         'Pages show this breakpoint’s changes in windows up to MaxWidth pixels wide. The viewport previews it at PreviewWidth × PreviewHeight.';
       break;
   }
+  if (inst.className === 'TextBox' && values.InputType !== undefined)
+    notes.Form =
+      'In a Form, this box is a field named by its Name. Email, Phone, Number and Url get the right keyboard on phones and are checked before sending; LongText is a box for a message.';
+  if (def.image && onSite)
+    notes.Filters =
+      'Photo filters for the website: Grayscale and Sepia from 0 to 1, Brightness, Contrast and Saturation where 1 leaves the picture as it is, and Blur in pixels.';
+  if (classDef(inst.className).web && def.kind === 'gui' && !notes.Web)
+    notes.Web =
+      'Cursor is the mouse pointer over it.' +
+      (values.Pinned === true
+        ? ' Pinned keeps it on screen while the page scrolls; in a list it sticks to the top.'
+        : '');
   if (def.kind === 'gui' && !notes.Web)
     notes.Web =
-      'Link makes the object a link to a page, a section of a page (by its name) or another site. HtmlTag picks the element it becomes on the website.' +
+      'Link makes the object a link to a page, a section of a page (by its name) or another site. HtmlTag picks the element it becomes on the website, and Cursor is the mouse pointer over it.' +
       (values.Pinned === true
         ? ' Pinned keeps it on screen while the page scrolls; in a list it sticks to the top.'
         : '');

@@ -149,6 +149,7 @@ class Engine {
       size: t.TextSize,
       lineHeight: t.LineHeight,
       letterSpacing: this.site ? t.LetterSpacing : 0,
+      textCase: this.site ? t.TextCase : 'None',
     };
     if (x) {
       const width = this.measure(request).w + padding;

@@ -15,6 +15,8 @@ import {
   getInstance,
   isAncestor,
   ModelError,
+  onPage,
+  pageOnly,
   requireInstance,
   subtreeIds,
   type AnyInstance,
@@ -172,6 +174,10 @@ function applyInsert(doc: Doc, parentId: InstanceId, subtree: Subtree, index?: n
     parent.children.some((c) => doc.instances[c]?.className === root.className)
   )
     throw new ModelError(`There is already a ${root.className}`);
+  if (root.className !== 'Page' && !onPage(doc, parentId)) {
+    const web = Object.values(subtree.instances).find((i) => pageOnly(i.className));
+    if (web) throw new ModelError(webOnly(web.className));
+  }
   const changes: Record<InstanceId, AnyInstance> = {};
   for (const [id, inst] of Object.entries(subtree.instances)) {
     if (getInstance(doc, id)) throw new ModelError(`An instance with id ${id} already exists`);
@@ -189,6 +195,9 @@ function applyInsert(doc: Doc, parentId: InstanceId, subtree: Subtree, index?: n
   changes[parentId] = { ...parent, children: withChild(parent.children, root.id, index) };
   return { doc: patch(doc, changes), inverse: remove(root.id), changed: true };
 }
+
+const webOnly = (className: ClassName) =>
+  `A ${className} works on the website only. Put it on a page.`;
 
 const isFixed = (inst: AnyInstance) => {
   const { kind } = classDef(inst.className);
@@ -232,6 +241,10 @@ function applyMove(doc: Doc, id: InstanceId, parentId: InstanceId, index?: numbe
     throw new ModelError(`${inst.props.Name} can't go inside itself`);
   if (!canParent(inst.className, target.className))
     throw new ModelError(`A ${inst.className} can't go inside a ${target.className}`);
+  if (inst.className !== 'Page' && !onPage(doc, parentId)) {
+    const web = subtreeIds(doc, id).find((i) => pageOnly(requireInstance(doc, i).className));
+    if (web !== undefined) throw new ModelError(webOnly(requireInstance(doc, web).className));
+  }
 
   const oldParent = requireInstance(doc, inst.parent);
   const oldIndex = oldParent.children.indexOf(id);

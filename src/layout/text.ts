@@ -3,6 +3,7 @@
  * same styles the Stage and the exports draw text with (see ui/viewport/text-measure.ts).
  * Where there's no browser, such as in unit tests, an estimate stands in.
  */
+import type { TextCase } from '../model/classes.ts';
 import type { TextFace } from '../model/fonts.ts';
 
 export interface TextRequest extends TextFace {
@@ -15,6 +16,17 @@ export interface TextRequest extends TextFace {
   readonly letterSpacing?: number;
   /** Wrap at this width, as TextWrapped does; leave it out to keep each line whole. */
   readonly wrap?: number;
+  /** Capitals or lowercase on a website, as CSS text-transform; None when left out. */
+  readonly textCase?: TextCase;
+}
+
+/** The letters a website shows for a text in a TextCase, for the estimate. */
+export function casedText(text: string, textCase: TextCase = 'None'): string {
+  if (textCase === 'Uppercase') return text.toUpperCase();
+  if (textCase === 'Lowercase') return text.toLowerCase();
+  if (textCase === 'Capitalize')
+    return text.replace(/(^|\s)(\S)/g, (_, s: string, c: string) => s + c.toUpperCase());
+  return text;
 }
 
 /** The text's bounds, as Roblox's TextBounds: the widest line, and the lines' total height. */
@@ -30,12 +42,14 @@ export type TextMeasurer = (request: TextRequest) => TextSize;
  * wide plus the letter spacing, and lines broken at spaces, or inside a word too long for the line.
  */
 export const estimateText: TextMeasurer = ({
-  text,
+  text: typed,
+  textCase,
   size,
   wrap,
   lineHeight = 1,
   letterSpacing = 0,
 }) => {
+  const text = casedText(typed, textCase);
   if (!text) return { w: 0, h: 0 };
   const advance = Math.max(1, size / 2 + letterSpacing);
   const fits = wrap === undefined ? Infinity : Math.max(1, Math.floor(wrap / advance));

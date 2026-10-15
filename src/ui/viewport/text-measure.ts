@@ -3,6 +3,7 @@
  * and the exported pages do (a span with the LineHeight in a flex box, `pre` or `pre-wrap`), so
  * AutomaticSize in the editor matches the exports. Results are cached until web fonts load.
  */
+import { CASE_CSS } from '../../export/html.ts';
 import { fontCss } from '../../model/fonts.ts';
 import { setTextMeasurer, textChanged, type TextMeasurer } from '../../layout/text.ts';
 
@@ -13,7 +14,7 @@ export function domTextMeasurer(doc: Document = document) {
   let span: HTMLSpanElement | null = null;
 
   const measure: TextMeasurer = (request) => {
-    const { text, size, wrap, lineHeight = 1, letterSpacing = 0 } = request;
+    const { text, size, wrap, lineHeight = 1, letterSpacing = 0, textCase = 'None' } = request;
     const f = fontCss(request);
     const key = [
       f.family,
@@ -23,6 +24,7 @@ export function domTextMeasurer(doc: Document = document) {
       wrap ?? '',
       lineHeight,
       letterSpacing,
+      textCase,
       text,
     ].join('|');
     const known = cache.get(key);
@@ -46,6 +48,7 @@ export function domTextMeasurer(doc: Document = document) {
     s.fontSize = size + 'px';
     s.lineHeight = String(lineHeight);
     s.letterSpacing = letterSpacing ? letterSpacing + 'px' : '';
+    s.textTransform = CASE_CSS[textCase];
     s.whiteSpace = wrap === undefined ? 'pre' : 'pre-wrap';
     s.overflowWrap = wrap === undefined ? '' : 'anywhere';
     box.style.width = wrap === undefined ? 'max-content' : wrap + 'px';

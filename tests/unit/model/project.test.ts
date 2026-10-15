@@ -100,6 +100,7 @@ describe('opening prototype files (version 1)', () => {
       Color: colorSequence([255, 255, 255], [222, 158, 30]),
       Transparency: numberSequence(0, 0),
       Rotation: 90,
+      ApplyTo: 'Background',
     });
   });
 

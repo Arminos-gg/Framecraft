@@ -12,6 +12,7 @@ import { useEditor, useEditorState } from './editor-context.ts';
 import { ClassIcon, Icon } from './icons.tsx';
 import { Checkbox } from './properties/fields.tsx';
 import { ShapesMenu } from './ShapesMenu.tsx';
+import { WebMenu } from './WebMenu.tsx';
 
 const MODIFIERS: readonly (readonly [ClassName, string])[] = [
   ['UICorner', 'Corner'],
@@ -40,6 +41,7 @@ export function Ribbon() {
   const editor = useEditor();
   const { doc, selection, view, preview, unit, snap, components } = useEditorState();
   const [shapes, setShapes] = useState<HTMLElement | null>(null);
+  const [web, setWeb] = useState<HTMLElement | null>(null);
   const sel = selection === null ? undefined : getInstance(doc, selection);
   const layer: ClassName = view.kind === 'page' ? 'Page' : 'ScreenGui';
   const convertible =
@@ -75,6 +77,21 @@ export function Ribbon() {
             Shapes
           </button>
           {shapes && <ShapesMenu anchor={shapes} onClose={() => setShapes(null)} />}
+          {view.kind === 'page' && (
+            <button
+              className={web ? 'tool is-pressed' : 'tool'}
+              type="button"
+              data-insert="web"
+              title="Add a form, a YouTube video or a map"
+              aria-haspopup="dialog"
+              aria-expanded={!!web}
+              onClick={(e) => setWeb(web ? null : e.currentTarget)}
+            >
+              <Icon name="web" />
+              Web
+            </button>
+          )}
+          {web && view.kind === 'page' && <WebMenu anchor={web} onClose={() => setWeb(null)} />}
           <button
             className={components ? 'tool on' : 'tool'}
             type="button"

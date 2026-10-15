@@ -297,8 +297,9 @@ function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
       e: openExport,
       b: () => editor.toggleTextStyle('bold'),
       i: () => editor.toggleTextStyle('italic'),
+      u: () => editor.toggleTextStyle('underline'),
     }[k];
-    if (action && !(preview && 'dcxvbiag'.includes(k))) {
+    if (action && !(preview && 'dcxvbiuag'.includes(k))) {
       e.preventDefault();
       action();
     } else if (k === 'v' && !preview) {

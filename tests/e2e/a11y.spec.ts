@@ -26,6 +26,8 @@ async function axe(page: Page) {
 
 for (const scheme of ['light', 'dark'] as const)
   test(`axe finds nothing in the editor in the ${scheme} theme`, async ({ page }) => {
+    // Axe reads the whole editor once per menu and dialog here, which takes a while.
+    test.slow();
     await page.emulateMedia({ colorScheme: scheme });
     await page.goto('/');
     expect(await axe(page)).toEqual([]);
@@ -79,6 +81,11 @@ for (const scheme of ['light', 'dark'] as const)
     await expect(page.getByRole('region', { name: 'Components' })).toBeVisible();
     expect(await axe(page)).toEqual([]);
     await page.getByRole('button', { name: 'Close components' }).click();
+
+    await page.locator('[data-insert="web"]').click();
+    await expect(page.getByRole('group', { name: 'Web objects' })).toBeVisible();
+    expect(await axe(page)).toEqual([]);
+    await page.keyboard.press('Escape');
 
     await page.keyboard.press('p');
     expect(await axe(page)).toEqual([]);

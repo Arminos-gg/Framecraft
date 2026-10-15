@@ -5,7 +5,7 @@
  * the bottom up over the page's background. On the Roblox screens the game shows through, so
  * text there can only be checked over something solid.
  */
-import { isGui, strokesText, type Gui } from '../export/html.ts';
+import { isGui, strokesText, textGradient, type Gui } from '../export/html.ts';
 import { classDef } from '../model/classes.ts';
 import { FONT_WEIGHTS } from '../model/fonts.ts';
 import {
@@ -102,6 +102,12 @@ export function textContrast(doc: Doc, scene: Scene, id: InstanceId): TextContra
   const p = props(t);
   if (!p.Text.trim() || p.TextTransparency >= 1) return undefined;
 
+  const web = scene.view.kind === 'page';
+  // Gradient letters take each of the gradient's colors, times TextColor3.
+  const lettering = textGradient(doc, t, web);
+  const letters = lettering
+    ? props(lettering).Color.map((k) => multiply(p.TextColor3, k.value))
+    : [p.TextColor3];
   // The middle of the text's area.
   const x = box.content.x + box.content.w / 2;
   const y = box.content.y + box.content.h / 2;
@@ -112,7 +118,10 @@ export function textContrast(doc: Doc, scene: Scene, id: InstanceId): TextContra
     if (!b?.visible || x < b.x || x > b.x + b.w || y < b.y || y > b.y + b.h) continue;
     const gp = props(g);
     if (gp.BackgroundTransparency < 1) {
-      const gradient = childOfClass(doc, g.id, 'UIGradient');
+      // A gradient on the letters (ApplyTo Text) leaves the background plain.
+      const gradient = textGradient(doc, g, web)
+        ? undefined
+        : childOfClass(doc, g.id, 'UIGradient');
       const base = gp.BackgroundColor3;
       layers.push({
         colors: gradient ? props(gradient).Color.map((k) => multiply(base, k.value)) : [base],
@@ -145,19 +154,20 @@ export function textContrast(doc: Doc, scene: Scene, id: InstanceId): TextContra
   const size = p.TextScaled ? Math.min(100, box.content.h) : p.TextSize;
   const needed = isLargeText(size, FONT_WEIGHTS[p.FontWeight]) ? 3 : 4.5;
   let worst: TextContrast | undefined;
-  for (const bg of below) {
-    const text = blend(p.TextColor3, 1 - p.TextTransparency, bg);
-    let ratio = contrastRatio(text, bg);
-    // A solid outline around the letters stands between them and the background.
-    for (const s of childrenOf(doc, id)) {
-      if (s.className !== 'UIStroke') continue;
-      const stroke = s as Instance<'UIStroke'> & AnyInstance;
-      const sp = props(stroke);
-      if (!strokesText(t, stroke) || sp.Thickness < 1 || sp.Transparency > 0.5) continue;
-      ratio = Math.max(ratio, contrastRatio(text, blend(sp.Color, 1 - sp.Transparency, bg)));
+  for (const bg of below)
+    for (const color of letters) {
+      const text = blend(color, 1 - p.TextTransparency, bg);
+      let ratio = contrastRatio(text, bg);
+      // A solid outline around the letters stands between them and the background.
+      for (const s of childrenOf(doc, id)) {
+        if (s.className !== 'UIStroke' || lettering) continue;
+        const stroke = s as Instance<'UIStroke'> & AnyInstance;
+        const sp = props(stroke);
+        if (!strokesText(t, stroke) || sp.Thickness < 1 || sp.Transparency > 0.5) continue;
+        ratio = Math.max(ratio, contrastRatio(text, blend(sp.Color, 1 - sp.Transparency, bg)));
+      }
+      if (!worst || ratio < worst.ratio) worst = { ratio, needed, text, background: bg };
     }
-    if (!worst || ratio < worst.ratio) worst = { ratio, needed, text, background: bg };
-  }
   return worst;
 }
 

@@ -10,15 +10,21 @@ import {
   ALIGN_Y,
   APPEAR_CSS,
   APPEAR_KEYFRAMES,
+  CASE_CSS,
+  CURSOR_CSS,
+  DECORATION_CSS,
   gradientCss,
+  gradientTextCss,
   hoverTransition,
   isGui,
   isTinted,
   maskCss,
   OBJECT_FIT,
+  pictureFilter,
   PIN_Z,
   strokeShadows,
   strokesText,
+  textGradient,
   textRing,
   tintId,
   tintKey,
@@ -28,7 +34,14 @@ import {
 import type { Scene } from '../../editor/editor.ts';
 import { udimPx, type Rect } from '../../layout/layout.ts';
 import type { Assets } from '../../model/assets.ts';
-import { classDef } from '../../model/classes.ts';
+import { classDef, linkOf } from '../../model/classes.ts';
+import {
+  embedSrc,
+  embedTitle,
+  EMBED_ALLOW,
+  youtubeId,
+  youtubeThumbnail,
+} from '../../model/embeds.ts';
 import { faceOf, fontCss } from '../../model/fonts.ts';
 import {
   childOfClass,
@@ -156,7 +169,10 @@ function GuiView({ inst, origin, ctx }: { inst: Gui; origin: Rect; ctx: Ctx }) {
   if (!b.visible) style.display = 'none';
   if (b.rotation) style.transform = `rotate(${b.rotation}deg)`;
 
-  const gradient = childOfClass(doc, inst.id, 'UIGradient');
+  // A gradient on the letters (ApplyTo Text) leaves the background plain.
+  const gradient = textGradient(doc, inst, web)
+    ? undefined
+    : childOfClass(doc, inst.id, 'UIGradient');
   const g = gradient && ctx.props(gradient);
   if (p.BackgroundTransparency < 1) {
     style.backgroundColor = rgba(p.BackgroundColor3, p.BackgroundTransparency);
@@ -194,6 +210,8 @@ function GuiView({ inst, origin, ctx }: { inst: Gui; origin: Rect; ctx: Ctx }) {
   if (appear && p.AppearDelay) style.animationDelay = `${p.AppearDelay}s`;
   const hover = web ? childOfClass(doc, inst.id, 'UIHover') : undefined;
   if (hover) style.transition = hoverTransition(hover.props.Duration);
+  // The mouse pointer is the website's in preview; while editing it's the editor's.
+  if (web && ctx.preview && p.Cursor !== 'Auto') style.cursor = CURSOR_CSS[p.Cursor];
 
   const classes = ['gui'];
   if (
@@ -201,7 +219,8 @@ function GuiView({ inst, origin, ctx }: { inst: Gui; origin: Rect; ctx: Ctx }) {
     inst.props.AutoButtonColor
   )
     classes.push('btnlike');
-  if (inst.props.Link) classes.push('linked');
+  const link = linkOf(inst.props);
+  if (link) classes.push('linked');
 
   const kids = guiChildren(doc, inst.id);
   let content = null;
@@ -246,13 +265,7 @@ function GuiView({ inst, origin, ctx }: { inst: Gui; origin: Rect; ctx: Ctx }) {
   // In preview, links and buttons take keyboard focus; Enter or Space follows a link.
   const button = inst.className === 'TextButton' || inst.className === 'ImageButton';
   const role =
-    ctx.preview && b.visible
-      ? inst.props.Link
-        ? 'link'
-        : button
-          ? 'button'
-          : undefined
-      : undefined;
+    ctx.preview && b.visible ? (link ? 'link' : button ? 'button' : undefined) : undefined;
   const altText = (inst.props as { AltText?: string }).AltText;
   return (
     <div
@@ -271,6 +284,7 @@ function GuiView({ inst, origin, ctx }: { inst: Gui; origin: Rect; ctx: Ctx }) {
       {(inst.className === 'TextLabel' ||
         inst.className === 'TextButton' ||
         inst.className === 'TextBox') && <TextView inst={inst} ctx={ctx} />}
+      {inst.className === 'Embed' && <EmbedView inst={inst} ctx={ctx} />}
       {content}
     </div>
   );
@@ -309,7 +323,8 @@ function ImageView({ inst, ctx }: { inst: Instance<'ImageLabel' | 'ImageButton'>
         style={{
           objectFit: OBJECT_FIT[p.ScaleType],
           opacity: roundTo(1 - p.ImageTransparency, 3),
-          filter: isTinted(p.ImageColor3) ? `url(#${tintId(tintKey(p.ImageColor3))})` : undefined,
+          // Photo filters are for the website, so they show on pages only.
+          filter: pictureFilter(p, ctx.scene.view.kind === 'page'),
         }}
       />
     );
@@ -330,6 +345,7 @@ function TextView({
   const b = ctx.scene.layout.get(inst.id)!;
   const p = ctx.props(inst);
   const isBox = inst.className === 'TextBox';
+  const web = ctx.scene.view.kind === 'page';
   const placeholder = isBox && !p.Text && !ctx.preview;
   const font = fontCss(faceOf(p));
   const strokes = childrenOf(ctx.doc, inst.id)
@@ -345,12 +361,26 @@ function TextView({
     color: rgba(placeholder ? PLACEHOLDER : p.TextColor3, p.TextTransparency),
     fontSize: p.TextScaled ? 10 : p.TextSize,
     lineHeight: p.LineHeight,
-    // Letter spacing is web only, so it shows on pages only.
-    letterSpacing: ctx.scene.view.kind === 'page' && p.LetterSpacing ? p.LetterSpacing : undefined,
+    // Letter spacing, lines and capitals are web only, so they show on pages only.
+    letterSpacing: web && p.LetterSpacing ? p.LetterSpacing : undefined,
+    textDecorationLine: web ? DECORATION_CSS[p.TextDecoration] : undefined,
+    textTransform: web ? CASE_CSS[p.TextCase] : undefined,
   };
-  const hover = ctx.scene.view.kind === 'page' && childOfClass(ctx.doc, inst.id, 'UIHover');
+  const hover = web && childOfClass(ctx.doc, inst.id, 'UIHover');
   if (hover) span.transition = `color ${hover.props.Duration}s`;
-  if (strokes.length)
+  // Gradient letters take the gradient instead of their color, and no outline.
+  const gradient = textGradient(ctx.doc, inst, web);
+  if (gradient)
+    Object.assign(
+      span,
+      Object.fromEntries(
+        gradientTextCss(ctx.props(gradient), p.TextColor3, p.TextTransparency).map(([k, v]) => [
+          k.replace(/^-webkit-/, 'Webkit-').replace(/-(\w)/g, (_, c: string) => c.toUpperCase()),
+          v,
+        ]),
+      ),
+    );
+  else if (strokes.length)
     span.textShadow = strokes
       .map(({ sp }) =>
         textRing(sp.Thickness, rgba(sp.Color, Math.max(sp.Transparency, p.TextTransparency))),
@@ -360,7 +390,10 @@ function TextView({
   const c = b.content;
   return (
     <div
-      className={p.TextWrapped ? 'txt wrap' : 'txt'}
+      // A box for a message (LongText) wraps on the website.
+      className={
+        p.TextWrapped || (web && isBox && inst.props.InputType === 'LongText') ? 'txt wrap' : 'txt'
+      }
       data-fit={p.TextScaled ? '1' : undefined}
       style={{
         left: c.x - b.x,
@@ -383,6 +416,55 @@ function TextView({
       >
         {placeholder && isBox ? inst.props.PlaceholderText : p.Text}
       </span>
+    </div>
+  );
+}
+
+/**
+ * A YouTube video or a map. In preview it's the real thing; while editing, a picture of it
+ * (the video's thumbnail, or a map pin), so dragging and clicking reach the editor.
+ */
+function EmbedView({ inst, ctx }: { inst: Instance<'Embed'>; ctx: Ctx }) {
+  const p = ctx.props(inst as AnyInstance) as Instance<'Embed'>['props'];
+  const src = embedSrc(p);
+  if (src && ctx.preview)
+    return (
+      <iframe
+        className="emb"
+        src={src}
+        title={embedTitle(p)}
+        allow={EMBED_ALLOW}
+        referrerPolicy="strict-origin-when-cross-origin"
+        allowFullScreen
+      />
+    );
+  const video = p.Kind === 'YouTube' ? youtubeId(p.Source) : undefined;
+  const label = !src
+    ? p.Kind === 'Map'
+      ? 'Type a place in Source'
+      : 'Paste a YouTube link in Source'
+    : p.Kind === 'Map'
+      ? p.Source.trim()
+      : '';
+  return (
+    <div
+      className={`emb embph ${p.Kind === 'Map' ? 'map' : 'video'}`}
+      style={video ? { backgroundImage: `url(${youtubeThumbnail(video)})` } : undefined}
+    >
+      <span className="embbadge" aria-hidden="true">
+        {p.Kind === 'Map' ? (
+          <svg viewBox="0 0 20 20" width="22" height="22">
+            <path d="M10 18s6-5.4 6-9.6a6 6 0 0 0-12 0C4 12.6 10 18 10 18z" fill="#e5484d" />
+            <circle cx="10" cy="8.4" r="2.2" fill="#fff" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 28 20" width="34" height="24">
+            <rect width="28" height="20" rx="5" fill="#e5484d" />
+            <path d="M11 6v8l7-4z" fill="#fff" />
+          </svg>
+        )}
+      </span>
+      {label && <span className="embtext">{label}</span>}
     </div>
   );
 }
