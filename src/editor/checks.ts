@@ -1,11 +1,12 @@
 /**
  * Accessibility checks for the website, shown before it's exported: text too close in color
  * to what's behind it, links with no words for a screen reader to say, and pages with no
- * main heading. Each check names the object (and the device it fails on) so the editor can
+ * main heading. Also forms with nowhere to send and videos or maps with nothing to show. Each check names the object (and the device it fails on) so the editor can
  * show it.
  */
 import { isGui } from '../export/html.ts';
 import { classDef } from '../model/classes.ts';
+import { embedSrc } from '../model/embeds.ts';
 import {
   getInstance,
   subtreeIds,
@@ -18,7 +19,7 @@ import { pageDevices } from './devices.ts';
 import { buildScene, pagesOf } from './editor.ts';
 
 export interface Check {
-  readonly kind: 'contrast' | 'link' | 'heading';
+  readonly kind: 'contrast' | 'link' | 'heading' | 'form' | 'embed';
   /** The object to show: the text, the link or the page. */
   readonly id: InstanceId;
   readonly page: InstanceId;
@@ -81,6 +82,23 @@ export function siteChecks(doc: Doc): Check[] {
           text: `Text contrast is ${fmtRatio(bad.c.ratio)}${devices.length > 1 ? ` on ${name}` : ''}. Text this size needs ${bad.c.needed}:1 to be easy to read.`,
         });
       }
+      if (inst.className === 'Form' && !inst.props.Action.trim())
+        out.push({
+          kind: 'form',
+          id: inst.id,
+          page: page.id,
+          text: 'This form has nowhere to send. Set its Action to a form service’s address, such as one from formspree.io.',
+        });
+      if (inst.className === 'Embed' && !embedSrc(inst.props))
+        out.push({
+          kind: 'embed',
+          id: inst.id,
+          page: page.id,
+          text:
+            inst.props.Kind === 'Map'
+              ? 'This map shows nothing yet. Type an address or a place in its Source.'
+              : 'This video shows nothing yet. Paste a YouTube link in its Source.',
+        });
       if (p.Link && inst.className !== 'TextBox' && !hasWords(doc, inst.id))
         out.push({
           kind: 'link',

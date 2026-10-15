@@ -49,7 +49,7 @@ import {
   Vec2Field,
   type Gesture,
 } from './fields.tsx';
-import { notesFor } from './notes.ts';
+import { notesFor, showsProp } from './notes.ts';
 
 type Tab = 'props' | 'code';
 
@@ -229,6 +229,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
     // Only objects straight on a page can be pinned to the window.
     if ((k as string) === 'Pinned' && getInstance(doc, inst.parent ?? '')?.className !== 'Page')
       return false;
+    if (!showsProp(doc, inst, k, values)) return false;
     return !q || k.toLowerCase().includes(q);
   });
   const byCategory = new Map<Category, string[]>();

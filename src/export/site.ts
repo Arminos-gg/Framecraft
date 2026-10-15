@@ -6,6 +6,7 @@
  * the page growing to fit its content.
  */
 import type { Assets } from '../model/assets.ts';
+import { linkOf } from '../model/classes.ts';
 import {
   breakpointsOf,
   childOfClass,
@@ -26,6 +27,7 @@ import {
   calcV,
   COMMENT_OPEN,
   FIT_SCRIPT,
+  FORM_EXPORT,
   HtmlWriter,
   isGui,
   PIN_Z,
@@ -133,6 +135,9 @@ const RESET: Record<string, string> = {
   'font-style': 'normal',
   'line-height': '1',
   'text-shadow': 'none',
+  'text-decoration-line': 'none',
+  'text-transform': 'none',
+  cursor: 'auto',
   order: '0',
   'object-fit': 'fill',
   opacity: '1',
@@ -169,9 +174,11 @@ const STATIC_CSS = `  html, body { margin: 0; }
   a.g { color: inherit; text-decoration: none; }
   .t { display: flex; pointer-events: none; }
   .t > * { line-height: 1; }
-  .t > input { pointer-events: auto; width: 100%; height: 100%; border: 0; background: transparent; outline: none; padding: 0; font-size: inherit; }
+  .t > input, .t > textarea { pointer-events: auto; width: 100%; height: 100%; border: 0; background: transparent; outline: none; padding: 0; font-size: inherit; }
+  .t > textarea { resize: none; margin: 0; }
+  .emb { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; border-radius: inherit; }
   /* A clear ring around whatever the keyboard is on. */
-  a:focus-visible, input:focus-visible { outline: 2px solid #2f62ff; outline-offset: 2px; }
+  a:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid #2f62ff; outline-offset: 2px; }
   .img { position: absolute; inset: 0; width: 100%; height: 100%; }
   .ph { position: absolute; inset: 0; display: grid; place-items: center; font: 12px monospace; color: #555;
         background: repeating-linear-gradient(45deg, #ddd 0 6px, #eee 6px 12px); }
@@ -240,6 +247,17 @@ const freeSections = (doc: Doc, pageId: InstanceId): Gui[] =>
     : drawnChildren(doc, pageId)
   ).filter(isGui);
 
+/** Smooth scrolling to a section, for people who don't ask for less motion. */
+const SMOOTH_CSS = `  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }`;
+
+/** Whether an object on the page links to a section of the same page. */
+const sectionLinkOn = (doc: Doc, pageId: InstanceId): boolean =>
+  subtreeIds(doc, pageId).some((id) => {
+    const inst = doc.instances[id]!;
+    const link = isGui(inst) ? linkOf(inst.props) : null;
+    return link?.kind === 'page' && link.page === pageId && !!link.section;
+  });
+
 /** Every link that points at a section, as the id its target object gets on its page. */
 function sectionAnchors(doc: Doc, pages: readonly Page[]): Map<InstanceId, string> {
   const anchors = new Map<InstanceId, string>();
@@ -247,7 +265,7 @@ function sectionAnchors(doc: Doc, pages: readonly Page[]): Map<InstanceId, strin
   for (const page of pages)
     for (const id of subtreeIds(doc, page.id)) {
       const inst = doc.instances[id]!;
-      const link: Link | null | undefined = isGui(inst) ? inst.props.Link : undefined;
+      const link: Link | null | undefined = isGui(inst) ? linkOf(inst.props) : undefined;
       if (link?.kind !== 'page' || !link.section) continue;
       const set = wanted.get(link.page) ?? new Set<string>();
       set.add(slug(link.section));
@@ -337,6 +355,8 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
       previous = w.rules;
     }
 
+    // Links to a section on this page glide there, unless people ask for less motion.
+    const smooth = sp.SmoothScroll && sectionLinkOn(doc, page.id);
     const pp = page.props;
     const head: string[] = [`<title>${esc(pp.Title || pp.Name)}</title>`];
     if (pp.Description) head.push(`<meta name="description" content="${esc(pp.Description)}">`);
@@ -361,7 +381,7 @@ export function exportSite(doc: Doc, assets: Assets = {}): SiteFile[] {
 ${head.join('\n')}
 ${COMMENT_OPEN} Built with Framecraft. Every object keeps its Roblox name in data-name. -->
 <style>
-${STATIC_CSS}${base.needsAppear ? '\n' + APPEAR_EXPORT.css : ''}
+${STATIC_CSS}${smooth ? '\n' + SMOOTH_CSS : ''}${base.needsAppear ? '\n' + APPEAR_EXPORT.css : ''}${base.needsForm ? '\n' + FORM_EXPORT.css : ''}
   ${[...base.rules.map(ruleText), ...media].join('\n  ')}
 </style>
 </head>
@@ -369,7 +389,7 @@ ${STATIC_CSS}${base.needsAppear ? '\n' + APPEAR_EXPORT.css : ''}
   <main class="page" data-name="${esc(pp.Name)}">
     <div class="c pc"${grows ? ' data-grow' : ''}>${body}
     </div>
-  </main>${base.needsScript ? FIT_SCRIPT : ''}${base.needsAppear ? APPEAR_EXPORT.script : ''}
+  </main>${base.needsScript ? FIT_SCRIPT : ''}${base.needsAppear ? APPEAR_EXPORT.script : ''}${base.needsForm ? FORM_EXPORT.script : ''}
 </body>
 </html>
 `;

@@ -9,8 +9,15 @@ import type { Assets } from '../model/assets.ts';
 import {
   automaticSizeOf,
   classDef,
+  htmlTagOf,
+  IMAGE_FILTERS,
+  linkOf,
   type AppearStyle,
   type AutomaticSize,
+  type Cursor,
+  type InputType,
+  type TextCase,
+  type TextDecoration,
 } from '../model/classes.ts';
 import {
   breakpointsOf,
@@ -24,6 +31,7 @@ import {
   type Instance,
   type InstanceId,
 } from '../model/document.ts';
+import { EMBED_ALLOW, embedSrc, embedTitle } from '../model/embeds.ts';
 import { faceKey, faceOf, fontCss, googleFontsHref, parseFaceKey } from '../model/fonts.ts';
 import type { AssetId, Color3, ColorSequence, Link, NumberSequence } from '../model/values.ts';
 import { calcU, esc, fmtNum, rgb, rgba, roundTo } from './format.ts';
@@ -132,6 +140,114 @@ export function strokeShadows(stroke: Instance<'UIStroke'>['props']): string[] {
   if (Right && Bottom) side(1, 1);
   if (Bottom && Left) side(-1, 1);
   if (Left && Top) side(-1, -1);
+  return out;
+}
+
+/** The CSS cursor for each Cursor. */
+export const CURSOR_CSS: Record<Cursor, string> = {
+  Auto: 'auto',
+  Default: 'default',
+  Pointer: 'pointer',
+  Text: 'text',
+  Move: 'move',
+  Grab: 'grab',
+  Crosshair: 'crosshair',
+  ZoomIn: 'zoom-in',
+  Help: 'help',
+  Wait: 'wait',
+  NotAllowed: 'not-allowed',
+  None: 'none',
+};
+
+/** CSS text-decoration-line for each TextDecoration. */
+export const DECORATION_CSS: Record<TextDecoration, string> = {
+  None: 'none',
+  Underline: 'underline',
+  Strikethrough: 'line-through',
+};
+
+/** CSS text-transform for each TextCase. */
+export const CASE_CSS: Record<TextCase, string> = {
+  None: 'none',
+  Uppercase: 'uppercase',
+  Lowercase: 'lowercase',
+  Capitalize: 'capitalize',
+};
+
+/** The input type each InputType becomes; LongText is a textarea. */
+export const INPUT_CSS: Record<Exclude<InputType, 'LongText'>, string> = {
+  Text: 'text',
+  Email: 'email',
+  Phone: 'tel',
+  Number: 'number',
+  Url: 'url',
+  Password: 'password',
+};
+
+/** The CSS function for each picture filter. */
+const FILTER_FN = {
+  Grayscale: 'grayscale',
+  Sepia: 'sepia',
+  Brightness: 'brightness',
+  Contrast: 'contrast',
+  Saturation: 'saturate',
+  Blur: 'blur',
+} as const;
+
+/**
+ * A picture's CSS filter: its ImageColor3 tint first, then the website's photo filters
+ * (Grayscale and so on) that change it. Undefined when nothing does.
+ */
+export function pictureFilter(
+  p: Readonly<Record<(typeof IMAGE_FILTERS)[number][0], number>> & { ImageColor3: Color3 },
+  site: boolean,
+): string | undefined {
+  const out: string[] = [];
+  if (isTinted(p.ImageColor3)) out.push(`url(#${tintId(tintKey(p.ImageColor3))})`);
+  if (site)
+    for (const [k, none] of IMAGE_FILTERS)
+      if (p[k] !== none) out.push(`${FILTER_FN[k]}(${fmtNum(p[k])}${k === 'Blur' ? 'px' : ''})`);
+  return out.length ? out.join(' ') : undefined;
+}
+
+/**
+ * A text object whose UIGradient colors its letters (ApplyTo Text), on a website. TextBoxes
+ * keep plain text, which people type into.
+ */
+export function textGradient(
+  doc: Doc,
+  inst: AnyInstance,
+  site: boolean,
+): Instance<'UIGradient'> | undefined {
+  if (!site || !classDef(inst.className).text || inst.className === 'TextBox') return undefined;
+  const g = childOfClass(doc, inst.id, 'UIGradient');
+  return g?.props.ApplyTo === 'Text' ? g : undefined;
+}
+
+/**
+ * The CSS that paints text with a gradient: the gradient times TextColor3, clipped to the
+ * letters, as UIGradient multiplies in Roblox. TextTransparency and the gradient's own
+ * Transparency fade the letters.
+ */
+export function gradientTextCss(
+  g: Instance<'UIGradient'>['props'],
+  color: Color3,
+  transparency: number,
+): Decl[] {
+  const out: Decl[] = [
+    ['color', 'transparent'],
+    ['-webkit-text-fill-color', 'transparent'],
+    ['background-color', rgb(color)],
+    ['background-image', gradientCss(g.Color, g.Rotation)],
+    ['background-blend-mode', 'multiply'],
+    ['-webkit-background-clip', 'text'],
+    ['background-clip', 'text'],
+  ];
+  if (transparency) out.push(['opacity', fmtNum(1 - transparency, 3)]);
+  if (g.Transparency.some((k) => k.value)) {
+    const m = maskCss(g.Transparency, g.Rotation);
+    out.push(['-webkit-mask-image', m], ['mask-image', m]);
+  }
   return out;
 }
 
@@ -327,6 +443,8 @@ interface EmitContext {
   readonly linked: boolean;
   /** CSS `order` in its list at this breakpoint, when it differs from the base order. */
   readonly order?: number;
+  /** Inside a Form, where buttons send it and TextBoxes are its fields. */
+  readonly form?: boolean;
 }
 
 /** Pinned objects draw above everything else on the page, as they stay while it scrolls. */
@@ -382,6 +500,56 @@ ${SCRIPT_CLOSE}`;
 /** The CSS and script a page with Appear animations needs, for the website export. */
 export const APPEAR_EXPORT = { css: APPEAR_PAGE_CSS, script: APPEAR_SCRIPT };
 
+/** What the send button says while a form is on its way, and when it didn't go through. */
+export const FORM_SENDING = 'Sending…';
+export const FORM_FAILED = 'Couldn’t send. Try again.';
+export const FORM_NOWHERE = 'This form has nowhere to send yet.';
+
+/** CSS for forms: buttons that look like their objects, and the hidden status line. */
+const FORM_PAGE_CSS = `  /* Forms: a button looks like its object; the status line is for screen readers. */
+  :where(button.g) { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; cursor: pointer; }
+  :where(button.g:disabled) { cursor: default; }
+  .fc-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }`;
+
+/**
+ * Sends each form to its Action address (a form service such as Formspree) without leaving
+ * the page, and says on its buttons that it went through. Without the script, or for an
+ * address that isn't a web address (mailto:), the browser sends it the usual way.
+ */
+const FORM_SCRIPT = `
+${SCRIPT_OPEN}
+  (function () {
+    document.querySelectorAll('form[data-form]').forEach(function (form) {
+      var status = form.querySelector('.fc-status');
+      function say(text, busy) {
+        form.querySelectorAll('button[type="submit"]').forEach(function (b) {
+          var s = b.querySelector('.t > span');
+          if (s) s.textContent = text;
+          b.disabled = busy;
+        });
+        if (status) status.textContent = text;
+      }
+      form.addEventListener('submit', function (e) {
+        var action = form.getAttribute('action') || '';
+        if (!action) { e.preventDefault(); say(${JSON.stringify(FORM_NOWHERE)}, false); return; }
+        if (!/^https?:/i.test(action) || form.method !== 'post' || !window.fetch) return;
+        e.preventDefault();
+        say(${JSON.stringify(FORM_SENDING)}, true);
+        fetch(action, { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' } })
+          .then(function (r) {
+            if (!r.ok) throw new Error(r.status);
+            form.reset();
+            say(form.getAttribute('data-sent'), true);
+          })
+          .catch(function () { say(${JSON.stringify(FORM_FAILED)}, false); });
+      });
+    });
+  })();
+${SCRIPT_CLOSE}`;
+
+/** The CSS and script a page with forms needs, for the website export. */
+export const FORM_EXPORT = { css: FORM_PAGE_CSS, script: FORM_SCRIPT };
+
 /**
  * Writes the elements and CSS rules for a tree of objects with the values at one breakpoint
  * (none for the base values). Elements come out in the base order whatever the breakpoint,
@@ -398,6 +566,8 @@ export class HtmlWriter {
   needsAppear = false;
   /** Some object straight on the page is pinned outside a list. */
   hasPinned = false;
+  /** The page has a Form. */
+  needsForm = false;
   seq = 0;
   readonly doc: Doc;
   readonly breakpoint: InstanceId | undefined;
@@ -564,7 +734,10 @@ export class HtmlWriter {
     if (pinned && inList) r.push(['z-index', String(PIN_Z + p.ZIndex)]);
     else if (p.ZIndex !== 1) r.push(['z-index', String(p.ZIndex)]);
     if (!p.Visible) r.push(['display', 'none']);
-    const grad = childOfClass(doc, inst.id, 'UIGradient');
+    // A gradient on the letters (ApplyTo Text) leaves the background plain.
+    const grad = textGradient(doc, inst, this.site)
+      ? undefined
+      : childOfClass(doc, inst.id, 'UIGradient');
     const g = grad && this.props(grad);
     if (p.BackgroundTransparency < 1) {
       r.push(['background-color', rgba(p.BackgroundColor3, p.BackgroundTransparency)]);
@@ -617,6 +790,8 @@ export class HtmlWriter {
       inst.props.AutoButtonColor;
     if (darkens) attrs.push('data-btn');
     if (ctx.order !== undefined) r.push(['order', String(ctx.order)]);
+    if (this.site && inst.props.Cursor !== 'Auto')
+      r.push(['cursor', CURSOR_CSS[inst.props.Cursor]]);
     if (inst.props.Appear !== 'None') {
       attrs.push(`data-appear="${inst.props.Appear}"`);
       if (inst.props.AppearDelay) r.push(['animation-delay', `${fmtNum(inst.props.AppearDelay)}s`]);
@@ -628,23 +803,49 @@ export class HtmlWriter {
     if (hover) this.hoverRules(inst, cls, hover, darkens);
 
     // The element: a link, the chosen tag, or a div. Links and tags come from the base values.
+    // In a Form, a button that isn't a link sends it, and the Form itself is a form.
+    const link = linkOf(inst.props);
     const href =
-      inst.props.Link && !ctx.linked && inst.className !== 'TextBox'
-        ? this.links.href?.(inst.props.Link)
-        : undefined;
-    const chosen = inst.props.HtmlTag === 'Auto' ? undefined : inst.props.HtmlTag;
+      link && !ctx.linked && inst.className !== 'TextBox' ? this.links.href?.(link) : undefined;
+    const tagProp = htmlTagOf(inst.props);
+    const chosen = tagProp === 'Auto' ? undefined : tagProp;
     const allowed = ctx.phrasing ? (chosen && PHRASING_ONLY.has(chosen) ? 'span' : chosen) : chosen;
-    const tag = href !== undefined ? 'a' : (allowed ?? (ctx.phrasing ? 'span' : 'div'));
-    const phrasing = ctx.phrasing || (!!chosen && PHRASING_ONLY.has(chosen));
+    const sends =
+      href === undefined &&
+      !!ctx.form &&
+      !ctx.linked &&
+      (inst.className === 'TextButton' || inst.className === 'ImageButton');
+    const form = inst.className === 'Form' && this.site && !ctx.phrasing;
+    const tag =
+      href !== undefined
+        ? 'a'
+        : sends
+          ? 'button'
+          : form
+            ? 'form'
+            : (allowed ?? (ctx.phrasing ? 'span' : 'div'));
+    // A button holds phrasing content only, as headings and paragraphs do.
+    const phrasing = ctx.phrasing || sends || (!!chosen && PHRASING_ONLY.has(chosen));
     const box = phrasing ? 'span' : 'div';
     const head: string[] = [];
     const anchor = this.links.anchor?.(inst.id);
     if (anchor) head.push(`id="${esc(anchor)}"`);
     if (href !== undefined) {
       head.push(`href="${esc(href)}"`);
-      if (inst.props.Link?.newTab) head.push('target="_blank" rel="noopener"');
+      if (link?.newTab) head.push('target="_blank" rel="noopener"');
     }
-    const inner = this.emitInner(
+    if (sends) head.push('type="submit"');
+    if (form && inst.className === 'Form') {
+      const action = inst.props.Action.trim();
+      if (action) head.push(`action="${esc(action)}"`);
+      head.push(
+        `method="${inst.props.Method.toLowerCase()}"`,
+        'data-form',
+        `data-sent="${esc(inst.props.SentText)}"`,
+      );
+      this.needsForm = true;
+    }
+    let inner = this.emitInner(
       inst,
       cls,
       depth,
@@ -652,10 +853,12 @@ export class HtmlWriter {
         onPage: false,
         phrasing,
         linked: ctx.linked || href !== undefined,
+        form: ctx.form || form,
       },
       box,
     );
     const ind = '  '.repeat(depth + 2);
+    if (form) inner += `\n${ind}  <span class="fc-status" role="status"></span>`;
     const attrText = [...head, ...attrs].map((a) => ' ' + a).join('');
     const el = `\n${ind}<${tag} class="g ${cls}"${attrText} data-name="${esc(p.Name)}">${inner}${inner ? '\n' + ind : ''}</${tag}>`;
     if (!pinned || inList) return el;
@@ -679,6 +882,26 @@ export class HtmlWriter {
     }
   }
 
+  /**
+   * A TextBox's input. On a website it asks for its InputType (a textarea for LongText), and
+   * in a Form it's a field named by the object's Name.
+   */
+  inputHtml(inst: Instance<'TextBox'>, text: string, inForm: boolean): string {
+    const p = inst.props;
+    const attrs: string[] = [];
+    if (inForm) attrs.push(`name="${esc(p.Name)}"`);
+    if (this.site && p.InputType !== 'Text' && p.InputType !== 'LongText')
+      attrs.push(`type="${INPUT_CSS[p.InputType]}"`);
+    attrs.push(
+      `placeholder="${esc(p.PlaceholderText)}"`,
+      `aria-label="${esc(p.PlaceholderText || p.Name)}"`,
+    );
+    if (this.site && p.Required) attrs.push('required');
+    const a = attrs.join(' ');
+    if (this.site && p.InputType === 'LongText') return `<textarea ${a}>${esc(text)}</textarea>`;
+    return `<input value="${esc(text)}" ${a}>`;
+  }
+
   /** What goes inside an object's element: its picture, its text and its children. */
   emitInner(inst: Gui, cls: string, depth: number, ctx: EmitContext, box: string): string {
     const doc = this.doc;
@@ -692,11 +915,9 @@ export class HtmlWriter {
         const ic = `${cls}i`;
         const d: Decl[] = [['object-fit', OBJECT_FIT[ip.ScaleType]]];
         if (ip.ImageTransparency) d.push(['opacity', fmtNum(1 - ip.ImageTransparency, 3)]);
-        if (isTinted(ip.ImageColor3)) {
-          const key = tintKey(ip.ImageColor3);
-          this.tints.add(key);
-          d.push(['filter', `url(#${tintId(key)})`]);
-        }
+        if (isTinted(ip.ImageColor3)) this.tints.add(tintKey(ip.ImageColor3));
+        const filter = pictureFilter(ip, this.site);
+        if (filter) d.push(['filter', filter]);
         this.rule(`.${ic}`, d);
         inner += `\n${ind}  <img class="img ${ic}" src="${src}" alt="${esc(inst.props.AltText)}">`;
       } else
@@ -726,10 +947,14 @@ export class HtmlWriter {
         ['font-weight', String(f.weight)],
       ];
       if (f.style !== 'normal') ts.push(['font-style', f.style]);
+      const input = inst.className === 'TextBox';
+      const long = input && this.site && inst.props.InputType === 'LongText';
+      const gradient = textGradient(doc, inst, this.site);
       ts.push(
         ['color', rgba(tp.TextColor3, tp.TextTransparency)],
         ['text-align', tp.TextXAlignment.toLowerCase()],
-        ['white-space', tp.TextWrapped ? 'pre-wrap' : 'pre'],
+        // A box for a message always wraps.
+        ['white-space', tp.TextWrapped || long ? 'pre-wrap' : 'pre'],
       );
       // Roblox breaks a word too long for the line.
       if (tp.TextWrapped) ts.push(['overflow-wrap', 'anywhere']);
@@ -737,9 +962,20 @@ export class HtmlWriter {
       if (tp.LineHeight !== 1) ts.push(['line-height', fmtNum(tp.LineHeight)]);
       if (this.site && tp.LetterSpacing)
         ts.push(['letter-spacing', `${fmtNum(tp.LetterSpacing)}px`]);
+      if (this.site && tp.TextDecoration !== 'None')
+        ts.push(['text-decoration-line', DECORATION_CSS[tp.TextDecoration]]);
+      if (this.site && tp.TextCase !== 'None') ts.push(['text-transform', CASE_CSS[tp.TextCase]]);
       const hover = childOfClass(doc, inst.id, 'UIHover');
       if (hover) ts.push(['transition', `color ${fmtNum(hover.props.Duration)}s`]);
-      if (textStrokes.length)
+      // Gradient letters take the gradient instead of their color, and no outline.
+      if (gradient)
+        ts.splice(
+          0,
+          ts.length,
+          ...ts.filter(([k]) => k !== 'color'),
+          ...gradientTextCss(this.props(gradient), tp.TextColor3, tp.TextTransparency),
+        );
+      else if (textStrokes.length)
         ts.push([
           'text-shadow',
           textStrokes
@@ -753,11 +989,16 @@ export class HtmlWriter {
         ]);
       this.rule(`.${tc} > *`, ts);
       if (inst.props.TextScaled) this.needsScript = true;
-      const input = inst.className === 'TextBox';
       const body = input
-        ? `<input value="${esc(tp.Text)}" placeholder="${esc(inst.props.PlaceholderText)}" aria-label="${esc(inst.props.PlaceholderText || tp.Name)}">`
+        ? this.inputHtml(inst, tp.Text, !!ctx.form)
         : `<span>${esc(tp.Text)}</span>`;
       inner += `\n${ind}  <${box} class="t ${tc}"${inst.props.TextScaled && !input ? ' data-fit' : ''}>${body}</${box}>`;
+    }
+    if (inst.className === 'Embed') {
+      const ep = this.props(inst);
+      const src = embedSrc(ep);
+      if (src)
+        inner += `\n${ind}  <iframe class="emb" src="${esc(src)}" title="${esc(embedTitle(ep))}" loading="lazy" allow="${EMBED_ALLOW}" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>`;
     }
     // A box that grows always has a content box: the script reads its padding there.
     const hasKids =

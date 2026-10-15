@@ -3085,6 +3085,45 @@ button.bpdot.on:hover {
     monospace;
   text-align: center;
 }
+.gui > .emb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: inherit;
+}
+/* an Embed while editing: a picture of the video or the map, so clicks reach the editor */
+.gui > .embph {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  overflow: hidden;
+  pointer-events: none;
+  background: #1f2329 center / cover no-repeat;
+  color: #fff;
+  font:
+    600 12px/1.3 'Inter',
+    system-ui,
+    sans-serif;
+  text-align: center;
+}
+.gui > .embph.map {
+  background-color: #e8eee3;
+  background-image:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.9) 6px, transparent 6px) 0 0 / 96px 96px,
+    linear-gradient(rgba(255, 255, 255, 0.9) 6px, transparent 6px) 0 40px / 96px 96px,
+    linear-gradient(135deg, #cfe3c4 25%, transparent 25%) 0 0 / 160px 160px;
+  color: #2b3330;
+}
+.gui > .embph .embtext {
+  max-width: 90%;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+}
 .gui .canvasbox {
   position: absolute;
   left: 0;

@@ -128,6 +128,35 @@ export const folderObjects = (doc: Doc, id: InstanceId): AnyInstance[] =>
     classDef(c.className).kind === 'folder' ? drawnChildren(doc, c.id) : [],
   );
 
+/** Whether an instance is a web page or inside one, where web-only objects work. */
+export function onPage(doc: Doc, id: InstanceId): boolean {
+  for (
+    let p = getInstance(doc, id);
+    p;
+    p = p.parent === null ? undefined : getInstance(doc, p.parent)
+  )
+    if (p.className === 'Page') return true;
+  return false;
+}
+
+/** The Form an object is in, if any: its TextBoxes are the form's fields and its buttons send it. */
+export function formOf(doc: Doc, id: InstanceId): Instance<'Form'> | undefined {
+  const inst = getInstance(doc, id);
+  for (
+    let p = inst?.parent == null ? undefined : getInstance(doc, inst.parent);
+    p;
+    p = p.parent === null ? undefined : getInstance(doc, p.parent)
+  )
+    if (p.className === 'Form') return p as Instance<'Form'>;
+  return undefined;
+}
+
+/** Objects only a web page can hold, such as a Form or an Embed: Roblox has nothing like them. */
+export const pageOnly = (className: ClassName): boolean => {
+  const def = classDef(className);
+  return !!def.web && def.kind === 'gui';
+};
+
 /** Is `ancestorId` a parent, grandparent and so on of `id`? */
 export function isAncestor(doc: Doc, ancestorId: InstanceId, id: InstanceId): boolean {
   let p = getInstance(doc, id)?.parent ?? null;

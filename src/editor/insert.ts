@@ -11,6 +11,7 @@ import {
   defaultProps,
   MODIFIER_CLASSES,
   OBJECT_CLASSES,
+  WEB_OBJECT_CLASSES,
   type ClassName,
 } from '../model/classes.ts';
 import {
@@ -20,6 +21,8 @@ import {
   drawnParent,
   getInstance,
   newId,
+  onPage,
+  pageOnly,
   single,
   type AnyInstance,
   type Doc,
@@ -59,6 +62,8 @@ export const CLASS_HINTS: Partial<Record<ClassName, string>> = {
   UIListLayout: 'Stacks the children',
   UIAspectRatioConstraint: 'Keeps the shape',
   UIHover: 'Changes on mouse over',
+  Form: 'Fields people fill in and send',
+  Embed: 'A YouTube video or a map',
 };
 
 const isModifier = (c: ClassName) => classDef(c).kind === 'modifier';
@@ -71,24 +76,17 @@ export function insertableInto(doc: Doc, parentId: InstanceId) {
   const parent = getInstance(doc, parentId);
   if (!parent) return { objects: [], modifiers: [] };
   const fits = (c: ClassName) => canParent(c, parent.className);
-  const objects = (['ScreenGui', 'Page', ...OBJECT_CLASSES, 'Folder'] as ClassName[]).filter(fits);
   const web = onPage(doc, parentId);
+  const objects = (
+    ['ScreenGui', 'Page', ...OBJECT_CLASSES, ...WEB_OBJECT_CLASSES, 'Folder'] as ClassName[]
+  ).filter((c) => fits(c) && (web || !pageOnly(c)));
   const modifiers = (MODIFIER_CLASSES as readonly ClassName[]).filter(
     (c) => fits(c) && (web || !classDef(c).web),
   );
   return { objects, modifiers };
 }
 
-/** Whether an instance is on a web page, where web-only modifiers such as UIHover work. */
-export function onPage(doc: Doc, id: InstanceId): boolean {
-  for (
-    let p = getInstance(doc, id);
-    p;
-    p = p.parent === null ? undefined : getInstance(doc, p.parent)
-  )
-    if (p.className === 'Page') return true;
-  return false;
-}
+export { onPage };
 
 /** Whether the instance already has a modifier of a class it can only have one of. */
 export const hasModifier = (doc: Doc, parentId: InstanceId, className: ClassName) =>
@@ -112,7 +110,8 @@ export function insertParent(
       : undefined;
   while (p && !canParent(className, p.className))
     p = p.parent === null ? undefined : getInstance(doc, p.parent);
-  return p;
+  // A Form or an Embed goes on the website only.
+  return p && pageOnly(className) && !onPage(doc, p.id) ? undefined : p;
 }
 
 /** A name and path for a new page that no other page uses. */
@@ -153,15 +152,26 @@ export function newSubtree(
 
   const defaults = defaultProps(className) as unknown as { Size: UDim2 };
   // Straight in a page (or in a Folder there), an object is a section: as wide as the window.
-  const onPage = drawnParent(doc, parent.id)?.className === 'Page';
+  // A form or a video keeps its own size.
+  const onPage = drawnParent(doc, parent.id)?.className === 'Page' && !pageOnly(className);
   const size: UDim2 =
     (start.Size as UDim2 | undefined) ??
     (onPage
       ? [1, 0, 0, className === 'Frame' || className === 'ScrollingFrame' ? 320 : defaults.Size[3]]
       : defaults.Size);
   const props: Record<string, unknown> = { ...start, Size: size };
+  const listed = !!childOfClass(doc, parent.id, 'UIListLayout');
+  // A form, video or map goes last in a list, as a component does.
+  if (listed && pageOnly(className))
+    props.LayoutOrder =
+      Math.max(
+        0,
+        ...childrenOf(doc, parent.id).map(
+          (c) => (c.props as { LayoutOrder?: number }).LayoutOrder ?? 0,
+        ),
+      ) + 1;
   // Under a UIListLayout, Position doesn't apply, so leave it at zero.
-  if (!childOfClass(doc, parent.id, 'UIListLayout')) {
+  if (!listed) {
     const count = childrenOf(doc, parent.id).filter((c) => classDef(c.className).kind === 'gui');
     const nudge = (12 * count.length) % 96;
     const w = size[0] * area.w + size[1];
@@ -173,7 +183,79 @@ export function newSubtree(
       Math.round(area.h / 2 - h / 2 + nudge),
     ];
   }
-  return single(createInstance(className, props, makeId()) as AnyInstance);
+  const root = createInstance(className, props, makeId()) as AnyInstance;
+  return className === 'Form' ? formSubtree(root, makeId) : single(root);
+}
+
+/**
+ * A new Form starts as a small contact form, ready to send once it has an Action: an email
+ * field, a message box and a Send button, stacked by a UIListLayout and growing to fit.
+ */
+function formSubtree(form: AnyInstance, makeId: () => InstanceId): Subtree {
+  const instances: Record<InstanceId, AnyInstance> = {};
+  const add = (parent: AnyInstance, inst: AnyInstance) => {
+    instances[inst.id] = { ...inst, parent: parent.id } as AnyInstance;
+    const p = instances[parent.id] ?? parent;
+    instances[parent.id] = { ...p, children: [...p.children, inst.id] } as AnyInstance;
+    return inst;
+  };
+  const make = <C extends ClassName>(className: C, props: Record<string, unknown> = {}) =>
+    createInstance(className, props as never, makeId()) as unknown as AnyInstance;
+  const root = { ...form, props: { ...form.props, AutomaticSize: 'Y' } } as AnyInstance;
+  instances[root.id] = root;
+  const pad = (px: number) => ({
+    PaddingTop: [0, px],
+    PaddingBottom: [0, px],
+    PaddingLeft: [0, px],
+    PaddingRight: [0, px],
+  });
+  add(root, make('UIPadding', pad(20)));
+  add(root, make('UIListLayout', { Padding: [0, 12], HorizontalAlignment: 'Center' }));
+  add(root, make('UICorner', { CornerRadius: [0, 12] }));
+  const text = { Font: 'Inter', TextSize: 16, TextColor3: [24, 24, 27] };
+  const field = (name: string, order: number, props: Record<string, unknown>) => {
+    const box = add(
+      root,
+      make('TextBox', {
+        Name: name,
+        LayoutOrder: order,
+        Text: '',
+        ...text,
+        TextXAlignment: 'Left',
+        BorderSizePixel: 0,
+        Required: true,
+        ...props,
+      }),
+    );
+    add(box, make('UIPadding', { ...pad(10), PaddingLeft: [0, 12], PaddingRight: [0, 12] }));
+    add(box, make('UICorner', { CornerRadius: [0, 8] }));
+    add(box, make('UIStroke', { ApplyStrokeMode: 'Border', Color: [212, 212, 216] }));
+  };
+  field('Email', 1, { Size: [1, 0, 0, 44], PlaceholderText: 'Your email', InputType: 'Email' });
+  field('Message', 2, {
+    Size: [1, 0, 0, 120],
+    PlaceholderText: 'Your message',
+    InputType: 'LongText',
+    TextWrapped: true,
+    TextYAlignment: 'Top',
+  });
+  const send = add(
+    root,
+    make('TextButton', {
+      Name: 'Send',
+      LayoutOrder: 3,
+      Size: [1, 0, 0, 44],
+      Text: 'Send',
+      ...text,
+      FontWeight: 'SemiBold',
+      TextColor3: [255, 255, 255],
+      BackgroundColor3: [37, 99, 235],
+      BorderSizePixel: 0,
+      Cursor: 'Pointer',
+    }),
+  );
+  add(send, make('UICorner', { CornerRadius: [0, 8] }));
+  return { rootId: root.id, instances };
 }
 
 /** The colors a UIHover copies from its object, so a new one only grows it until edited. */

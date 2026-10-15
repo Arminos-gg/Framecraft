@@ -19,7 +19,15 @@ import {
 } from '../layout/layout.ts';
 import { textVersion } from '../layout/text.ts';
 import { addAsset, type Assets } from '../model/assets.ts';
-import { canParent, classDef, isOverridable, propSpec, type ClassName } from '../model/classes.ts';
+import {
+  canParent,
+  classDef,
+  isOverridable,
+  linkOf,
+  propSpec,
+  type ClassName,
+  type TextDecoration,
+} from '../model/classes.ts';
 import { FONT_WEIGHTS, type FontStyle, type FontWeight } from '../model/fonts.ts';
 import { batch, insert, move, remove, setPreview, type Command } from '../model/commands.ts';
 import {
@@ -31,7 +39,10 @@ import {
   getInstance,
   isAncestor,
   ModelError,
+  formOf,
   newId,
+  onPage,
+  pageOnly,
   reIdSubtree,
   resolveProps,
   serviceOf,
@@ -129,6 +140,23 @@ export interface Toast {
 /** Autosave, as the app bar shows it. `idle` until something saves the project. */
 export type SaveStatus = 'idle' | 'pending' | 'saved' | 'off';
 
+/** What a Form's button does on the website, for a press in preview. */
+export function formSendNote(form: { readonly Action: string; readonly SentText: string }) {
+  const action = form.Action.trim();
+  if (!action)
+    return 'On the website, this button sends the form. Give the Form an Action first: the address a form service such as Formspree gives you.';
+  let where = action;
+  try {
+    where = new URL(action).host || action;
+  } catch {
+    // Not a web address, such as mailto:; say it as it is.
+  }
+  return `On the website, this sends the form to ${where}, and the button then says “${form.SentText}”.`;
+}
+
+/** What the ribbon's Web menu inserts. */
+export type WebInsert = 'form' | 'video' | 'map';
+
 export interface EditorState {
   readonly doc: Doc;
   readonly assets: Assets;
@@ -156,7 +184,12 @@ export interface EditorState {
   readonly gesture: Gesture | null;
   readonly toast: Toast | null;
   /** An object to scroll into view, after following a link to a section. */
-  readonly reveal: { readonly id: InstanceId; readonly seq: number } | null;
+  readonly reveal: {
+    readonly id: InstanceId;
+    readonly seq: number;
+    /** Glide there, as SmoothScroll does on the website: a section of the page shown. */
+    readonly smooth?: boolean;
+  } | null;
   /** Explorer rows that are open. */
   readonly expanded: ReadonlySet<InstanceId>;
   /** The Explorer row whose name is being edited. */
@@ -1027,15 +1060,28 @@ export class Editor {
   }
 
   /**
-   * Ctrl+B and Ctrl+I: turns the selected text bold (or back to Regular) or italic (or back
-   * to Normal). Returns false when the selection has no text.
+   * Ctrl+B, Ctrl+I and Ctrl+U: turns the selected text bold (or back to Regular), italic (or
+   * back to Normal) or underlined (or back to None; on pages only, as underlines are web
+   * only). Returns false when the selection has no text.
    */
-  toggleTextStyle(which: 'bold' | 'italic'): boolean {
+  toggleTextStyle(which: 'bold' | 'italic' | 'underline'): boolean {
     const id = this.#state.selection;
     const inst = id === null ? undefined : getInstance(this.doc, id);
     if (!inst || !classDef(inst.className).text) return false;
     // The last picked object decides, and every selected text object follows it.
-    const p = inst.props as { FontWeight: FontWeight; FontStyle: FontStyle };
+    const p = inst.props as {
+      FontWeight: FontWeight;
+      FontStyle: FontStyle;
+      TextDecoration: TextDecoration;
+    };
+    if (which === 'underline') {
+      if (!onPage(this.doc, inst.id)) {
+        this.toast('Underlines are for the website. Roblox text has none.');
+        return false;
+      }
+      const on = p.TextDecoration === 'Underline';
+      return this.setSelectedProp('TextDecoration', on ? 'None' : 'Underline');
+    }
     if (which === 'italic')
       return this.setSelectedProp('FontStyle', p.FontStyle === 'Italic' ? 'Normal' : 'Italic');
     const bold = FONT_WEIGHTS[p.FontWeight] >= FONT_WEIGHTS.SemiBold;
@@ -1118,6 +1164,17 @@ export class Editor {
     return this.#insertNew(className, parentId);
   }
 
+  /** Inserts from the ribbon's Web menu: a contact form, a YouTube video or a map. */
+  insertWeb(what: WebInsert, parentId: InstanceId | null = this.#state.selection) {
+    if (what === 'form') return this.#insertNew('Form', parentId);
+    const map = what === 'map';
+    return this.#insertNew('Embed', parentId, {
+      Name: map ? 'Map' : 'Video',
+      Kind: map ? 'Map' : 'YouTube',
+      ...(map && { Size: [0, 560, 0, 360] }),
+    });
+  }
+
   /**
    * Inserts a shape from the Shapes menu, where an object would go. Picture shapes add their
    * white SVG to the image library.
@@ -1190,6 +1247,10 @@ export class Editor {
                 scene.view.kind === 'page' ? scene.view.pageId : (scene.roots[0] ?? ''),
               );
       parent = fallback && canParent(className, fallback.className) ? fallback : undefined;
+    }
+    if (pageOnly(className) && (!parent || !onPage(doc, parent.id))) {
+      this.toast(`A ${className} works on the website only. Open a page first.`);
+      return null;
     }
     if (!parent) {
       // Roblox screens with no ScreenGui yet: make one to hold the object.
@@ -1461,12 +1522,25 @@ export class Editor {
   followLink(id: InstanceId): { url: string; newTab: boolean } | null {
     const doc = this.doc;
     let inst = getInstance(doc, id);
+    // A button in a Form sends it on the website; here it says where to.
+    if (
+      (inst?.className === 'TextButton' || inst?.className === 'ImageButton') &&
+      !linkOf(inst.props)
+    ) {
+      const form = formOf(doc, inst.id);
+      if (form) {
+        this.toast(formSendNote(form.props));
+        return null;
+      }
+    }
     while (inst && isGui(inst)) {
-      const link = inst.props.Link;
+      const link = linkOf(inst.props);
       if (link && inst.className !== 'TextBox') {
         if (link.kind === 'url') return { url: link.url, newTab: !!link.newTab };
         const page = getInstance(doc, link.page);
         if (page?.className !== 'Page') return null;
+        const view = this.scene.view;
+        const here = view.kind === 'page' && view.pageId === page.id;
         this.setView({ kind: 'page', pageId: page.id });
         const name = link.section === undefined ? '' : slug(link.section);
         const target = name
@@ -1475,7 +1549,8 @@ export class Editor {
               return c && isGui(c) && slug(c.props.Name) === name;
             })
           : undefined;
-        this.#update({ reveal: { id: target ?? page.id, seq: ++this.#seq } });
+        const smooth = here && !!target && serviceOf(doc, 'Site').props.SmoothScroll;
+        this.#update({ reveal: { id: target ?? page.id, seq: ++this.#seq, smooth } });
         return null;
       }
       inst = inst.parent === null ? undefined : getInstance(doc, inst.parent);

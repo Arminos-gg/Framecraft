@@ -18,6 +18,7 @@ import { pageSubtree } from '../../src/model/builder.ts';
 import { emptyProject } from '../../src/model/document.ts';
 import type * as MeasureModule from '../../src/ui/viewport/text-measure.ts';
 import { exportOrder } from './export-order.ts';
+import { newSubtree } from '../../src/editor/insert.ts';
 
 interface Found {
   x: number;
@@ -73,6 +74,30 @@ function testSite(): Doc {
   add(row, 'Frame', { Name: 'B', LayoutOrder: 2, Size: [0.2, 0, 1, 0] });
   add(row, 'Frame', { Name: 'C', LayoutOrder: 3, Size: [0.2, 0, 1, 0] });
   onPhone(first, { LayoutOrder: 5 });
+  // Web extras: a contact form (a form, fields and a submit button), a video and capitals.
+  const form = newSubtree(
+    doc,
+    'Form',
+    doc.instances[page]!,
+    { x: 0, y: 0, w: 1366, h: 768 },
+    () => `t${++n}`,
+  );
+  doc = applyCommand(doc, insert(page, form)).doc;
+  doc = applyCommand(doc, {
+    type: 'setProps',
+    id: form.rootId,
+    props: { Position: [0, 0, 1.4, 0] },
+  }).doc;
+  add(page, 'Embed', { Name: 'Video', Position: [0.5, 0, 1.4, 0], Source: 'dQw4w9WgXcQ' });
+  add(page, 'TextLabel', {
+    Name: 'Shout',
+    Position: [0, 0, 2.1, 0],
+    Text: 'Grows with capitals',
+    TextCase: 'Uppercase',
+    LetterSpacing: 2,
+    TextSize: 24,
+    AutomaticSize: 'X',
+  });
   return doc;
 }
 
@@ -121,7 +146,7 @@ function checkSite(name: string, doc: Doc, { phoneHides }: { phoneHides: boolean
         page: tab,
       }) => {
         await tab.setViewportSize(size);
-        await tab.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+        await tab.route(/fonts\.(googleapis|gstatic)\.com|youtube/, (r) => r.abort());
         await tab.route('**/__export/page.html', (r) =>
           r.fulfill({ contentType: 'text/html', body: file.contents as string }),
         );

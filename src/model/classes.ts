@@ -6,6 +6,7 @@ import { FONT_NAMES, FONT_STYLES, FONT_WEIGHT_NAMES } from './fonts.ts';
 import {
   colorSequence,
   normalizeValue,
+  type Link,
   numberSequence,
   type PropType,
   type PropValue,
@@ -22,6 +23,9 @@ export const CATEGORY_ORDER = [
   'Appearance',
   'Text',
   'Image',
+  'Filters',
+  'Embed',
+  'Form',
   'Scrolling',
   'Behavior',
   'Animation',
@@ -105,6 +109,8 @@ export interface ClassDef {
   readonly scroll?: boolean;
   /** Arranges its parent's children (UIListLayout). */
   readonly layout?: boolean;
+  /** Holds modifiers but no objects: an Embed shows another site's page over anything inside. */
+  readonly leaf?: boolean;
 }
 
 const name = (className: string) => spec('string', 'Data', className);
@@ -138,7 +144,7 @@ const guiBase = (className: string, size: UDim2) => ({
 
 /**
  * A ScrollingFrame grows its canvas (AutomaticCanvasSize), not itself, so it has no
- * AutomaticSize.
+ * AutomaticSize. Neither has an Embed, which shows another site's page at its own size.
  */
 function scrollBase(className: string, size: UDim2) {
   const { AutomaticSize, ...props } = guiBase(className, size);
@@ -158,6 +164,10 @@ const textProps = (text: string) => ({
   LineHeight: spec('number', 'Text', 1, { min: 1, max: 3, step: 0.05, ...OV }),
   /** Extra space after each letter in pixels, as CSS letter-spacing. Roblox has none. */
   LetterSpacing: spec('number', 'Text', 0, { min: -20, max: 100, step: 0.1, ...OV, ...WEB }),
+  /** A line under or through the text, on websites. */
+  TextDecoration: enumSpec('Text', TEXT_DECORATIONS, 'None', { ...OV, ...WEB }),
+  /** Shows the text in capitals (or lowercase) on websites, whatever was typed. */
+  TextCase: enumSpec('Text', TEXT_CASES, 'None', { ...OV, ...WEB }),
   TextScaled: spec('bool', 'Text', false, OV),
   TextWrapped: spec('bool', 'Text', false, OV),
   TextXAlignment: enumSpec('Text', ['Left', 'Center', 'Right'], 'Center', OV),
@@ -170,9 +180,67 @@ const imageProps = () => ({
   ImageColor3: spec('color', 'Image', [255, 255, 255], OV),
   ImageTransparency: spec('alpha', 'Image', 0, OV),
   ScaleType: enumSpec('Image', ['Stretch', 'Fit', 'Crop'], 'Stretch', OV),
+  // Photo filters for the website, as CSS filter: 0 or 1 leaves the picture as it is.
+  Grayscale: spec('number', 'Filters', 0, { min: 0, max: 1, step: 0.05, ...OV, ...WEB }),
+  Sepia: spec('number', 'Filters', 0, { min: 0, max: 1, step: 0.05, ...OV, ...WEB }),
+  Brightness: spec('number', 'Filters', 1, { min: 0, max: 3, step: 0.05, ...OV, ...WEB }),
+  Contrast: spec('number', 'Filters', 1, { min: 0, max: 3, step: 0.05, ...OV, ...WEB }),
+  Saturation: spec('number', 'Filters', 1, { min: 0, max: 3, step: 0.05, ...OV, ...WEB }),
+  /** Blurs the picture itself, in pixels. */
+  Blur: spec('int', 'Filters', 0, { min: 0, max: 50, ...OV, ...WEB }),
 });
 
+/** The picture filters, in the order CSS applies them, with the value that changes nothing. */
+export const IMAGE_FILTERS = [
+  ['Grayscale', 0],
+  ['Sepia', 0],
+  ['Brightness', 1],
+  ['Contrast', 1],
+  ['Saturation', 1],
+  ['Blur', 0],
+] as const;
+
 const autoButtonColor = () => ({ AutoButtonColor: spec('bool', 'Behavior', true) });
+
+/** Lines a text can have on a website. */
+export const TEXT_DECORATIONS = ['None', 'Underline', 'Strikethrough'] as const;
+export type TextDecoration = (typeof TEXT_DECORATIONS)[number];
+/** How a website shows the letters of a text. */
+export const TEXT_CASES = ['None', 'Uppercase', 'Lowercase', 'Capitalize'] as const;
+export type TextCase = (typeof TEXT_CASES)[number];
+
+/** The mouse pointer over an object on a website; Auto lets the browser pick. */
+export const CURSORS = [
+  'Auto',
+  'Default',
+  'Pointer',
+  'Text',
+  'Move',
+  'Grab',
+  'Crosshair',
+  'ZoomIn',
+  'Help',
+  'Wait',
+  'NotAllowed',
+  'None',
+] as const;
+export type Cursor = (typeof CURSORS)[number];
+
+/** What an Embed shows: a YouTube video or a map of a place. */
+export const EMBED_KINDS = ['YouTube', 'Map'] as const;
+export type EmbedKind = (typeof EMBED_KINDS)[number];
+
+/** What a TextBox in a Form asks for; LongText is a box for a message. */
+export const INPUT_TYPES = [
+  'Text',
+  'Email',
+  'Phone',
+  'Number',
+  'Url',
+  'Password',
+  'LongText',
+] as const;
+export type InputType = (typeof INPUT_TYPES)[number];
 
 /** HTML elements an object can become on a web page; Auto picks a plain one. */
 export const HTML_TAGS = [
@@ -186,6 +254,15 @@ export const HTML_TAGS = [
   'h3',
   'p',
 ] as const;
+
+export type HtmlTag = (typeof HTML_TAGS)[number];
+
+/** An object's Link, or null for none or a class without one (a Form, an Embed). */
+export const linkOf = (props: object): Link | null =>
+  'Link' in props ? (props.Link as Link | null) : null;
+/** An object's HtmlTag, or Auto for a class without one. */
+export const htmlTagOf = (props: object): HtmlTag =>
+  'HtmlTag' in props ? (props.HtmlTag as HtmlTag) : 'Auto';
 
 /** How an object on a web page comes in the first time it scrolls into view. */
 export const APPEAR_STYLES = [
@@ -202,6 +279,12 @@ export type AppearStyle = (typeof APPEAR_STYLES)[number];
 const webProps = () => ({
   Link: spec('link', 'Web', null, WEB),
   HtmlTag: enumSpec('Web', HTML_TAGS, 'Auto', WEB),
+  ...webExtras(),
+});
+/** The web-only properties of objects that can't be a link or pick their tag. */
+const webExtras = () => ({
+  /** The mouse pointer over the object. */
+  Cursor: enumSpec('Web', CURSORS, 'Auto', WEB),
   /** Straight on a page: stays on screen while the page scrolls. */
   Pinned: spec('bool', 'Web', false, WEB),
   /** Blurs whatever is behind the object, in pixels: frosted glass. */
@@ -230,6 +313,8 @@ export const CLASSES = {
       Language: spec('string', 'Web', 'en', WEB),
       Favicon: spec('asset', 'Web', '', WEB),
       BaseUrl: spec('string', 'Web', '', WEB),
+      /** A link to a section glides there rather than jumping. */
+      SmoothScroll: spec('bool', 'Web', true, WEB),
     },
   },
   Breakpoint: {
@@ -309,6 +394,9 @@ export const CLASSES = {
       ...guiBase('TextBox', [0, 200, 0, 50]),
       ...textProps(''),
       PlaceholderText: spec('string', 'Text', 'Type here'),
+      // In a Form: what the box asks for, and whether the form can be sent without it.
+      InputType: enumSpec('Form', INPUT_TYPES, 'Text', WEB),
+      Required: spec('bool', 'Form', false, WEB),
       ...webProps(),
     },
   },
@@ -348,6 +436,43 @@ export const CLASSES = {
       ...webProps(),
     },
   },
+  /**
+   * A form on a web page. Its TextBoxes are the fields, named by their Name, and its buttons
+   * send it to Action, an address from a form service such as Formspree.
+   */
+  Form: {
+    kind: 'gui',
+    web: true,
+    parents: IN_LAYERS,
+    props: {
+      ...guiBase('Form', [0, 400, 0, 260]),
+      Action: spec('string', 'Form', '', WEB),
+      Method: enumSpec('Form', ['POST', 'GET'], 'POST', WEB),
+      /** What the send button says once the form went through. */
+      SentText: spec('string', 'Form', 'Thanks! Your message was sent.', WEB),
+      ...webExtras(),
+    },
+  },
+  /** A YouTube video or a map, from another site, on a web page. */
+  Embed: {
+    kind: 'gui',
+    web: true,
+    leaf: true,
+    parents: IN_LAYERS,
+    props: {
+      ...scrollBase('Embed', [0, 560, 0, 315]),
+      Kind: enumSpec('Embed', EMBED_KINDS, 'YouTube', WEB),
+      /** A YouTube link, or the address or place a map shows. */
+      Source: spec('string', 'Embed', '', WEB),
+      /** YouTube: starts playing, muted, as the page opens. */
+      Autoplay: spec('bool', 'Embed', false, WEB),
+      /** Map: from 1 (the world) to 20 (a building). */
+      Zoom: spec('int', 'Embed', 14, { min: 1, max: 20, ...WEB }),
+      /** What a screen reader says for it. */
+      Title: spec('string', 'Web', '', WEB),
+      ...webExtras(),
+    },
+  },
   UICorner: {
     kind: 'modifier',
     parents: ON_OBJECTS,
@@ -377,6 +502,8 @@ export const CLASSES = {
       Color: spec('colorseq', 'Gradient', colorSequence([255, 255, 255], [0, 0, 0]), OV),
       Transparency: spec('numseq', 'Gradient', numberSequence(0, 0), { min: 0, max: 1, ...OV }),
       Rotation: spec('number', 'Gradient', 0, { step: 1, ...OV }),
+      /** On a website, a text object's gradient can color its letters instead. */
+      ApplyTo: enumSpec('Gradient', ['Background', 'Text'], 'Background', WEB),
     },
   },
   UIPadding: {
@@ -449,6 +576,8 @@ export const OBJECT_CLASSES = [
   'ImageButton',
   'ScrollingFrame',
 ] as const satisfies readonly ClassName[];
+/** Objects only a web page can hold, from the ribbon's Web menu. */
+export const WEB_OBJECT_CLASSES = ['Form', 'Embed'] as const satisfies readonly ClassName[];
 /** Modifiers the ribbon adds to the selection, in ribbon order. */
 export const MODIFIER_CLASSES = [
   'UICorner',
@@ -493,6 +622,7 @@ export function normalizeProp(className: ClassName, prop: string, value: unknown
 /** Whether an object of class `child` may sit directly inside one of class `parent`. */
 export function canParent(child: ClassName, parent: ClassName): boolean {
   const { kinds = [], classes = [] } = classDef(child).parents;
+  if (classDef(parent).leaf && classDef(child).kind !== 'modifier') return false;
   return kinds.includes(classDef(parent).kind) || classes.includes(parent);
 }
 

@@ -32,7 +32,14 @@ describe('class registry', () => {
   });
 
   it('uses the real UIGradient property names', () => {
-    expect(propNames('UIGradient')).toEqual(['Name', 'Color', 'Transparency', 'Rotation']);
+    expect(propNames('UIGradient')).toEqual([
+      'Name',
+      'Color',
+      'Transparency',
+      'Rotation',
+      // Web only: a text object's gradient can color its letters.
+      'ApplyTo',
+    ]);
     expect(normalizeProp('UIGradient', 'Color', [{ time: 0, value: [1, 2, 3] }])).toBeUndefined();
     expect(normalizeProp('UIStroke', 'Color', [1, 2, 3])).toEqual([1, 2, 3]);
   });
@@ -61,15 +68,18 @@ describe('class registry', () => {
       'TextSize',
       'LineHeight',
       'LetterSpacing',
+      'TextDecoration',
+      'TextCase',
       'TextScaled',
       'TextWrapped',
       'TextXAlignment',
       'TextYAlignment',
       'TextTransparency',
       'AutoButtonColor',
-      // Web-only properties come last, apart from LetterSpacing, which sits with the text.
+      // Web-only properties come last, apart from the text ones, which sit with the text.
       'Link',
       'HtmlTag',
+      'Cursor',
       'Pinned',
       'BackgroundBlur',
       'Appear',
@@ -181,17 +191,27 @@ describe('website markers', () => {
     ]);
     expect(webProps('TextButton')).toEqual([
       'LetterSpacing',
+      'TextDecoration',
+      'TextCase',
       'Link',
       'HtmlTag',
+      'Cursor',
       'Pinned',
       'BackgroundBlur',
       'Appear',
       'AppearDelay',
     ]);
     expect(webProps('ImageLabel')).toEqual([
+      'Grayscale',
+      'Sepia',
+      'Brightness',
+      'Contrast',
+      'Saturation',
+      'Blur',
       'AltText',
       'Link',
       'HtmlTag',
+      'Cursor',
       'Pinned',
       'BackgroundBlur',
       'Appear',
@@ -200,6 +220,14 @@ describe('website markers', () => {
     expect(webProps('UICorner')).toEqual([]);
     expect(webProps('UIStroke')).toEqual(['Top', 'Right', 'Bottom', 'Left']);
     expect(classDef('UIHover').web).toBe(true);
+    expect(webProps('UIGradient')).toEqual(['ApplyTo']);
+    expect(webProps('TextBox')).toContain('InputType');
+    expect(webProps('Site')).toContain('SmoothScroll');
+    // Whole classes for the website only.
+    expect(classDef('Form').web).toBe(true);
+    expect(classDef('Embed').web).toBe(true);
+    expect(propNames('Embed')).not.toContain('AutomaticSize');
+    expect(propNames('Embed')).not.toContain('Link');
   });
 
   it('allows one StarterGui and one Site per project', () => {

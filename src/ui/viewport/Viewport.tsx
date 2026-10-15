@@ -231,7 +231,8 @@ export function Viewport() {
     const cv = canvasRef.current;
     const box = reveal && scene.layout.get(reveal.id);
     if (!cv || !box) return;
-    cv.scrollTo({ top: top + box.y * z - 12 });
+    const glide = reveal.smooth && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    cv.scrollTo({ top: top + box.y * z - 12, behavior: glide ? 'smooth' : 'auto' });
   }, [reveal, scene, top, z]);
 
   /** The page shown, whose empty space selects it so its background can be changed. */
