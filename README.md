@@ -16,7 +16,7 @@ Run `npm install` and `npm run dev`, then open http://localhost:5173 in Chrome, 
 
 ## Continue with Claude Code
 
-The repo is set up for Claude Code: `CLAUDE.md` loads automatically and points to `docs/HANDOVER.md`, which ends with the next tasks. The kickoff prompt is at the top of `docs/HANDOVER.md`.
+The repo is set up for Claude Code: `CLAUDE.md` loads automatically and points to `docs/HANDOVER.md`, which says where things stand and what's open. The kickoff prompt is at the top of `docs/HANDOVER.md`.
 
 - **On your computer:** install Claude Code ([setup guide](https://code.claude.com/docs/en/setup)), open a terminal in this folder, run `claude` and paste the kickoff prompt.
 - **In the browser or the Claude app** ([claude.ai/code](https://claude.ai/code)): cloud sessions work from GitHub repositories, so pick this repo when you start a session.
@@ -40,7 +40,9 @@ npm run lint                       # ESLint; `npm run format` applies Prettier
 
 - `CLAUDE.md`: instructions Claude Code reads at the start of every session
 - `docs/PLAN.md`: product and technical plan (audience, scope, architecture, roadmap, risks)
-- `docs/HANDOVER.md`: what works, what's missing, decisions so far, next tasks
+- `docs/HANDOVER.md`: where things stand, open items and the kickoff prompt
+- `docs/FEATURES.md`: how each feature was built, and the known gaps
+- `docs/DECISIONS.md`: decisions so far and why
 - `src/`: the app (model, layout and exporters as plain TypeScript; React panels in `src/ui/`; design tokens in `src/styles/`)
 - `tests/`: unit tests (`unit/`), browser tests (`e2e/`) and the golden exports of the sample menu (`golden/`)
 

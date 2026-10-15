@@ -2,7 +2,7 @@
 
 A browser app for building UI the way Roblox Studio does: an Explorer tree, a Properties panel, and every Position and Size as UDim2 Scale + Offset. It exports websites (static HTML/CSS), Luau and Roblox model files (.rbxmx) for Studio, and an HTML page of the Roblox screens. "Framecraft" is a working name.
 
-Current stage: a Vite + TypeScript app at the repo root that works end to end (viewport, Explorer, Properties, ribbon, the live code view, export, project files and autosave), plus a product plan. It was ported from a single-file prototype, which reached parity and was deleted in step 7; it is in git history (`git show c9caac6:prototype/`). Read `docs/HANDOVER.md` before starting any task; the product plan is `docs/PLAN.md`.
+Current stage: a Vite + TypeScript app at the repo root that works end to end (viewport, Explorer, Properties, ribbon, the live code view, export, project files and autosave), plus a product plan. It was ported from a single-file prototype, which reached parity and was deleted in step 7; it is in git history (`git show c9caac6:prototype/`). Read `docs/HANDOVER.md` before starting any task. `docs/FEATURES.md` says how each feature works, `docs/DECISIONS.md` why things are as they are, and `docs/PLAN.md` is the product plan.
 
 ## Commands
 
