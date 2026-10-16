@@ -359,12 +359,39 @@ svg {
   justify-items: start;
 }
 .tool .ico.s,
-.tool .ico.s svg {
+.tool .ico.s svg,
+.stool .ico.s,
+.stool .ico.s svg {
   color: var(--scale);
 }
 .tool .ico.o,
-.tool .ico.o svg {
+.tool .ico.o svg,
+.stool .ico.o,
+.stool .ico.o svg {
   color: var(--offset);
+}
+/* Laptop windows: tighter tools so the whole ribbon fits without scrolling sideways. */
+@media (max-width: 1480px) {
+  .rgroup {
+    padding-inline: 5px;
+  }
+  .rgroup .items {
+    gap: 0;
+  }
+  .tool {
+    min-width: 0;
+    padding-inline: 4px;
+    font-size: 11px;
+  }
+  .stool {
+    padding: 0 7px 0 5px;
+  }
+  .seg button {
+    padding: 0 7px;
+  }
+  .ribbon .toggle small {
+    display: none;
+  }
 }
 
 /* segmented, checkbox */

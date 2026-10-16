@@ -146,7 +146,7 @@ export function Ribbon() {
                 </button>
               ))}
             </div>
-            <label className="toggle">
+            <label className="toggle" title="Hold Alt while dragging to skip snapping">
               <Checkbox label="Smart snapping" checked={snap} onChange={(v) => editor.setSnap(v)} />
               Smart snapping <small>Alt skips</small>
             </label>
@@ -156,30 +156,32 @@ export function Ribbon() {
       </div>
       <div className={group} role="group" aria-label="Convert units">
         <div className="items">
-          <button
-            className="tool"
-            type="button"
-            title="Rewrite Position and Size of the selection and its children in percent"
-            disabled={!convertible}
-            onClick={() => editor.convertUnits(true)}
-          >
-            <span className="ico s">
-              <Icon name="toScale" />
-            </span>
-            To percent
-          </button>
-          <button
-            className="tool"
-            type="button"
-            title="Rewrite Position and Size of the selection and its children in pixels"
-            disabled={!convertible}
-            onClick={() => editor.convertUnits(false)}
-          >
-            <span className="ico o">
-              <Icon name="toOffset" />
-            </span>
-            To pixels
-          </button>
+          <div className="stools">
+            <button
+              className="stool"
+              type="button"
+              title="Rewrite Position and Size of the selection and its children in percent"
+              disabled={!convertible}
+              onClick={() => editor.convertUnits(true)}
+            >
+              <span className="ico s">
+                <Icon name="toScale" />
+              </span>
+              To percent
+            </button>
+            <button
+              className="stool"
+              type="button"
+              title="Rewrite Position and Size of the selection and its children in pixels"
+              disabled={!convertible}
+              onClick={() => editor.convertUnits(false)}
+            >
+              <span className="ico o">
+                <Icon name="toOffset" />
+              </span>
+              To pixels
+            </button>
+          </div>
         </div>
         <div className="cap">Convert units</div>
       </div>

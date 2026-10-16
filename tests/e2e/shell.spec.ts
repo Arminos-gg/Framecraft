@@ -47,3 +47,21 @@ test.describe('at 400px wide', () => {
     await expect(explorer).toBeHidden();
   });
 });
+
+test.describe('in a 1280px laptop window', () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  test('shows the whole ribbon without scrolling sideways', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => document.fonts.ready);
+    const ribbon = page.getByRole('navigation', { name: 'Insert and edit tools' });
+    const overflow = () => ribbon.evaluate((el) => el.scrollWidth - el.clientWidth);
+
+    // A page has the most tools: Web and Hover join the rest.
+    await expect(ribbon.getByRole('button', { name: 'Web' })).toBeVisible();
+    expect(await overflow()).toBeLessThanOrEqual(0);
+    await page.evaluate(() => window.framecraft!.setView({ kind: 'screens' }));
+    await expect(ribbon.getByRole('button', { name: 'ScreenGui' })).toBeVisible();
+    expect(await overflow()).toBeLessThanOrEqual(0);
+  });
+});
