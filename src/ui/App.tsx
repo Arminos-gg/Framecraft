@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Editor, type SaveStatus } from '../editor/editor.ts';
+import type { Align } from '../editor/geometry.ts';
 import { sampleProject } from '../model/sample.ts';
 import { EditorContext, useEditor, useEditorState } from './editor-context.ts';
 import { ExportDialog, type ExportKind } from './ExportDialog.tsx';
@@ -283,6 +284,16 @@ function handlePaste(editor: Editor, e: ClipboardEvent) {
   );
 }
 
+/** Alt and these letters align the selection, as in Figma. */
+const ALIGN_KEYS: Partial<Record<string, Align>> = {
+  A: 'left',
+  H: 'center',
+  D: 'right',
+  W: 'top',
+  V: 'middle',
+  S: 'bottom',
+};
+
 /** Editor shortcuts. Keys typed into a field, or used by a menu or dialog, belong to it. */
 function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
   if (e.defaultPrevented) return;
@@ -307,6 +318,7 @@ function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
       x: () => copy(editor, true),
       a: () => editor.selectAll(),
       g: () => (e.shiftKey ? editor.ungroupSelection() : editor.groupSelection()),
+      l: e.shiftKey ? () => editor.toggleSelectedLocked() : undefined,
       s: () => saveProjectFile(editor),
       o: () => void openProjectFile(editor),
       e: openExport,
@@ -314,7 +326,7 @@ function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
       i: () => editor.toggleTextStyle('italic'),
       u: () => editor.toggleTextStyle('underline'),
     }[k];
-    if (action && !(preview && 'dcxvbiuag'.includes(k))) {
+    if (action && !(preview && 'dcxvbiuagl'.includes(k))) {
       e.preventDefault();
       action();
     } else if (k === 'v' && !preview) {
@@ -324,7 +336,22 @@ function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
     }
     return;
   }
-  if (e.altKey) return;
+  if (e.altKey) {
+    // Alt and a letter aligns, as in Figma; Alt+Shift+H or V spaces evenly. The key's code,
+    // since on a Mac Option changes the letter typed.
+    if (preview || e.ctrlKey || e.metaKey) return;
+    const letter = e.code.startsWith('Key') ? e.code.slice(3) : '';
+    const run = e.shiftKey
+      ? { H: () => editor.distributeSelection('x'), V: () => editor.distributeSelection('y') }[
+          letter
+        ]
+      : ALIGN_KEYS[letter] && (() => editor.alignSelection(ALIGN_KEYS[letter]!));
+    if (run) {
+      e.preventDefault();
+      run();
+    }
+    return;
+  }
   if (k === 'p') return editor.setPreview(!preview);
   if (preview) return;
   if (e.key === 'F2') {

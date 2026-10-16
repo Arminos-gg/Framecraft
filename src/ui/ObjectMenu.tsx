@@ -1,6 +1,6 @@
 /**
  * The right-click menu for objects, in the Explorer and the viewport: insert, rename, cut,
- * copy, paste, duplicate, group into a Folder, show or hide, and delete. Its actions work on
+ * copy, paste, duplicate, group into a Folder, show or hide, lock or unlock, and delete. Its actions work on
  * the whole selection, as the shortcuts do.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
@@ -8,7 +8,7 @@ import type { Editor } from '../editor/editor.ts';
 import { insertableInto } from '../editor/insert.ts';
 import { isGui } from '../export/html.ts';
 import { classDef } from '../model/classes.ts';
-import { getInstance, resolveProps } from '../model/document.ts';
+import { canLock, getInstance, resolveProps } from '../model/document.ts';
 import { useEditor, useEditorState } from './editor-context.ts';
 import { Icon, type IconName } from './icons.tsx';
 
@@ -47,6 +47,11 @@ function itemsFor(editor: Editor, onInsert?: () => void): Item[][] {
     const k = getInstance(doc, id) && classDef(getInstance(doc, id)!.className).kind;
     return k === 'gui' || k === 'folder';
   });
+  const lockable = selected.flatMap((id) => {
+    const i = getInstance(doc, id);
+    return i && canLock(i.className) ? [i] : [];
+  });
+  const locked = lockable.length > 0 && lockable.every((i) => i.locked);
   const folders = selected.some((id) => getInstance(doc, id)?.className === 'Folder');
 
   const first: Item[] = [];
@@ -89,6 +94,13 @@ function itemsFor(editor: Editor, onInsert?: () => void): Item[][] {
       label: hidden ? 'Show' : 'Hide',
       icon: hidden ? 'eye' : 'eyeOff',
       run: () => editor.setSelectedVisible(hidden),
+    });
+  if (lockable.length)
+    arrange.push({
+      label: locked ? 'Unlock' : 'Lock',
+      icon: locked ? 'unlock' : 'lock',
+      keys: key('Shift+L'),
+      run: () => editor.setSelectedLocked(!locked),
     });
   const last: Item[] = [];
   if (count)

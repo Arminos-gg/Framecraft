@@ -8,7 +8,7 @@
  * On a page shown at Tablet or Phone, edits change that breakpoint's values.
  */
 import { slug } from '../export/site.ts';
-import { isGui, isTinted, type Backdrop } from '../export/html.ts';
+import { isGui, isTinted, type Backdrop, type Gui } from '../export/html.ts';
 import {
   ancestorAngle,
   layoutContainer,
@@ -16,6 +16,7 @@ import {
   screenQuad,
   type Box,
   type Layout,
+  type Rect,
 } from '../layout/layout.ts';
 import { textVersion } from '../layout/text.ts';
 import { addAsset, type Assets } from '../model/assets.ts';
@@ -29,8 +30,17 @@ import {
   type TextDecoration,
 } from '../model/classes.ts';
 import { FONT_WEIGHTS, type FontStyle, type FontWeight } from '../model/fonts.ts';
-import { batch, insert, move, remove, setPreview, type Command } from '../model/commands.ts';
 import {
+  batch,
+  insert,
+  move,
+  remove,
+  setLocked,
+  setPreview,
+  type Command,
+} from '../model/commands.ts';
+import {
+  canLock,
   childOfClass,
   childrenOf,
   drawnChildren,
@@ -38,6 +48,7 @@ import {
   extractSubtree,
   getInstance,
   isAncestor,
+  isLocked,
   ModelError,
   formOf,
   newId,
@@ -56,7 +67,7 @@ import {
 import { History } from '../model/history.ts';
 import type { Project } from '../model/project.ts';
 import { roundTo } from '../export/format.ts';
-import type { UDim2 } from '../model/values.ts';
+import type { UDim2, Vector2 } from '../model/values.ts';
 import {
   DESKTOP,
   pageDevices,
@@ -72,12 +83,17 @@ import {
   type ComponentOptions,
 } from '../model/components/index.ts';
 import {
+  alignAxis,
+  alignRects,
+  boundsOf,
+  distributeRects,
   moveRect,
   positionFor,
   resizeRect,
   rotate,
   sizeFor,
   snapTargets,
+  type Align,
   type Guide,
   type Handle,
   type Point,
@@ -569,7 +585,7 @@ export class Editor {
     const roots = parent ? [parent.id] : scene.roots;
     const ids = roots.flatMap((r) =>
       drawnChildren(doc, r)
-        .filter(isGui)
+        .filter((c) => isGui(c) && !isLocked(doc, c.id))
         .map((c) => c.id),
     );
     if (ids.length) this.selectMany(ids, inst && ids.includes(inst.id) ? inst.id : undefined);
@@ -596,7 +612,10 @@ export class Editor {
     };
     for (const id of layout.keys()) {
       const inst = getInstance(doc, id);
-      const q = inst && isGui(inst) && drawn(id) ? screenQuad(doc, layout, id) : undefined;
+      const q =
+        inst && isGui(inst) && drawn(id) && !isLocked(doc, id)
+          ? screenQuad(doc, layout, id)
+          : undefined;
       if (!q) continue;
       const a = (q.angle * Math.PI) / 180;
       const hw = (Math.abs(q.w * Math.cos(a)) + Math.abs(q.h * Math.sin(a))) / 2;
@@ -707,13 +726,14 @@ export class Editor {
     const inst = getInstance(doc, id);
     const box = scene.layout.get(id);
     if (!inst || !isGui(inst) || !box || (kind === 'resize' && !opts.handle)) return;
+    if (isLocked(doc, id)) return;
     const p = resolveProps(doc, inst, scene.breakpoint);
     // A move takes the rest of the selection along, when it's drawn here and not in a list.
     const followers: Follower[] = [];
     if (kind === 'move' && this.#state.selected.includes(id))
       for (const t of this.#targets()) {
         const b = scene.layout.get(t.id);
-        if (t.id === id || !isGui(t) || !b || b.listItem) continue;
+        if (t.id === id || !isGui(t) || !b || b.listItem || isLocked(doc, t.id)) continue;
         const tp = resolveProps(doc, t, scene.breakpoint);
         followers.push({
           id: t.id,
@@ -821,23 +841,135 @@ export class Editor {
 
   /** Moves the selection by whole pixels, as the arrow keys do. */
   nudge(dx: number, dy: number) {
-    const scene = this.scene;
-    const cmds: Command[] = [];
-    let listed = false;
-    for (const inst of this.#targets()) {
-      const box = scene.layout.get(inst.id);
-      if (!isGui(inst) || !box) continue;
-      if (box.listItem) {
-        listed = true;
-        continue;
-      }
-      const p = resolveProps(this.doc, inst, scene.breakpoint);
-      const rect = { x: box.x + dx, y: box.y + dy, w: box.w, h: box.h };
-      const Position = positionFor(p.Position, p.AnchorPoint, box.area, rect, this.#state.unit);
-      cmds.push(edit(inst.id, { Position }, scene.breakpoint));
-    }
+    const { items, listed, locked } = this.#placeable();
+    const cmds = items.map(({ inst, box }) =>
+      this.#placeAt(inst, box, { x: box.x + dx, y: box.y + dy, w: box.w, h: box.h }),
+    );
     if (cmds.length) this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds));
+    else this.#cantPlace(listed, locked);
+  }
+
+  /**
+   * The selected objects a move can place: drawn on the device shown, not placed by a list and
+   * not locked, with how many were left out for each reason.
+   */
+  #placeable(): { items: { inst: Gui; box: Box }[]; listed: number; locked: number } {
+    const { layout } = this.scene;
+    const items: { inst: Gui; box: Box }[] = [];
+    let listed = 0;
+    let locked = 0;
+    for (const inst of this.#targets()) {
+      const box = layout.get(inst.id);
+      if (!isGui(inst) || !box) continue;
+      if (isLocked(this.doc, inst.id)) locked++;
+      else if (box.listItem) listed++;
+      else items.push({ inst, box });
+    }
+    return { items, listed, locked };
+  }
+
+  /** Says why objects stayed where they were. */
+  #cantPlace(listed: number, locked: number) {
+    if (locked)
+      this.toast(
+        locked === 1
+          ? 'A locked object stays where it is. Unlock it to move it.'
+          : `${locked} locked objects stay where they are. Unlock them to move them.`,
+      );
     else if (listed) this.toast(LIST_PLACES);
+  }
+
+  /** The edit that puts an object's box at `rect`, at the breakpoint shown. */
+  #placeAt(inst: Gui, box: Box, rect: Rect, unit: UnitMode = this.#state.unit): Command {
+    const bp = this.scene.breakpoint;
+    const p = resolveProps(this.doc, inst, bp);
+    return edit(
+      inst.id,
+      { Position: positionFor(p.Position, p.AnchorPoint, box.area, rect, unit) },
+      bp,
+    );
+  }
+
+  /**
+   * Lines up the selection: several objects with each other, by the edges or centers of the
+   * box around them, or one object in its parent. One object keeps its place on every screen
+   * size: it's set to 0%, 50% or 100% of the parent with a matching AnchorPoint (in pixels mode
+   * it's moved in pixels instead).
+   */
+  alignSelection(how: Align) {
+    const { items, listed, locked } = this.#placeable();
+    if (!items.length) {
+      if (listed || locked) this.#cantPlace(listed, locked);
+      else this.toast('Select an object to align.');
+      return;
+    }
+    const bp = this.scene.breakpoint;
+    const { axis, at } = alignAxis(how);
+    let cmds: Command[];
+    if (items.length === 1 && this.#state.unit !== 'offset') {
+      const { inst } = items[0]!;
+      const p = resolveProps(this.doc, inst, bp);
+      const [x, , y] = p.Position;
+      const pos: UDim2 = axis === 'x' ? [at, 0, y, p.Position[3]] : [x, p.Position[1], at, 0];
+      const anchor: Vector2 = axis === 'x' ? [at, p.AnchorPoint[1]] : [p.AnchorPoint[0], at];
+      cmds = [edit(inst.id, { Position: pos, AnchorPoint: anchor }, bp)];
+    } else {
+      const rects = items.map((i) => i.box as Rect);
+      const to = items.length === 1 ? items[0]!.box.area : boundsOf(rects);
+      const moved = alignRects(rects, to, how);
+      cmds = items.map(({ inst, box }, i) => this.#placeAt(inst, box, moved[i]!));
+    }
+    this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds));
+    if (listed || locked) this.#cantPlace(listed, locked);
+  }
+
+  /** Spaces three or more selected objects evenly, left to right or top to bottom. */
+  distributeSelection(axis: 'x' | 'y') {
+    const { items, listed, locked } = this.#placeable();
+    if (items.length < 3) {
+      if (listed || locked) this.#cantPlace(listed, locked);
+      else this.toast('Select three or more objects to space them evenly.');
+      return;
+    }
+    const moved = distributeRects(
+      items.map((i) => i.box),
+      axis,
+    );
+    const cmds = items.map(({ inst, box }, i) => this.#placeAt(inst, box, moved[i]!));
+    this.#execute(batch(...cmds));
+    if (listed || locked) this.#cantPlace(listed, locked);
+  }
+
+  /** Whether the selection can be aligned, or spaced evenly, right now. */
+  get canAlign(): boolean {
+    return this.#placeable().items.length > 0;
+  }
+  get canDistribute(): boolean {
+    return this.#placeable().items.length >= 3;
+  }
+
+  /** The Explorer's lock: locks an object, Folder or ScreenGui, or unlocks it. */
+  toggleLocked(id: InstanceId) {
+    const inst = getInstance(this.doc, id);
+    if (inst && canLock(inst.className)) this.#execute(setLocked(id, !inst.locked));
+  }
+
+  /** Locks or unlocks every selected object that can be locked. */
+  setSelectedLocked(locked: boolean) {
+    const cmds = this.#state.selected.flatMap((id) => {
+      const inst = getInstance(this.doc, id);
+      return inst && canLock(inst.className) ? [setLocked(id, locked)] : [];
+    });
+    if (cmds.length) this.#execute(cmds.length === 1 ? cmds[0]! : batch(...cmds));
+  }
+
+  /** Locks the selection, or unlocks it when it's all locked already (Ctrl+Shift+L). */
+  toggleSelectedLocked() {
+    const lockable = this.#state.selected.flatMap((id) => {
+      const inst = getInstance(this.doc, id);
+      return inst && canLock(inst.className) ? [inst] : [];
+    });
+    if (lockable.length) this.setSelectedLocked(!lockable.every((i) => i.locked));
   }
 
   /**

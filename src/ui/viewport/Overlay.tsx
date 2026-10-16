@@ -12,10 +12,12 @@ import { screenQuad } from '../../layout/layout.ts';
 import {
   drawnChildren,
   getInstance,
+  isLocked,
   resolveProps,
   type Instance,
   type InstanceId,
 } from '../../model/document.ts';
+import { Icon } from '../icons.tsx';
 import { UDim2Text } from '../properties/fields.tsx';
 
 export function Overlay({
@@ -78,6 +80,8 @@ export function Overlay({
     inst && isGui(inst)
       ? resolveProps(doc, inst as Instance<'Frame'>, scene.breakpoint)
       : undefined;
+  // A locked object is outlined with dashes and has no handles: it can't be dragged.
+  const locked = sel !== null && isLocked(doc, sel);
   const dragging = !passive && state.gesture !== null && state.gesture.id === sel;
   const q = sel === null ? undefined : screenQuad(doc, scene.layout, sel);
 
@@ -101,19 +105,25 @@ export function Overlay({
         />
       ))}
       {!passive && box && selStyle && props && (
-        <div className={box.listItem ? 'selbox locked' : 'selbox'} style={selStyle}>
-          {HANDLES.map((h) => (
-            <div
-              key={h}
-              className="handle"
-              data-h={h}
-              style={{
-                left: `${h.includes('w') ? 0 : h.includes('e') ? 100 : 50}%`,
-                top: `${h.includes('n') ? 0 : h.includes('s') ? 100 : 50}%`,
-              }}
-            />
-          ))}
-          {!box.listItem && (
+        <div className={box.listItem || locked ? 'selbox locked' : 'selbox'} style={selStyle}>
+          {locked && (
+            <span className="lockbadge" title="Locked">
+              <Icon name="lock" />
+            </span>
+          )}
+          {!locked &&
+            HANDLES.map((h) => (
+              <div
+                key={h}
+                className="handle"
+                data-h={h}
+                style={{
+                  left: `${h.includes('w') ? 0 : h.includes('e') ? 100 : 50}%`,
+                  top: `${h.includes('n') ? 0 : h.includes('s') ? 100 : 50}%`,
+                }}
+              />
+            ))}
+          {!box.listItem && !locked && (
             <div
               className="anchor-dot"
               title="AnchorPoint"

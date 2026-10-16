@@ -232,3 +232,53 @@ export function resizeRect(
   }
   return { rect: { x, y, w, h }, guides };
 }
+
+/** Lining objects up: by their left edges, centers or right edges, or top, middle or bottom. */
+export type Align = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom';
+export const ALIGNS: readonly Align[] = ['left', 'center', 'right', 'top', 'middle', 'bottom'];
+
+/** Which axis an alignment moves along, and where on it: 0 start, 0.5 center, 1 end. */
+export function alignAxis(how: Align): { axis: 'x' | 'y'; at: 0 | 0.5 | 1 } {
+  const at = how === 'left' || how === 'top' ? 0 : how === 'right' || how === 'bottom' ? 1 : 0.5;
+  return { axis: how === 'left' || how === 'center' || how === 'right' ? 'x' : 'y', at };
+}
+
+/** The smallest rectangle around all of `rects`. */
+export function boundsOf(rects: readonly Rect[]): Rect {
+  const x = Math.min(...rects.map((r) => r.x));
+  const y = Math.min(...rects.map((r) => r.y));
+  const w = Math.max(...rects.map((r) => r.x + r.w)) - x;
+  const h = Math.max(...rects.map((r) => r.y + r.h)) - y;
+  return { x, y, w, h };
+}
+
+/** Moves each rectangle so the chosen edge or center lines up with that of `to`. */
+export function alignRects(rects: readonly Rect[], to: Rect, how: Align): Rect[] {
+  const { axis, at } = alignAxis(how);
+  return rects.map((r) =>
+    axis === 'x' ? { ...r, x: to.x + (to.w - r.w) * at } : { ...r, y: to.y + (to.h - r.h) * at },
+  );
+}
+
+/**
+ * Spaces rectangles evenly along an axis: the first and last stay, and the others move so the
+ * gaps between neighbours are equal. Returns them in the order given.
+ */
+export function distributeRects(rects: readonly Rect[], axis: 'x' | 'y'): Rect[] {
+  const len = axis === 'x' ? 'w' : 'h';
+  const order = rects
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => a.r[axis] + a.r[len] / 2 - (b.r[axis] + b.r[len] / 2) || a.i - b.i);
+  const out = [...rects];
+  if (order.length < 3) return out;
+  const first = order[0]!.r;
+  const last = order.at(-1)!.r;
+  const span = last[axis] + last[len] - first[axis];
+  const gap = (span - order.reduce((n, o) => n + o.r[len], 0)) / (order.length - 1);
+  let at = first[axis];
+  for (const { r, i } of order) {
+    out[i] = { ...r, [axis]: at };
+    at += r[len] + gap;
+  }
+  return out;
+}
