@@ -18,6 +18,7 @@ import { isGui } from '../export/html.ts';
 import { insertableInto } from '../editor/insert.ts';
 import { canParent, classDef } from '../model/classes.ts';
 import {
+  canLock,
   getInstance,
   isAncestor,
   resolveProps,
@@ -285,6 +286,7 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
             if (sel) cls.push('sel');
             if (inside) cls.push('sub');
             if (hidden) cls.push('off');
+            if (inst.locked) cls.push('lk');
             if (kind === 'modifier') cls.push('modrow');
             if (hover === row.id && !sel) cls.push('hov');
             if (insertFor?.id === row.id) cls.push('pin');
@@ -380,6 +382,21 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
                       }}
                     >
                       <Icon name="plus" />
+                    </button>
+                  )}
+                  {canLock(inst.className) && (
+                    <button
+                      className={inst.locked ? 'rb lock on' : 'rb lock'}
+                      type="button"
+                      tabIndex={-1}
+                      aria-label={`${inst.locked ? 'Unlock' : 'Lock'} ${name}`}
+                      title={inst.locked ? 'Unlock' : 'Lock'}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        editor.toggleLocked(row.id);
+                      }}
+                    >
+                      <Icon name={inst.locked ? 'lock' : 'unlock'} />
                     </button>
                   )}
                   {(isGui(inst) || inst.className === 'ScreenGui') && (

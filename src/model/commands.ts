@@ -11,6 +11,7 @@ import {
   type PropsOf,
 } from './classes.ts';
 import {
+  canLock,
   extractSubtree,
   getInstance,
   isAncestor,
@@ -57,6 +58,8 @@ export type Command =
       readonly clear?: readonly string[];
       readonly preview?: AssetId | null;
     }
+  /** Lock an object in the editor, or unlock it. */
+  | { readonly type: 'setLocked'; readonly id: InstanceId; readonly locked: boolean }
   /** Several commands as one step. */
   | { readonly type: 'batch'; readonly commands: readonly Command[] };
 
@@ -106,6 +109,11 @@ export const setPreview = (id: InstanceId, preview: AssetId | null): Command => 
   props: {},
   preview,
 });
+export const setLocked = (id: InstanceId, locked: boolean): Command => ({
+  type: 'setLocked',
+  id,
+  locked,
+});
 export const batch = (...commands: Command[]): Command => ({ type: 'batch', commands });
 
 /**
@@ -129,6 +137,8 @@ export function applyCommand(doc: Doc, cmd: Command): Applied {
       if (cmd.preview !== undefined)
         throw new ModelError('A preview picture is the same at every breakpoint');
       return applySetOverrides(doc, cmd.id, cmd.breakpoint, cmd.props, cmd.clear ?? []);
+    case 'setLocked':
+      return applySetLocked(doc, cmd.id, cmd.locked);
     case 'batch': {
       let current = doc;
       let changed = false;
@@ -142,6 +152,17 @@ export function applyCommand(doc: Doc, cmd: Command): Applied {
       return { doc: current, inverse: { type: 'batch', commands: inverses }, changed };
     }
   }
+}
+
+function applySetLocked(doc: Doc, id: InstanceId, locked: boolean): Applied {
+  const inst = requireInstance(doc, id);
+  const inverse: Command = { type: 'setLocked', id, locked: !!inst.locked };
+  if (!!inst.locked === locked) return { doc, inverse, changed: false };
+  if (!canLock(inst.className)) throw new ModelError(`A ${inst.className} can't be locked`);
+  const updated: Record<string, unknown> = { ...inst };
+  if (locked) updated.locked = true;
+  else delete updated.locked;
+  return { doc: patch(doc, { [id]: updated as unknown as AnyInstance }), inverse, changed: true };
 }
 
 /** A new document with some instances replaced (an instance) or removed (undefined). */

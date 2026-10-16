@@ -48,6 +48,7 @@ import {
   childrenOf,
   drawnChildren,
   getInstance,
+  isLocked,
   resolveProps,
   subtreeIds,
   type AnyInstance,
@@ -221,6 +222,8 @@ function GuiView({ inst, origin, ctx }: { inst: Gui; origin: Rect; ctx: Ctx }) {
     classes.push('btnlike');
   const link = linkOf(inst.props);
   if (link) classes.push('linked');
+  // Clicks and hovers pass through locked objects while editing.
+  if (!ctx.preview && isLocked(ctx.doc, inst.id)) classes.push('lk');
 
   const kids = guiChildren(doc, inst.id);
   let content = null;

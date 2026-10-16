@@ -54,6 +54,23 @@ const PATHS = {
     '<circle cx="6.5" cy="6.5" r="3.5"/><rect x="10.5" y="10.5" width="7" height="7" rx="1"/><path d="M6.5 11 10 17.5H3z"/><path d="M14 2.5 17.5 8h-7z"/>',
   components:
     '<path d="M10 2.5 13 5.5 10 8.5 7 5.5zM5.5 7 8.5 10 5.5 13 2.5 10zM14.5 7 17.5 10 14.5 13 11.5 10zM10 11.5 13 14.5 10 17.5 7 14.5z"/>',
+  lock: '<rect x="4.5" y="9" width="11" height="8" rx="1.5"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/>',
+  unlock:
+    '<rect x="4.5" y="9" width="11" height="8" rx="1.5"/><path d="M7 9V6.5a3 3 0 0 1 5.8-1"/>',
+  alignLeft:
+    '<path d="M3.5 3v14"/><rect x="6" y="5" width="9" height="3.5" rx="1"/><rect x="6" y="11.5" width="5.5" height="3.5" rx="1"/>',
+  alignCenter:
+    '<path d="M10 3v14"/><rect x="4.5" y="5" width="11" height="3.5" rx="1"/><rect x="6.75" y="11.5" width="6.5" height="3.5" rx="1"/>',
+  alignRight:
+    '<path d="M16.5 3v14"/><rect x="5" y="5" width="9" height="3.5" rx="1"/><rect x="8.5" y="11.5" width="5.5" height="3.5" rx="1"/>',
+  alignTop:
+    '<path d="M3 3.5h14"/><rect x="5" y="6" width="3.5" height="9" rx="1"/><rect x="11.5" y="6" width="3.5" height="5.5" rx="1"/>',
+  alignMiddle:
+    '<path d="M3 10h14"/><rect x="5" y="4.5" width="3.5" height="11" rx="1"/><rect x="11.5" y="6.75" width="3.5" height="6.5" rx="1"/>',
+  alignBottom:
+    '<path d="M3 16.5h14"/><rect x="5" y="5" width="3.5" height="9" rx="1"/><rect x="11.5" y="8.5" width="3.5" height="5.5" rx="1"/>',
+  distributeX: '<path d="M3 3v14M17 3v14"/><rect x="7.75" y="6" width="4.5" height="8" rx="1"/>',
+  distributeY: '<path d="M3 3h14M3 17h14"/><rect x="6" y="7.75" width="8" height="4.5" rx="1"/>',
   link: '<path d="M8.5 11.5a3.5 3.5 0 0 0 5 0l2.5-2.5a3.5 3.5 0 0 0-5-5L10 5"/><path d="M11.5 8.5a3.5 3.5 0 0 0-5 0L4 11a3.5 3.5 0 0 0 5 5l1-1"/>',
   DataModel: '<circle cx="10" cy="10" r="7"/>',
   StarterGui:

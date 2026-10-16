@@ -45,6 +45,7 @@ The editor works end to end in the browser as a static site. It has the viewport
 - **#26:** Folders, multi-select, the right-click menu and panning.
 - **#27:** web extras, part two: forms, YouTube and map embeds, text decoration and case, gradient text, picture filters, cursors, smooth scrolling.
 - **#28:** the live code view (a Code panel under the viewport), and popups that grow to fit long messages.
+- **Align, distribute and lock:** a button row at the top of Properties, Alt shortcuts, and a lock in the Explorer.
 
 ## How Armin works
 

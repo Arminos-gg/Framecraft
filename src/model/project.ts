@@ -18,6 +18,7 @@ import {
   type ClassName,
 } from './classes.ts';
 import {
+  canLock,
   emptyProject,
   ModelError,
   validateDoc,
@@ -157,6 +158,7 @@ function readInstance(id: InstanceId, r: unknown, version: number): AnyInstance 
   };
   if (version >= 3 && isAssetId(r.preview) && classDef(className as ClassName).image)
     inst.preview = r.preview;
+  if (r.locked === true && canLock(className)) inst.locked = true;
   if (version >= 3 && isObject(r.overrides)) {
     const overrides = readOverrides(className, r.overrides);
     if (Object.keys(overrides).length) inst.overrides = overrides;

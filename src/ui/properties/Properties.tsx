@@ -19,14 +19,21 @@ import {
   type Category,
   type PropSpec,
 } from '../../model/classes.ts';
-import { getInstance, resolveProps, type AnyInstance } from '../../model/document.ts';
+import {
+  canLock,
+  getInstance,
+  isLocked,
+  resolveProps,
+  type AnyInstance,
+} from '../../model/document.ts';
+import type { Align } from '../../editor/geometry.ts';
 import { rgb } from '../../export/format.ts';
 import type { FontName, FontWeight } from '../../model/fonts.ts';
 import { valueEquals, type Color3, type Link } from '../../model/values.ts';
 import { useEditor, useEditorState } from '../editor-context.ts';
 import { pickFile } from '../files.ts';
 import { PICTURE_TYPES, pictureFromFile } from '../pictures.ts';
-import { ClassIcon, Icon } from '../icons.tsx';
+import { ClassIcon, Icon, type IconName } from '../icons.tsx';
 import { InsertMenu } from '../InsertMenu.tsx';
 import { SidePanel } from '../Panel.tsx';
 import { FontField, FontWeightField } from './FontFields.tsx';
@@ -108,6 +115,18 @@ function Help() {
           <kbd>Ctrl</kbd> <kbd>G</kbd>
         </dt>
         <dd>Group into a Folder</dd>
+        <dt>
+          <kbd>Alt</kbd> <kbd>A</kbd> <kbd>H</kbd> <kbd>D</kbd>
+        </dt>
+        <dd>Align left, center, right</dd>
+        <dt>
+          <kbd>Alt</kbd> <kbd>W</kbd> <kbd>V</kbd> <kbd>S</kbd>
+        </dt>
+        <dd>Align top, middle, bottom</dd>
+        <dt>
+          <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>L</kbd>
+        </dt>
+        <dd>Lock or unlock</dd>
         <dt>
           <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd>
         </dt>
@@ -433,6 +452,7 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
   return (
     <>
       {many ? <ManyHead list={all} primary={inst} /> : <SelHead inst={inst} />}
+      {all.some(isGui) && <AlignBar list={all} />}
       {bpInst?.className === 'Breakpoint' && (
         <div className="bpbar">
           <b>{bpInst.props.Name}</b>: layout, size, visibility, text size and colors change for{' '}
@@ -502,6 +522,89 @@ function ContrastNote({ c }: { c: TextContrast }) {
           ? `Easy to read: text this size needs ${c.needed}:1.`
           : `Text this size needs ${c.needed}:1 to be easy to read. Make TextColor3 or the background behind it lighter or darker.`}
       </span>
+    </div>
+  );
+}
+
+const ALIGN_BUTTONS: readonly {
+  how: Align;
+  icon: IconName;
+  label: string;
+  key: string;
+}[] = [
+  { how: 'left', icon: 'alignLeft', label: 'Align left', key: 'A' },
+  { how: 'center', icon: 'alignCenter', label: 'Align centers', key: 'H' },
+  { how: 'right', icon: 'alignRight', label: 'Align right', key: 'D' },
+  { how: 'top', icon: 'alignTop', label: 'Align top', key: 'W' },
+  { how: 'middle', icon: 'alignMiddle', label: 'Align middles', key: 'V' },
+  { how: 'bottom', icon: 'alignBottom', label: 'Align bottom', key: 'S' },
+];
+
+/**
+ * Align, space evenly and lock. One object lines up in its parent and stays there on every
+ * screen size; several line up with each other.
+ */
+function AlignBar({ list }: { list: readonly AnyInstance[] }) {
+  const editor = useEditor();
+  const one = list.length === 1;
+  const canAlign = editor.canAlign;
+  const canSpread = editor.canDistribute;
+  const lockable = list.filter((i) => canLock(i.className));
+  const locked = lockable.length > 0 && lockable.every((i) => i.locked);
+  const lockedAbove = !locked && one && isLocked(editor.doc, list[0]!.id);
+  const btn = (label: string, icon: IconName, keys: string, run: () => void, ok: boolean) => (
+    <button
+      key={label}
+      className="ibtn sm"
+      type="button"
+      aria-label={label}
+      title={`${label} (${keys})`}
+      disabled={!ok}
+      onClick={run}
+    >
+      <Icon name={icon} />
+    </button>
+  );
+  return (
+    <div className="alignbar" role="toolbar" aria-label="Align">
+      {ALIGN_BUTTONS.map((b) =>
+        btn(
+          one ? `${b.label.replace(/s$/, '')} in parent` : b.label,
+          b.icon,
+          `Alt+${b.key}`,
+          () => editor.alignSelection(b.how),
+          canAlign,
+        ),
+      )}
+      <span className="sep" />
+      {btn(
+        'Space evenly across',
+        'distributeX',
+        'Alt+Shift+H',
+        () => editor.distributeSelection('x'),
+        canSpread,
+      )}
+      {btn(
+        'Space evenly down',
+        'distributeY',
+        'Alt+Shift+V',
+        () => editor.distributeSelection('y'),
+        canSpread,
+      )}
+      <span className="sep" />
+      {lockable.length > 0 && (
+        <button
+          className={locked ? 'ibtn sm on' : 'ibtn sm'}
+          type="button"
+          aria-pressed={locked}
+          aria-label={locked ? 'Unlock' : 'Lock'}
+          title={`${locked ? 'Unlock' : 'Lock'} (Ctrl+Shift+L)`}
+          onClick={() => editor.setSelectedLocked(!locked)}
+        >
+          <Icon name={locked ? 'lock' : 'unlock'} />
+        </button>
+      )}
+      {lockedAbove && <span className="lockednote">In a locked object</span>}
     </div>
   );
 }

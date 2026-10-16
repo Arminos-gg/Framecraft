@@ -32,6 +32,12 @@ export interface Instance<C extends ClassName = ClassName> {
   readonly overrides?: Readonly<Record<InstanceId, Partial<PropsOf<C>>>>;
   /** ImageLabel and ImageButton: a picture from the image library, shown in place of the Roblox asset. */
   readonly preview?: AssetId;
+  /**
+   * Locked in the editor: clicks and box selection pass through it and the objects in it, and
+   * drags, nudges and aligning leave them where they are. The Explorer still selects it.
+   * Editor only; no export reads it.
+   */
+  readonly locked?: true;
 }
 
 /** An instance of any class; checking `className` narrows `props`. */
@@ -156,6 +162,19 @@ export const pageOnly = (className: ClassName): boolean => {
   const def = classDef(className);
   return !!def.web && def.kind === 'gui';
 };
+
+/** Objects, Folders and ScreenGuis can be locked. */
+export function canLock(className: ClassName): boolean {
+  const kind = classDef(className).kind;
+  return kind === 'gui' || kind === 'folder' || className === 'ScreenGui';
+}
+
+/** Whether an instance is locked, or sits inside a locked one. */
+export function isLocked(doc: Doc, id: InstanceId): boolean {
+  for (let inst = getInstance(doc, id); inst; inst = getInstance(doc, inst.parent ?? ''))
+    if (inst.locked) return true;
+  return false;
+}
 
 /** Is `ancestorId` a parent, grandparent and so on of `id`? */
 export function isAncestor(doc: Doc, ancestorId: InstanceId, id: InstanceId): boolean {
@@ -326,6 +345,8 @@ export function validateDoc(doc: Doc): string[] {
       else if (!ASSET_ID_PATTERN.test(inst.preview))
         problems.push(`${where} has an invalid preview id`);
     }
+    if (inst.locked !== undefined && (inst.locked !== true || !canLock(inst.className)))
+      problems.push(`${where} has an invalid lock`);
     if (inst.overrides !== undefined) problems.push(...overrideProblems(doc, where, inst));
     if (classDef(inst.className).unique && inst.parent !== null) {
       const twins = getInstance(doc, inst.parent)?.children.filter(

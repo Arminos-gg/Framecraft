@@ -626,7 +626,8 @@ svg {
 .row:focus-within .ra,
 .row.sel .ra,
 .row.pin .ra,
-.row.off .ra {
+.row.off .ra,
+.row.lk .ra {
   display: flex;
 }
 .row .rb {
@@ -637,7 +638,8 @@ svg {
   border-radius: 4px;
   color: var(--icon);
 }
-.row.off:not(:hover):not(.hov):not(.sel):not(:focus-within) .rb:not(.eye) {
+.row.off:not(:hover):not(.hov):not(.sel):not(:focus-within) .rb:not(.eye):not(.lock.on),
+.row.lk:not(:hover):not(.hov):not(.sel):not(:focus-within) .rb:not(.lock):not(.eye.off) {
   visibility: hidden;
 }
 .row .rb:hover {
@@ -647,6 +649,10 @@ svg {
 .row .rb.on {
   background: var(--accent-soft);
   color: var(--accent);
+}
+.row .rb.lock.on {
+  color: var(--fg);
+  background: none;
 }
 .row .rb.eye.off {
   color: var(--faint);
@@ -702,6 +708,25 @@ svg {
   gap: 9px;
   padding: 10px 8px 11px 12px;
   border-bottom: 1px solid var(--line-soft);
+}
+.alignbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 5px 8px 5px 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.alignbar .sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--line-soft);
+}
+.alignbar .lockednote {
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--muted);
 }
 .who {
   display: flex;
@@ -3005,6 +3030,9 @@ button.bpdot.on:hover {
   position: absolute;
   box-sizing: border-box;
 }
+.gui.lk {
+  pointer-events: none;
+}
 .gui > .content {
   position: absolute;
 }
@@ -3182,6 +3210,23 @@ button.bpdot.on:hover {
 .handle[data-h='nw'],
 .handle[data-h='se'] {
   cursor: nwse-resize;
+}
+.lockbadge {
+  position: absolute;
+  left: -1.5px;
+  bottom: 100%;
+  margin-bottom: 3px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--ov);
+  color: #fff;
+}
+.lockbadge svg {
+  width: 12px;
+  height: 12px;
 }
 .anchor-dot {
   position: absolute;
