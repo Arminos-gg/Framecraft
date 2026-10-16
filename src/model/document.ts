@@ -32,6 +32,27 @@ export interface Instance<C extends ClassName = ClassName> {
   readonly overrides?: Readonly<Record<InstanceId, Partial<PropsOf<C>>>>;
   /** ImageLabel and ImageButton: a picture from the image library, shown in place of the Roblox asset. */
   readonly preview?: AssetId;
+  /**
+   * In a linked copy of a component: which component, and which of its objects this one is
+   * (`key`, an id in the component's own tree). The copy's root has the component's root key.
+   */
+  readonly copyOf?: CopyOf;
+}
+
+export type ComponentId = string;
+
+export interface CopyOf {
+  readonly component: ComponentId;
+  readonly key: InstanceId;
+}
+
+/**
+ * A component: the tree every linked copy follows, kept once in the document. Its instances
+ * are keyed by their own ids (the keys copies point at) and have no `copyOf`. Copies are
+ * ordinary instances in the tree, so layout and the exports read them like anything else.
+ */
+export interface Component extends Subtree {
+  readonly id: ComponentId;
 }
 
 /** An instance of any class; checking `className` narrows `props`. */
@@ -40,6 +61,8 @@ export type AnyInstance = { [C in ClassName]: Instance<C> }[ClassName];
 export interface Doc {
   readonly rootId: InstanceId;
   readonly instances: Readonly<Record<InstanceId, AnyInstance>>;
+  /** The project's linked components, by id. Absent when there are none. */
+  readonly components?: Readonly<Record<ComponentId, Component>>;
 }
 
 /** A detached copy of part of a tree, ready to insert. Its root has no parent. */
@@ -335,6 +358,8 @@ export function validateDoc(doc: Doc): string[] {
     }
   }
 
+  problems.push(...linkProblems(doc));
+
   if (root.className === 'DataModel') {
     for (const service of ['StarterGui', 'Site'] as const) {
       if (!childOfClass(doc, doc.rootId, service)) problems.push(`The project has no ${service}`);
@@ -357,6 +382,85 @@ export function validateDoc(doc: Doc): string[] {
   for (const id of Object.keys(doc.instances)) {
     if (!seen.has(id)) problems.push(`${id} is not connected to the root`);
   }
+  return problems;
+}
+
+/**
+ * Linked components: each one a valid tree of its own, and each copy following its
+ * component's tree, with no copy inside another.
+ */
+function linkProblems(doc: Doc): string[] {
+  const problems: string[] = [];
+  const comps = doc.components ?? {};
+  for (const [id, c] of Object.entries(comps)) {
+    const where = `Component ${id}`;
+    if (c.id !== id) problems.push(`${where} is stored under the wrong id`);
+    const root = Object.hasOwn(c.instances, c.rootId) ? c.instances[c.rootId] : undefined;
+    if (!root) {
+      problems.push(`${where} has no root`);
+      continue;
+    }
+    if (root.parent !== null) problems.push(`${where}'s root has a parent`);
+    if (classDef(root.className).kind !== 'gui') problems.push(`${where}'s root isn't an object`);
+    const seen = new Set<InstanceId>();
+    const walk = (key: InstanceId) => {
+      if (seen.has(key)) return problems.push(`${where} reaches ${key} twice`);
+      seen.add(key);
+      const inst = c.instances[key]!;
+      if (inst.id !== key) problems.push(`${where} stores ${key} under the wrong id`);
+      if (inst.copyOf) problems.push(`${where}'s ${key} is marked as a copy`);
+      const names = propNames(inst.className);
+      for (const p of names)
+        if (
+          !valueEquals(
+            normalizeProp(inst.className, p, (inst.props as Record<string, unknown>)[p]),
+            (inst.props as Record<string, unknown>)[p],
+          )
+        )
+          problems.push(`${where}'s ${key} has an invalid ${p}`);
+      for (const ch of inst.children) {
+        const child = Object.hasOwn(c.instances, ch) ? c.instances[ch] : undefined;
+        if (!child || child.parent !== key)
+          problems.push(`${where}'s ${key} lists ${ch}, which isn't its child`);
+        else if (!canParent(child.className, inst.className))
+          problems.push(`${where}'s ${child.className} can't sit inside a ${inst.className}`);
+        else walk(ch);
+      }
+    };
+    walk(c.rootId);
+    if (seen.size !== Object.keys(c.instances).length)
+      problems.push(`${where} has objects outside its tree`);
+  }
+
+  // Each copy: one object for each of its component's, in the same places.
+  const walk = (id: InstanceId, inCopy: { c: Component; keys: Set<InstanceId> } | null) => {
+    const inst = doc.instances[id];
+    if (!inst) return;
+    let next = inCopy;
+    const link = inst.copyOf;
+    const where = `${inst.className} ${id}`;
+    if (link) {
+      const c = Object.hasOwn(comps, link.component) ? comps[link.component] : undefined;
+      const source = c && Object.hasOwn(c.instances, link.key) ? c.instances[link.key] : undefined;
+      if (!c || !source) problems.push(`${where} is a copy of something the project doesn't have`);
+      else if (source.className !== inst.className)
+        problems.push(`${where} isn't the class it copies`);
+      else if (link.key === c.rootId) {
+        if (inCopy) problems.push(`${where} is a copy inside another copy`);
+        next = { c, keys: new Set([link.key]) };
+      } else if (inCopy?.c.id !== c.id) problems.push(`${where} is outside its copy`);
+      else {
+        const parentKey = doc.instances[inst.parent!]?.copyOf?.key;
+        if (source.parent !== parentKey) problems.push(`${where} isn't where its component has it`);
+        if (inCopy.keys.has(link.key)) problems.push(`${where} is in its copy twice`);
+        inCopy.keys.add(link.key);
+      }
+    } else if (inCopy) problems.push(`${where} is in a copy but isn't part of it`);
+    for (const ch of inst.children) walk(ch, next);
+    if (next && next !== inCopy && next.keys.size !== Object.keys(next.c.instances).length)
+      problems.push(`${where} is missing objects of its component`);
+  };
+  walk(doc.rootId, null);
   return problems;
 }
 

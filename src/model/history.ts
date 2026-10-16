@@ -59,10 +59,12 @@ export class History {
   execute(cmd: Command): Doc {
     const r = applyCommand(this.#doc, cmd);
     if (!r.changed) return this.#doc;
+    // An edit spread to linked copies replays exactly, so redo makes the same ids.
+    const forward = r.exact ?? cmd;
     if (this.#group) {
-      this.#addToGroup(this.#group, cmd, r.inverse);
+      this.#addToGroup(this.#group, forward, r.inverse);
     } else {
-      this.#push({ forward: cmd, inverse: r.inverse });
+      this.#push({ forward, inverse: r.inverse });
     }
     this.#set(r.doc);
     return r.doc;
@@ -158,6 +160,12 @@ export class History {
       );
       return;
     }
+    if (cmd.type === 'replace' && inverse.type === 'replace' && last?.type === 'replace') {
+      // A drag inside a linked copy: the later state wins forward, the earliest backward.
+      g.forward[i] = mergeReplace(last, cmd);
+      g.inverse[i] = mergeReplace(inverse, lastInverse as Replace);
+      return;
+    }
     g.forward.push(cmd);
     g.inverse.push(inverse);
   }
@@ -169,6 +177,18 @@ export class History {
 }
 
 type SetProps = Extract<Command, { type: 'setProps' }>;
+type Replace = Extract<Command, { type: 'replace' }>;
+
+/** One replace doing what `first` then `second` do. */
+function mergeReplace(first: Replace, second: Replace): Replace {
+  const instances = { ...first.instances, ...second.instances };
+  if (!first.components && !second.components) return { type: 'replace', instances };
+  return {
+    type: 'replace',
+    instances,
+    components: { ...first.components, ...second.components },
+  };
+}
 
 /** One property edit doing what `first` then `second` do, with `preview` as given. */
 function mergeEdits(first: SetProps, second: SetProps, preview: SetProps['preview']): SetProps {

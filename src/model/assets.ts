@@ -55,7 +55,8 @@ export function addAsset(assets: Assets, dataUrl: string): { assets: Assets; id:
 /** Every image id the document uses: previews and image properties such as Favicon. */
 export function usedAssets(doc: Doc): Set<AssetId> {
   const used = new Set<AssetId>();
-  for (const inst of Object.values(doc.instances)) {
+  const components = Object.values(doc.components ?? {}).flatMap((c) => Object.values(c.instances));
+  for (const inst of [...Object.values(doc.instances), ...components]) {
     if (inst.preview) used.add(inst.preview);
     for (const [key, value] of Object.entries(inst.props)) {
       if (value && propSpec(inst.className, key)?.type === 'asset') used.add(value as AssetId);

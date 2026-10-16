@@ -5,7 +5,8 @@
  * properties as GradColor, GradTransparency and GradRotation with two stops. Version 2 uses
  * `className` and the real UIGradient names with keypoint sequences. Both have a StarterGui
  * root and keep preview pictures on the object. Version 3 has the DataModel root, per
- * breakpoint changes, and an image library next to the document.
+ * breakpoint changes, and an image library next to the document. Version 4 adds linked
+ * components: `doc.components`, and `copyOf` on the objects of their copies.
  */
 import { upgradeFont } from './fonts.ts';
 import { addAsset, isAssetId, isImageDataUrl, usedAssets, type Assets } from './assets.ts';
@@ -22,13 +23,15 @@ import {
   ModelError,
   validateDoc,
   type AnyInstance,
+  type Component,
+  type ComponentId,
   type Doc,
   type InstanceId,
 } from './document.ts';
 import { colorSequence, numberSequence, type Color3 } from './values.ts';
 
 export const FILE_FORMAT = 'framecraft';
-export const FILE_VERSION = 3;
+export const FILE_VERSION = 4;
 
 /** What a project file holds: the document and the images it uses. */
 export interface Project {
@@ -64,7 +67,7 @@ const isObject = (v: unknown): v is Json =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /**
- * Turns parsed JSON into a project. Accepts a version 1, 2 or 3 project file, or a bare
+ * Turns parsed JSON into a project. Accepts a project file of version 1 to 4, or a bare
  * version 1 document (what the prototype autosaves). Properties that are missing or invalid
  * fall back to their defaults, and changes for a breakpoint that's gone are dropped; a broken
  * tree is refused. Older files open with their screens in StarterGui, an empty Site, the
@@ -102,9 +105,27 @@ export function loadProject(data: unknown): Project {
       instances[id] = { ...inst, preview: added.id };
     } else instances[id] = inst;
   }
-  dropStaleOverrides(instances);
+  dropStaleOverrides(instances, instances);
 
-  let doc: Doc = { rootId: raw.rootId, instances };
+  const components: Record<ComponentId, Component> = {};
+  if (version >= 4 && isObject(raw.components)) {
+    for (const [id, c] of Object.entries(raw.components)) {
+      const component = readComponent(id, c, version, instances);
+      if (component) components[id] = component;
+    }
+  }
+  // Copies of a component the file doesn't have become plain objects.
+  for (const [id, inst] of Object.entries(instances)) {
+    if (inst.copyOf && !Object.hasOwn(components, inst.copyOf.component)) {
+      const { copyOf: _gone, ...rest } = inst;
+      void _gone;
+      instances[id] = rest as AnyInstance;
+    }
+  }
+
+  let doc: Doc = Object.keys(components).length
+    ? { rootId: raw.rootId, instances, components }
+    : { rootId: raw.rootId, instances };
   if (version < 3) {
     if (instances[raw.rootId]?.className !== 'StarterGui')
       throw new ModelError("This file isn't a Framecraft project.");
@@ -115,12 +136,38 @@ export function loadProject(data: unknown): Project {
   return { doc, assets };
 }
 
+/** A component's tree, or undefined when it's damaged (its copies then become plain). */
+function readComponent(
+  id: ComponentId,
+  r: unknown,
+  version: number,
+  doc: Record<InstanceId, AnyInstance>,
+): Component | undefined {
+  if (!isObject(r) || typeof r.rootId !== 'string' || !isObject(r.instances)) return undefined;
+  const instances: Record<InstanceId, AnyInstance> = {};
+  try {
+    for (const [key, raw] of Object.entries(r.instances)) {
+      const { copyOf: _gone, ...inst } = readInstance(key, raw, version);
+      void _gone;
+      instances[key] = inst as AnyInstance;
+    }
+  } catch {
+    return undefined;
+  }
+  if (!Object.hasOwn(instances, r.rootId)) return undefined;
+  dropStaleOverrides(instances, doc);
+  return { id, rootId: r.rootId, instances };
+}
+
 /** Changes kept for a breakpoint that's no longer in the file are dropped. */
-function dropStaleOverrides(instances: Record<InstanceId, AnyInstance>) {
+function dropStaleOverrides(
+  instances: Record<InstanceId, AnyInstance>,
+  doc: Readonly<Record<InstanceId, AnyInstance>>,
+) {
   for (const [id, inst] of Object.entries(instances)) {
     if (!inst.overrides) continue;
     const kept = Object.entries(inst.overrides).filter(
-      ([bp]) => instances[bp]?.className === 'Breakpoint',
+      ([bp]) => doc[bp]?.className === 'Breakpoint',
     );
     const updated: Record<string, unknown> = { ...inst, overrides: Object.fromEntries(kept) };
     if (!kept.length) delete updated.overrides;
@@ -157,6 +204,13 @@ function readInstance(id: InstanceId, r: unknown, version: number): AnyInstance 
   };
   if (version >= 3 && isAssetId(r.preview) && classDef(className as ClassName).image)
     inst.preview = r.preview;
+  if (
+    version >= 4 &&
+    isObject(r.copyOf) &&
+    typeof r.copyOf.component === 'string' &&
+    typeof r.copyOf.key === 'string'
+  )
+    inst.copyOf = { component: r.copyOf.component, key: r.copyOf.key };
   if (version >= 3 && isObject(r.overrides)) {
     const overrides = readOverrides(className, r.overrides);
     if (Object.keys(overrides).length) inst.overrides = overrides;

@@ -20,11 +20,14 @@ import {
   requireInstance,
   subtreeIds,
   type AnyInstance,
+  type Component,
+  type ComponentId,
   type Doc,
   type Instance,
   type InstanceId,
   type Subtree,
 } from './document.ts';
+import { syncCopies, type Patch } from './linked.ts';
 import { ASSET_ID_PATTERN, valueEquals, type AssetId } from './values.ts';
 
 export type Command =
@@ -58,7 +61,12 @@ export type Command =
       readonly preview?: AssetId | null;
     }
   /** Several commands as one step. */
-  | { readonly type: 'batch'; readonly commands: readonly Command[] };
+  | { readonly type: 'batch'; readonly commands: readonly Command[] }
+  /**
+   * Puts instances and components in place exactly as given (null removes one), without
+   * checks or syncing linked copies: what undo and redo replay after an edit spread to copies.
+   */
+  | ({ readonly type: 'replace' } & Patch);
 
 export interface Applied {
   readonly doc: Doc;
@@ -66,6 +74,11 @@ export interface Applied {
   readonly inverse: Command;
   /** False when the command left the document as it was. */
   readonly changed: boolean;
+  /**
+   * When the edit spread to linked copies: a command that makes exactly the new document
+   * from the old one, for redo, since spreading again would make new ids.
+   */
+  readonly exact?: Command;
 }
 
 export const insert = (parentId: InstanceId, subtree: Subtree, index?: number): Command => ({
@@ -107,6 +120,22 @@ export const setPreview = (id: InstanceId, preview: AssetId | null): Command => 
   preview,
 });
 export const batch = (...commands: Command[]): Command => ({ type: 'batch', commands });
+export const replace = (patch: Patch): Command => ({ type: 'replace', ...patch });
+
+/** The replace command that turns `from` into `to`. */
+function replaceBetween(from: Doc, to: Doc): Command {
+  const instances: Record<InstanceId, AnyInstance | null> = {};
+  for (const id of new Set([...Object.keys(from.instances), ...Object.keys(to.instances)]))
+    if (from.instances[id] !== to.instances[id]) instances[id] = getInstance(to, id) ?? null;
+  const components: Record<ComponentId, Component | null> = {};
+  const a = from.components ?? {};
+  const b = to.components ?? {};
+  for (const id of new Set([...Object.keys(a), ...Object.keys(b)]))
+    if (a[id] !== b[id]) components[id] = Object.hasOwn(b, id) ? b[id]! : null;
+  return Object.keys(components).length
+    ? { type: 'replace', instances, components }
+    : { type: 'replace', instances };
+}
 
 /**
  * Applies a command. Throws a ModelError, leaving nothing changed, when the command breaks
@@ -114,6 +143,20 @@ export const batch = (...commands: Command[]): Command => ({ type: 'batch', comm
  * into its own descendant, or an invalid property value.
  */
 export function applyCommand(doc: Doc, cmd: Command): Applied {
+  const r = applyBase(doc, cmd);
+  if (!r.changed || cmd.type === 'replace') return r;
+  // An edit inside a linked copy changes its component and every other copy.
+  const synced = syncCopies(doc, r.doc);
+  if (synced === r.doc) return r;
+  return {
+    doc: synced,
+    inverse: replaceBetween(synced, doc),
+    exact: replaceBetween(doc, synced),
+    changed: true,
+  };
+}
+
+function applyBase(doc: Doc, cmd: Command): Applied {
   switch (cmd.type) {
     case 'insert':
       return applyInsert(doc, cmd.parentId, cmd.subtree, cmd.index);
@@ -134,14 +177,49 @@ export function applyCommand(doc: Doc, cmd: Command): Applied {
       let changed = false;
       const inverses: Command[] = [];
       for (const c of cmd.commands) {
-        const r = applyCommand(current, c);
+        const r = applyBase(current, c);
         current = r.doc;
         changed ||= r.changed;
         inverses.unshift(r.inverse);
       }
       return { doc: current, inverse: { type: 'batch', commands: inverses }, changed };
     }
+    case 'replace':
+      return applyReplace(doc, cmd);
   }
+}
+
+function applyReplace(doc: Doc, patch: Patch): Applied {
+  const instances = { ...doc.instances };
+  const undoInstances: Record<InstanceId, AnyInstance | null> = {};
+  let changed = false;
+  for (const [id, inst] of Object.entries(patch.instances)) {
+    const old = getInstance(doc, id) ?? null;
+    undoInstances[id] = old;
+    if (old !== inst) changed = true;
+    if (inst) instances[id] = inst;
+    else delete instances[id];
+  }
+  const next: { -readonly [K in keyof Doc]: Doc[K] } = { ...doc, instances };
+  let undoComponents: Record<ComponentId, Component | null> | undefined;
+  if (patch.components) {
+    const components: Record<ComponentId, Component> = { ...doc.components };
+    undoComponents = {};
+    for (const [id, c] of Object.entries(patch.components)) {
+      const old = doc.components && Object.hasOwn(doc.components, id) ? doc.components[id]! : null;
+      undoComponents[id] = old;
+      if (old !== c) changed = true;
+      if (c) components[id] = c;
+      else delete components[id];
+    }
+    // Keep documents canonical: no empty map.
+    if (Object.keys(components).length) next.components = components;
+    else delete next.components;
+  }
+  const inverse: Command = undoComponents
+    ? { type: 'replace', instances: undoInstances, components: undoComponents }
+    : { type: 'replace', instances: undoInstances };
+  return { doc: changed ? next : doc, inverse, changed };
 }
 
 /** A new document with some instances replaced (an instance) or removed (undefined). */

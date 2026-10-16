@@ -148,7 +148,7 @@ describe(`saving and opening (version ${FILE_VERSION})`, () => {
   it('round-trips the game menu', () => {
     const doc = sample();
     const text = serializeProject(doc);
-    expect(JSON.parse(text)).toMatchObject({ format: 'framecraft', version: 3, assets: {} });
+    expect(JSON.parse(text)).toMatchObject({ format: 'framecraft', version: 4, assets: {} });
     expect(parseProject(text)).toEqual({ doc, assets: {} });
   });
 
