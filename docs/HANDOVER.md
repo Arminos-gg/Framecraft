@@ -22,7 +22,7 @@ In a Claude Code cloud session, Playwright's Chromium is already installed, so s
 
 The editor works end to end in the browser as a static site. It has the viewport, Explorer, Properties, ribbon, live code view, templates, components, export and project files, with autosave. A project holds Roblox screens (StarterGui) and a website (Site with Pages and Tablet and Phone breakpoints). Exports are a website zip (the main output), Luau for Studio, a Roblox model file (.rbxmx) and a single HTML page of the Roblox screens.
 
-- Repo: https://github.com/Arminos-gg/Framecraft. `main` holds PRs #1 to #27, and #28 (live code view and the popup fix) is open for review.
+- Repo: https://github.com/Arminos-gg/Framecraft. `main` holds PRs #1 to #28; linked components are open for review.
 - Vercel builds a preview of every branch at `framecraft-git-<branch>-yuh-83e9.vercel.app`. GitHub has no CI, so run `npm run build && npm test` before saying a change works. That's about 850 unit tests and 140 browser tests, and the browser tests take about 2 minutes.
 
 ## What's built, by pull request
@@ -45,6 +45,8 @@ The editor works end to end in the browser as a static site. It has the viewport
 - **#26:** Folders, multi-select, the right-click menu and panning.
 - **#27:** web extras, part two: forms, YouTube and map embeds, text decoration and case, gradient text, picture filters, cursors, smooth scrolling.
 - **#28:** the live code view (a Code panel under the viewport), and popups that grow to fit long messages.
+- **Linked components** (open for review): Make component, copies that change together, Reset, Detach, and the drawer's Yours section. Project files are version 4.
+- **Linked components** (open for review): Make component, copies that change together, Reset, Detach, and the drawer's Yours section. Project files are version 4.
 
 ## How Armin works
 
@@ -61,7 +63,7 @@ The editor works end to end in the browser as a static site. It has the viewport
 - **Share links:** projects need a server to be stored. Plan the server first and get his OK before building.
 - **Flaky tests:** the browser test where a label grows to fit its text sometimes failed. #24 made it wait for web fonts, which may have fixed it. "Follows a link from the keyboard in preview" failed once under load and then passed.
 - **Ribbon width:** with the Shapes, Components and Web buttons, the ribbon is wider than a 1280 px window and scrolls sideways.
-- **Components:** Add makes a plain copy. Linked copies (edit once, change everywhere) are undecided.
+- **Components:** pre-made pieces add a plain copy; the project's own components (Make component) add linked copies. Renaming a component, variants and copies inside copies aren't built.
 - **Folders** can't sit directly in StarterGui yet.
 - **Repo setting:** "Automatically delete head branches" was suggested on Oct 5. Turn it on if stacked PRs are wanted.
 - **Website questions** answered by the website features doc's recommendations until Armin says otherwise: one project for both Roblox and the web, static sites (no sign-in), Framer-style breakpoints (Tablet up to 1199 px, Phone up to 809 px).

@@ -26,6 +26,7 @@ import {
 } from '../model/document.ts';
 import { useEditor, useEditorState } from './editor-context.ts';
 import { ClassIcon, Icon } from './icons.tsx';
+import { componentName, getComponent, isCopyRoot } from '../model/linked.ts';
 import { InsertMenu } from './InsertMenu.tsx';
 import { ObjectMenu } from './ObjectMenu.tsx';
 import { SidePanel } from './Panel.tsx';
@@ -281,6 +282,10 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
               hidden = !resolveProps(doc, inst, editor.breakpointFor(inst.id)).Visible;
             const canInsert = kind !== 'root' && kind !== 'setting' && kind !== 'modifier';
             const ins = canInsert ? insertableInto(doc, row.id) : null;
+            const comp = isCopyRoot(doc, inst)
+              ? getComponent(doc, inst.copyOf!.component)
+              : undefined;
+            const copyOfName = comp && componentName(comp);
             const cls = ['row'];
             if (sel) cls.push('sel');
             if (inside) cls.push('sub');
@@ -299,7 +304,7 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
                 aria-selected={sel}
                 aria-expanded={row.hasKids ? row.open : undefined}
                 aria-level={row.depth + 1}
-                aria-label={name}
+                aria-label={copyOfName ? `${name}, copy of ${copyOfName}` : name}
                 data-id={row.id}
                 tabIndex={focusable ? 0 : -1}
                 title={inst.className}
@@ -366,6 +371,11 @@ export function Explorer({ open, onClose }: { open: boolean; onClose: () => void
                     name
                   )}
                 </span>
+                {copyOfName && (
+                  <span className="cmark" title={`Copy of ${copyOfName}`}>
+                    <Icon name="component" />
+                  </span>
+                )}
                 <span className="ra">
                   {ins && (ins.objects.length > 0 || ins.modifiers.length > 0) && (
                     <button

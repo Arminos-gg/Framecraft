@@ -92,6 +92,29 @@ for (const scheme of ['light', 'dark'] as const)
     expect(await axe(page)).toEqual([]);
   });
 
+for (const scheme of ['light', 'dark'] as const)
+  test(`axe finds nothing on linked copies in the ${scheme} theme`, async ({ page }) => {
+    test.slow();
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto('/');
+    await select(page, 'Headline');
+    await page.keyboard.press('Control+Alt+k');
+    await page.keyboard.press('Control+d');
+    await page.evaluate(() => {
+      const ed = window.framecraft!;
+      ed.setProp(ed.state.selection!, 'Text', 'Its own words');
+    });
+    // The Explorer's mark, the copy's bar in Properties and the dot on its own text.
+    await expect(page.getByRole('group', { name: 'Copy of Headline' })).toBeVisible();
+    expect(await axe(page)).toEqual([]);
+    await page.getByRole('button', { name: 'Components', exact: true }).click();
+    const drawer = page.getByRole('region', { name: 'Components' });
+    await drawer.getByRole('button', { name: /^Yours/ }).click();
+    await drawer.locator('.ccard[data-your-component]').click();
+    await expect(page.locator('[data-add-copy]')).toBeVisible();
+    expect(await axe(page)).toEqual([]);
+  });
+
 test('axe finds nothing in the exported sites', async ({ page }) => {
   // The pages link Google Fonts; the fallback fonts measure close enough for contrast.
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());

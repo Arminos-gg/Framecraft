@@ -3596,3 +3596,55 @@ button.bpdot.on:hover {
     background: var(--accent-faint);
   }
 }
+
+/* Linked components: the mark on a copy's row in the Explorer. */
+.row .nm:has(+ .cmark) {
+  flex: 0 1 auto;
+}
+.row .cmark {
+  display: inline-flex;
+  flex: none;
+  margin: 0 auto 0 5px;
+  color: var(--ico-mod);
+}
+.row .cmark svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Properties: the bar on an object in a linked copy, and the dot on its own values. */
+.compbar {
+  background: color-mix(in srgb, var(--ico-mod) 12%, transparent);
+}
+.compbar b {
+  color: var(--ico-mod);
+}
+.compbar .ctop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.compbar .ctop svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--ico-mod);
+}
+.compbar p {
+  margin: 4px 0 6px;
+  color: var(--muted);
+}
+.compbar .cbtns {
+  display: flex;
+  gap: 6px;
+}
+.compbar .btn svg {
+  width: 14px;
+  height: 14px;
+}
+.bpdot.cdot.on::after {
+  background: var(--ico-mod);
+}
+button.bpdot.cdot.on:hover {
+  background: color-mix(in srgb, var(--ico-mod) 14%, transparent);
+}

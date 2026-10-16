@@ -1,7 +1,7 @@
 /**
  * The right-click menu for objects, in the Explorer and the viewport: insert, rename, cut,
- * copy, paste, duplicate, group into a Folder, show or hide, and delete. Its actions work on
- * the whole selection, as the shortcuts do.
+ * copy, paste, duplicate, group into a Folder, show or hide, make a component or detach a
+ * copy, and delete. Its actions work on the whole selection, as the shortcuts do.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Editor } from '../editor/editor.ts';
@@ -9,6 +9,7 @@ import { insertableInto } from '../editor/insert.ts';
 import { isGui } from '../export/html.ts';
 import { classDef } from '../model/classes.ts';
 import { getInstance, resolveProps } from '../model/document.ts';
+import { copyHasChanges, copyRootOf } from '../model/linked.ts';
 import { useEditor, useEditorState } from './editor-context.ts';
 import { Icon, type IconName } from './icons.tsx';
 
@@ -90,6 +91,28 @@ function itemsFor(editor: Editor, onInsert?: () => void): Item[][] {
       icon: hidden ? 'eye' : 'eyeOff',
       run: () => editor.setSelectedVisible(hidden),
     });
+  const linked: Item[] = [];
+  const copy = copyRootOf(doc, inst.id);
+  if (!many && isGui(inst) && !copy)
+    linked.push({
+      label: 'Make component',
+      icon: 'component',
+      keys: key(MOD ? '⌥K' : 'Alt+K'),
+      run: () => editor.makeComponent(),
+    });
+  if (copy && !many && copyHasChanges(doc, copy.id))
+    linked.push({
+      label: 'Reset to component',
+      icon: 'reset',
+      run: () => editor.resetCopyChanges(copy.id),
+    });
+  if (selected.some((id) => copyRootOf(doc, id)))
+    linked.push({
+      label: 'Detach copy',
+      icon: 'detach',
+      keys: key(MOD ? '⌥B' : 'Alt+B'),
+      run: () => editor.detachSelection(),
+    });
   const last: Item[] = [];
   if (count)
     last.push({
@@ -99,7 +122,7 @@ function itemsFor(editor: Editor, onInsert?: () => void): Item[][] {
       danger: true,
       run: () => editor.deleteSelection(),
     });
-  return [first, clip, arrange, last].filter((g) => g.length);
+  return [first, clip, arrange, linked, last].filter((g) => g.length);
 }
 
 interface ObjectMenuProps {

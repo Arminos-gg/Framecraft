@@ -298,6 +298,11 @@ function handleKey(editor: Editor, e: KeyboardEvent, openExport: () => void) {
     return cycleRegion(e.shiftKey);
   }
   const { preview, selection, doc } = editor.state;
+  if (mod && e.altKey && !preview && (e.code === 'KeyK' || e.code === 'KeyB')) {
+    // Ctrl+Alt+K makes a component, Ctrl+Alt+B detaches a copy, as in Figma.
+    e.preventDefault();
+    return e.code === 'KeyK' ? editor.makeComponent() : editor.detachSelection();
+  }
   if (mod) {
     const action = {
       z: () => (e.shiftKey ? editor.redo() : editor.undo()),

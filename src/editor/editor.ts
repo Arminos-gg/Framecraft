@@ -29,7 +29,26 @@ import {
   type TextDecoration,
 } from '../model/classes.ts';
 import { FONT_WEIGHTS, type FontStyle, type FontWeight } from '../model/fonts.ts';
-import { batch, insert, move, remove, setPreview, type Command } from '../model/commands.ts';
+import {
+  batch,
+  insert,
+  move,
+  remove,
+  replace,
+  setPreview,
+  type Command,
+} from '../model/commands.ts';
+import {
+  componentName,
+  copiesOf,
+  copyRootOf,
+  deleteComponent,
+  detachCopy,
+  getComponent,
+  makeComponent,
+  newCopy,
+  resetCopy,
+} from '../model/linked.ts';
 import {
   childOfClass,
   childrenOf,
@@ -1364,6 +1383,142 @@ export class Editor {
       run: () => this.undo(),
     });
     return rootId;
+  }
+
+  /**
+   * Makes the selected object a component (Ctrl+Alt+K): it becomes the first copy, and its
+   * duplicates, pastes and the copies added from the Components drawer follow it.
+   */
+  makeComponent() {
+    const doc = this.doc;
+    const inst = this.#selected();
+    if (!inst || this.#state.selected.length > 1 || !isGui(inst))
+      return this.toast('Select one object, such as a Frame or a button, to make a component.');
+    const copy = copyRootOf(doc, inst.id);
+    if (copy?.id === inst.id) return this.toast(`${inst.props.Name} is already a component.`);
+    try {
+      const made = makeComponent(doc, inst.id);
+      if (!this.#execute(replace(made.patch))) return;
+    } catch (e) {
+      if (!(e instanceof ModelError)) throw e;
+      return this.toast(e.message);
+    }
+    this.toast(`${inst.props.Name} is a component now`, undefined, {
+      detail: 'Duplicate it, or add it from Components, for copies that change together.',
+      tone: 'done',
+    });
+  }
+
+  /** The selected copies' roots: each selected object that's in a linked copy, once. */
+  #selectedCopies(): AnyInstance[] {
+    const doc = this.doc;
+    const roots = new Map<InstanceId, AnyInstance>();
+    for (const id of this.#state.selected) {
+      const r = copyRootOf(doc, id);
+      if (r) roots.set(r.id, r);
+    }
+    return [...roots.values()];
+  }
+
+  /** Turns the selected copies back into plain objects (Ctrl+Alt+B). */
+  detachSelection() {
+    const roots = this.#selectedCopies();
+    if (!roots.length) return this.toast('Select a copy of a component to detach it.');
+    const instances = Object.assign({}, ...roots.map((r) => detachCopy(this.doc, r.id).instances));
+    if (!this.#execute(replace({ instances }))) return;
+    this.toast(
+      roots.length === 1
+        ? `${roots[0]!.props.Name} is a plain object now`
+        : `Detached ${roots.length} copies`,
+    );
+  }
+
+  /**
+   * Gives a copy's objects back the component's words, pictures and links: `key` on the
+   * object `id`, or all of them in the copy `id` is in.
+   */
+  resetCopyChanges(id: InstanceId, key?: string) {
+    if (!copyRootOf(this.doc, id)) return;
+    this.#execute(replace(resetCopy(this.doc, id, key === undefined ? undefined : [key])));
+  }
+
+  /** Where a linked copy lands: in the selection, like Insert, or else what the viewport shows. */
+  #copyParent(parentId: InstanceId | null): AnyInstance | undefined {
+    const doc = this.doc;
+    const scene = this.scene;
+    let parent = insertParent(doc, 'Frame', parentId);
+    // Beside a copy rather than in it: copies don't go inside copies.
+    const outer = parent && copyRootOf(doc, parent.id);
+    if (outer) parent = outer.parent === null ? undefined : getInstance(doc, outer.parent);
+    return (
+      parent ??
+      getInstance(doc, scene.view.kind === 'page' ? scene.view.pageId : (scene.roots[0] ?? ''))
+    );
+  }
+
+  /** The name of the object a linked copy would land in now, for the Add button. */
+  copyParentName(): string {
+    return this.#copyParent(this.#state.selection)?.props.Name ?? 'a new ScreenGui';
+  }
+
+  /** Adds a linked copy of one of the project's components and selects it. */
+  addCopy(componentId: string, parentId: InstanceId | null = this.#state.selection) {
+    const doc = this.doc;
+    const c = getComponent(doc, componentId);
+    if (!c) return null;
+    let parent = this.#copyParent(parentId);
+    const cmds: Command[] = [];
+    if (!parent) {
+      const starterGui = serviceOf(doc, 'StarterGui');
+      const layer = newSubtree(doc, 'ScreenGui', starterGui, rectOf(this.scene));
+      cmds.push(insert(starterGui.id, layer));
+      parent = layer.instances[layer.rootId]!;
+    }
+    const copy = newCopy(doc, componentId);
+    cmds.push(insert(parent.id, copy));
+    if (childOfClass(doc, parent.id, 'UIListLayout')) {
+      // Last in the list.
+      const siblings = childrenOf(doc, parent.id).filter(isGui);
+      const last = Math.max(0, ...siblings.map((s) => resolveProps(doc, s).LayoutOrder));
+      cmds.push(edit(copy.rootId, { LayoutOrder: last + 1 }, undefined));
+    } else {
+      // Nudged, so it doesn't hide another copy in the same place.
+      const nudge = (12 * copiesOf(doc, componentId).length) % 96;
+      const pos = copy.instances[copy.rootId]!.props as { Position: UDim2 };
+      const Position = [
+        pos.Position[0],
+        pos.Position[1] + nudge,
+        pos.Position[2],
+        pos.Position[3] + nudge,
+      ];
+      cmds.push(edit(copy.rootId, { Position }, undefined));
+    }
+    if (!this.#execute(batch(...cmds))) return null;
+    this.select(copy.rootId);
+    this.toast(`${componentName(c)} added to ${parent.props.Name}`, {
+      label: 'Undo',
+      run: () => this.undo(),
+    });
+    return copy.rootId;
+  }
+
+  /** Deletes one of the project's components; its copies stay as plain objects. */
+  deleteComponent(componentId: string) {
+    const c = getComponent(this.doc, componentId);
+    if (!c || !this.#execute(replace(deleteComponent(this.doc, componentId)))) return;
+    const after = this.doc;
+    this.toast(
+      `Deleted the ${componentName(c)} component`,
+      {
+        label: 'Undo',
+        run: () => {
+          if (this.doc !== after)
+            return this.toast('You’ve changed things since. Use Undo (Ctrl+Z).');
+          this.undo();
+        },
+      },
+      { tone: 'delete', detail: 'Its copies stay, as plain objects.' },
+    );
   }
 
   /** Reparents or reorders: `index` is the place among the new parent's other children. */

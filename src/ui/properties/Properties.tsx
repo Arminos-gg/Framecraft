@@ -20,6 +20,14 @@ import {
   type PropSpec,
 } from '../../model/classes.ts';
 import { getInstance, resolveProps, type AnyInstance } from '../../model/document.ts';
+import {
+  componentName,
+  copiesOf,
+  copyHasChanges,
+  copyRootOf,
+  getComponent,
+  ownChanges,
+} from '../../model/linked.ts';
 import { rgb } from '../../export/format.ts';
 import type { FontName, FontWeight } from '../../model/fonts.ts';
 import { valueEquals, type Color3, type Link } from '../../model/values.ts';
@@ -72,6 +80,57 @@ export function Properties({ open, onClose }: { open: boolean; onClose: () => vo
         />
       </div>
     </SidePanel>
+  );
+}
+
+/** Which component a copy follows, what an edit changes, and Reset and Detach. */
+function CopyBar(p: {
+  root: AnyInstance;
+  here: boolean;
+  name: string;
+  copies: number;
+  changed: boolean;
+}) {
+  const editor = useEditor();
+  return (
+    <div className="bpbar compbar" role="group" aria-label={`Copy of ${p.name}`}>
+      <div className="ctop">
+        <Icon name="component" />
+        <span>
+          {p.here ? 'Copy of ' : `In ${p.root.props.Name}, a copy of `}
+          <b>{p.name}</b> · {p.copies} {p.copies === 1 ? 'copy' : 'copies'}
+        </span>
+      </div>
+      <p>
+        Edits change every copy. Text, pictures and links stay this copy’s own
+        {p.here ? ', and so do its place, size and name.' : '.'}
+      </p>
+      <div className="cbtns">
+        {p.changed && (
+          <button
+            type="button"
+            className="btn"
+            title="Use the component’s text, pictures and links again"
+            onClick={() => editor.resetCopyChanges(p.root.id)}
+          >
+            <Icon name="reset" />
+            Reset
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn"
+          title="Make this copy plain objects that no longer follow the component"
+          onClick={() => {
+            editor.select(p.root.id);
+            editor.detachSelection();
+          }}
+        >
+          <Icon name="detach" />
+          Detach
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -176,6 +235,9 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
   const own: Readonly<Record<string, unknown>> = (bp && inst.overrides?.[bp]) || {};
   const box = scene.layout.get(inst.id);
   const listItem = !!box?.listItem;
+  const copyRoot = many ? undefined : copyRootOf(doc, inst.id);
+  const component = copyRoot && getComponent(doc, copyRoot.copyOf!.component);
+  const changedInCopy = copyRoot ? ownChanges(doc, inst) : [];
   const onSite = viewOf(doc, inst.id)?.kind === 'page' || inst.className === 'Site';
   const notes = notesFor(inst, values, listItem, onSite);
   const contrast = def.text ? textContrast(doc, scene, inst.id) : undefined;
@@ -238,7 +300,15 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
     const differs = mixed(key, v);
     if (differs) cls.push('mixed');
     const marker =
-      bpInst && isOverridable(inst.className, key) ? (
+      !many && changedInCopy.includes(key) && !(bpInst && isOverridable(inst.className, key)) ? (
+        <button
+          className="bpdot on cdot"
+          type="button"
+          aria-label={`${key} is this copy’s own. Use the component’s value`}
+          title="This copy’s own. Click to use the component’s value."
+          onClick={() => editor.resetCopyChanges(inst.id, key)}
+        />
+      ) : bpInst && isOverridable(inst.className, key) ? (
         here ? (
           <button
             className="bpdot on"
@@ -438,6 +508,15 @@ function PropsBody({ closed, onToggleCategory }: BodyProps) {
           <b>{bpInst.props.Name}</b>: layout, size, visibility, text size and colors change for{' '}
           {bpInst.props.Name} only. Other properties change everywhere.
         </div>
+      )}
+      {copyRoot && component && (
+        <CopyBar
+          root={copyRoot}
+          here={copyRoot.id === inst.id}
+          name={componentName(component)}
+          copies={copiesOf(doc, component.id).length}
+          changed={copyHasChanges(doc, copyRoot.id)}
+        />
       )}
       <label className="filter pf">
         <span className="sr">Filter properties</span>

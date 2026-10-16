@@ -575,7 +575,8 @@ export function Viewport() {
               // Into the object dropped on, or else what the viewport shows.
               const el = frameAt(e.target);
               if (el && el.dataset.device !== device.id) editor.setDevice(el.dataset.device!);
-              editor.addComponent(drag.def, drag.options, guiIdAt(e.target));
+              if ('copy' in drag) editor.addCopy(drag.copy, guiIdAt(e.target));
+              else editor.addComponent(drag.def, drag.options, guiIdAt(e.target));
               return;
             }
             if (!hasPictures(e.dataTransfer)) return;

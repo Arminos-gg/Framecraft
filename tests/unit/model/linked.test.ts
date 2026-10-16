@@ -58,6 +58,8 @@ const child = (doc: Doc, root: InstanceId, name: string): AnyInstance => {
   return found!;
 };
 const props = (inst: AnyInstance) => inst.props as Record<string, unknown>;
+const at = (doc: Doc, id: InstanceId, bp: InstanceId) =>
+  resolveProps(doc, doc.instances[id]!, bp) as Record<string, unknown>;
 const run = (h: History, cmd: Command) => {
   h.execute(cmd);
   expectValid(h.doc);
@@ -209,8 +211,8 @@ describe('linked components', () => {
     });
     const other = child(doc, copy.rootId, 'Title');
     expect(resolveProps(doc, other, phone)).toMatchObject({ TextSize: 10 });
-    expect(resolveProps(doc, doc.instances[card]!, phone).Size).toEqual([1, 0, 0, 80]);
-    expect(resolveProps(doc, doc.instances[copy.rootId]!, phone).Size).toEqual([0, 200, 0, 140]);
+    expect(at(doc, card, phone).Size).toEqual([1, 0, 0, 80]);
+    expect(at(doc, copy.rootId, phone).Size).toEqual([0, 200, 0, 140]);
   });
 
   it('resets a copy’s own text and detaches a copy', () => {
