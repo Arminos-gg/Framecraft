@@ -16,6 +16,24 @@ const selectedNames = (page: Page) =>
     const ed = window.framecraft!;
     return ed.state.selected.map((s) => ed.doc.instances[s]!.props.Name);
   });
+// The toolbar and the fit zoom change once the editor's fonts load and the view switches, so
+// wait for the fonts and then until a box stops moving.
+const settledBox = async (page: Page, selector: string) => {
+  await page.evaluate(() => document.fonts.ready);
+  let last = '';
+  await expect
+    .poll(
+      async () => {
+        const box = JSON.stringify(await page.locator(selector).boundingBox());
+        const settled = box === last;
+        last = box;
+        return settled;
+      },
+      { intervals: [50] },
+    )
+    .toBe(true);
+  return JSON.parse(last) as { x: number; y: number; width: number; height: number };
+};
 const row = (page: Page, name: string) => page.getByRole('treeitem', { name, exact: true });
 const showScreens = (page: Page) =>
   page.evaluate(() => {
@@ -173,9 +191,7 @@ test('adds to the selection with Shift, moves both, and right-clicks on the canv
 
 test('a box drawn from empty space selects what is inside it', async ({ page }) => {
   await showScreens(page);
-  const coins = (await page
-    .locator(`.screen .gui[data-id="${await idOf(page, 'Coins')}"]`)
-    .boundingBox())!;
+  const coins = await settledBox(page, `.screen .gui[data-id="${await idOf(page, 'Coins')}"]`);
   await page.mouse.move(coins.x + coins.width + 4, coins.y + coins.height + 6);
   await page.mouse.down();
   await page.mouse.move(coins.x - 10, coins.y - 10, { steps: 8 });

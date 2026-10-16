@@ -22,7 +22,7 @@ In a Claude Code cloud session, Playwright's Chromium is already installed, so s
 
 The editor works end to end in the browser as a static site. It has the viewport, Explorer, Properties, ribbon, live code view, templates, components, export and project files, with autosave. A project holds Roblox screens (StarterGui) and a website (Site with Pages and Tablet and Phone breakpoints). Exports are a website zip (the main output), Luau for Studio, a Roblox model file (.rbxmx) and a single HTML page of the Roblox screens.
 
-- Repo: https://github.com/Arminos-gg/Framecraft. `main` holds PRs #1 to #27, and #28 (live code view and the popup fix) is open for review.
+- Repo: https://github.com/Arminos-gg/Framecraft. `main` holds PRs #1 to #28 and the cleanup PR (flaky box-select test, ribbon width).
 - Vercel builds a preview of every branch at `framecraft-git-<branch>-yuh-83e9.vercel.app`. GitHub has no CI, so run `npm run build && npm test` before saying a change works. That's about 850 unit tests and 140 browser tests, and the browser tests take about 2 minutes.
 
 ## What's built, by pull request
@@ -45,6 +45,7 @@ The editor works end to end in the browser as a static site. It has the viewport
 - **#26:** Folders, multi-select, the right-click menu and panning.
 - **#27:** web extras, part two: forms, YouTube and map embeds, text decoration and case, gradient text, picture filters, cursors, smooth scrolling.
 - **#28:** the live code view (a Code panel under the viewport), and popups that grow to fit long messages.
+- **Cleanup (Oct 16):** the box-select browser test waits for fonts and a settled viewport; in windows up to 1480 px the ribbon's tools sit tighter and Convert units is two small buttons, so the ribbon fits a 1280 px window (a browser test checks it).
 
 ## How Armin works
 
@@ -59,8 +60,7 @@ The editor works end to end in the browser as a static site. It has the viewport
 ## Open items
 
 - **Share links:** projects need a server to be stored. Plan the server first and get his OK before building.
-- **Flaky tests:** the browser test where a label grows to fit its text sometimes failed. #24 made it wait for web fonts, which may have fixed it. "Follows a link from the keyboard in preview" failed once under load and then passed.
-- **Ribbon width:** with the Shapes, Components and Web buttons, the ribbon is wider than a 1280 px window and scrolls sideways.
+- **Flaky tests:** the browser test where a label grows to fit its text sometimes failed. #24 made it wait for web fonts, which may have fixed it. "Follows a link from the keyboard in preview" failed once under load and then passed. Tests that measure the viewport right after load should wait for `document.fonts.ready` and a settled box (see `settledBox` in `tests/e2e/selection.spec.ts`): the toolbar and the fit zoom shift once fonts load.
 - **Components:** Add makes a plain copy. Linked copies (edit once, change everywhere) are undecided.
 - **Folders** can't sit directly in StarterGui yet.
 - **Repo setting:** "Automatically delete head branches" was suggested on Oct 5. Turn it on if stacked PRs are wanted.
