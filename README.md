@@ -8,7 +8,7 @@ Design website layouts and Roblox interfaces in one editor, then export your wor
 
 <p align="center">
   <a href="https://framecraft-lake.vercel.app/">
-    <strong>Live Demo →</strong>
+    <strong>Live Demo</strong>
   </a>
 </p>
 
