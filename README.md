@@ -29,8 +29,6 @@ Design website layouts and Roblox interfaces in one editor, then export your wor
 
 ## Preview
 
-> Replace this section with screenshots or a GIF of the editor to showcase the interface.
-
 <img width="3423" height="1300" alt="image" src="https://github.com/user-attachments/assets/772d2a5d-066d-422f-9b25-da59004c76e6" />
 
 ## Getting Started
